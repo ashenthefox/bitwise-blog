@@ -65,6 +65,7 @@ Read it before you use or change the feature; `check` fails if a file named here
 - `feed.xml`, its autodiscovery link or the footer's Subscribe link? Read [`contracts/feed.md`](contracts/feed.md).
 - `sitemap.xml`, `robots.txt` or `404.html`? Read [`contracts/sitemap-robots-404.md`](contracts/sitemap-robots-404.md).
 - The footer's attribution link, `homepage`, `bh.siteName` or `bh.repoUrl`? Read [`contracts/attribution.md`](contracts/attribution.md).
+- The "Discuss this post" block, `bh:discuss`, `bh.discussionsUrl` or `bh.discussionCategory`? Read [`contracts/discuss.md`](contracts/discuss.md).
 - Fonts, Prism, Mermaid, `theme/vendor/`, `npm run vendor` or a CDN `<script>`? Read [`contracts/vendored-assets.md`](contracts/vendored-assets.md).
 - External links, `npm run links`, `links-allowlist.json` or the weekly link-check issue? Read [`contracts/external-links.md`](contracts/external-links.md).
 - GoatCounter, `GOATCOUNTER_CODE` or `npm run stats`? Read [`contracts/page-views.md`](contracts/page-views.md).
@@ -90,6 +91,7 @@ Some rules in those contracts guard what this public repo reveals, and no check 
   - optionally `bh:image` (which picture the social card shows; see [Social cards](contracts/social-cards.md))
   - optionally `bh:example` (`true` for an example page; see [Example pages](contracts/example-pages.md))
   - optionally `bh:unlisted` (`true` for an unlisted page; see [Unlisted pages](contracts/unlisted-pages.md))
+  - optionally `bh:discuss` (`off`, or the post's thread URL; see [Discuss this post](contracts/discuss.md))
   - the synchronous `<script src="…/theme/examples.js">` after the theme script, then
     `<script src="…/theme/unlisted.js">` (the `bh:unlisted` marker must come before it)
   - the generated social meta block between its two `bh:social` markers: leave it alone
