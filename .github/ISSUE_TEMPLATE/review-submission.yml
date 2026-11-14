@@ -1,0 +1,26 @@
+# Opened, prefilled, by the "Submit on GitHub" button in a page's Review panel (theme/modules/review.js).
+# The label triggers .github/workflows/review-submission.yml, which checks the review and proposes it as
+# a pull request into reviews/inbox/. Keep the label and the field's id and label equal to what
+# scripts/review-submission.mts and review.js expect (tests/review-submission.test.mts compares them).
+name: Submit a review
+description: Comments on a page, exported from its Review panel. A pull request adding them is prepared for you.
+title: "Review: "
+labels: ["review-submission"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The page's **Submit on GitHub** button fills in the field below. Press **Create** and a check runs: it
+        validates the review and proposes it as a pull request, then replies here. Once merged, your comments
+        appear on the page as threads that anyone can reply to.
+
+        This issue is public. Submitting it publishes your comments under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/),
+        like the rest of the blog's text.
+  - type: textarea
+    id: review
+    attributes:
+      label: Review file
+      description: The bh-review/1 file from the Review panel, unchanged. If the button said the review was too long for a link, paste it here.
+      render: json
+    validations:
+      required: true
