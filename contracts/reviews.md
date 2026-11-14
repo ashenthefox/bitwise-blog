@@ -6,7 +6,18 @@ Readers comment **on the page itself**: the top bar's Review button (or `?review
 them select text or use "+ Comment" on a section or block. Comments stay in their browser,
 reappear on later visits, and are exported from the Review panel as a `bh-review/1` file
 (`.json`, or `.json.gz`). The format is defined in `reviews/schema.json`. Reviewers submit a
-file by adding it to `reviews/inbox/` in a pull request. `check` validates every review file.
+file by adding it to `reviews/inbox/` in a pull request. `check` validates every review file
+against the schema and its own rules (`scripts/reviews.mts`).
+
+**Submitting from the page.** On a page the site lists, the panel's "Submit on GitHub" opens the
+issue form `.github/ISSUE_TEMPLATE/review-submission.yml` with the file filled in (a review too long
+for a link is downloaded, to paste into the form). Its `review-submission` label runs
+`.github/workflows/review-submission.yml`: `validate` (read-only) checks the review with the same
+code as `check`, writes it to `reviews/inbox/issue-<n>.json` and regenerates the review data;
+`propose` pushes `review-submission/issue-<n>` and opens the PR (or, while the repo does not let
+Actions open PRs, the reply links the compare page); `report` replies on the issue. The issue body is
+untrusted: never put `${{ github.event.issue.* }}` in a script or env var, and keep untrusted parsing
+in the read-only job (`tests/review-submission.test.mts` checks both).
 
 **Published threads.** Every review file in `reviews/` is compiled by `npm run index` into
 `theme/reviews.js`, so once a review PR is merged its comments show on the published page
