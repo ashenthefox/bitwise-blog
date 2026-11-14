@@ -146,7 +146,7 @@ const SITE_URL = String(process.env.BH_SITE_URL || PKG.homepage || "").replace(/
 const SITE_NAME = PKG.bh?.siteName || "Bitwise Engineering";
 const REPO_URL = String(process.env.BH_REPO_URL || PKG.bh?.repoUrl || "").replace(/\/*$/, "");
 const SHARED_CARD = "theme/logo/og.png"; // the home page's card, and the fallback for every other
-const SHARED_CARD_ALT = "Bitwise Engineering: functional programming, succinct data structures and AI workflows";
+const SHARED_CARD_ALT = "Bitwise Engineering: software engineering from the bits up, written as interactive pages";
 const LOGO_TILE = path.join(ROOT, "theme", "logo", "mark-tile.svg");
 const CARD_DIR = path.join(DOCS, "assets", "og");
 const CARD_W = 1200, CARD_H = 630;
