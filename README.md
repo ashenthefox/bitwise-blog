@@ -2,8 +2,8 @@
 
 # Bitwise Engineering
 
-A software engineering blog on **functional programming**, **succinct data structures** and
-**AI workflows**. Every post is a self-contained, interactive HTML page: explainers, design
+A software engineering blog on **compression**, **distributed systems**, **AI workflows**,
+**writing** and **communication**. Every post is a self-contained, interactive HTML page: explainers, design
 docs, decision records, incident reviews and change walkthroughs, with one consistent theme.
 
 **Live site: [bitwise.john-ky.io](https://bitwise.john-ky.io/)**
@@ -30,9 +30,13 @@ every page and key, so the rebrand changes the site's name and not these.
 
 ## Topics, examples and the site address
 
-- **Topics.** A post joins a topic by carrying its name in `bh:tags`: `functional
-  programming`, `succinct data structures` or `ai workflows`. The home page's topic chips
-  are built from those tags (a topic with no posts yet gets no chip).
+- **Topics.** A post joins a topic by carrying its name in `bh:tags`: `compression`,
+  `distributed systems`, `ai workflows`, `writing` or `communication`. The home page's topic
+  chips are built from those tags (a topic with no posts yet gets no chip). The blog states a
+  topic only once a public, listed post that is not an example carries its tag. Adding a topic is
+  a hand edit to `index.html` (a topic card, the `<bh-filter topics>` list, the lede and the
+  description), this list and the opening of `CLAUDE.md`: functional programming and succinct
+  data structures are added back that way when their first post lands.
 - **Examples.** These pages are worked examples of the document kinds, not posts
   (`check` compares this list with the pages that carry the marker):
   <!-- bh:examples -->
