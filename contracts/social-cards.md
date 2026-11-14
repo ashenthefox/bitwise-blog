@@ -25,8 +25,8 @@ nothing for this; two generated things do the work.
   `bundle` drops its `url` and `image` (the publisher's site link stays, like the footer's
   attribution link); `publish` refuses an unlisted page that carries one.
 - **The card image**, `docs/assets/og/<slug>.png`, 1200×630. `npm run cards` renders it in
-  the local Chrome (Node ≥ 22; `CHROME_PATH` if it isn't found, and it needs network for the
-  web fonts). It frames a **visual taken from the page itself** with the logo, the title, the
+  the local Chrome (Node ≥ 22; `CHROME_PATH` if it isn't found). It needs no network: the fonts
+  are the theme's own (`theme/fonts/`). It frames a **visual taken from the page itself** with the logo, the title, the
   kind and the date, so a bare diagram still says something in a chat unfurl. The visual is
   the first match of:
   1. `<meta name="bh:image" content="#element-id">` (an element on the page) or
@@ -42,7 +42,7 @@ nothing for this; two generated things do the work.
   explains the page first, or set `bh:image`.
 - **Staleness.** Each PNG records a hash (a `tEXt` chunk named `bh-card`) of the chosen
   visual's source and image files, the title, kind, date, site name, the page's `<style>`,
-  `theme/{tokens,base,layout,components,diagrams}.css`, `theme/bh.js`, the logo and
+  `theme/{fonts,tokens,base,layout,components,diagrams}.css`, the font files, `theme/bh.js`, the logo and
   `scripts/cards.mts` (plus `theme/modules/*.js` when the visual is a `<bh-…>` component).
   So a theme change makes every card stale: re-run `npm run cards` along with
   `npm run visual`. `check` recomputes the hash with no browser and fails on a missing,

@@ -1,11 +1,16 @@
 # Bitwise Engineering: house style
 
-This repo is the source of Bitwise Engineering, a software engineering blog on functional
-programming, succinct data structures and AI workflows. It produces technical documents as
+This repo is the source of Bitwise Engineering, a software engineering blog on compression,
+distributed systems, AI workflows, writing and communication. It produces technical documents as
 HTML pages that share one theme (the theme and toolkit keep the name **beautiful-html**, and
 the `bh` prefixes). These rules apply to every page, whether a person or an agent writes
 it. The live reference for every component is `docs/component-gallery.html`. Copy markup
 from it rather than inventing new markup.
+
+The visibility threat model (what example, unlisted and private pages and the corpus guard
+hide, from whom, and which check enforces each guarantee) is `docs/visibility-threat-model.html`.
+Judge any change that writes a page's title, path or text somewhere new against it, and update it
+when a visibility mechanism or its check changes.
 
 ## Workflow
 
@@ -28,7 +33,7 @@ Once per clone, run `npm run hooks`: it points `core.hooksPath` at the tracked `
 `pre-push` runs `leak-check --pushed`, which scans the blobs the pushed commits add (not the working tree) and
 blocks the push when one holds a run of 8+ words from the private corpus (see `corpus/README.md`). A checkout with no private data is not blocked: the
 hook says the check did not run, and `npm run advisor -- link <path>` fixes that (git worktrees don't share
-ignored files, so link each one). It is a local guard: `git push --no-verify` and merges made elsewhere skip it.
+ignored files, so link each one). It is a local guard: `git push --no-verify` and merges made elsewhere skip it. The `Leak check` workflow repeats it in CI against keyed hashes, `corpus/leak-hashes.txt`: regenerate them with `npm run advisor -- leak-hashes` when `leak-check` says they are stale.
 
 Run `npm run index` after **any** change to a document. It regenerates the catalogue, the
 social meta block and feed autodiscovery link in every page's `<head>`, `feed.xml`, `sitemap.xml`,
@@ -60,6 +65,7 @@ Read it before you use or change the feature; `check` fails if a file named here
 - `feed.xml`, its autodiscovery link or the footer's Subscribe link? Read [`contracts/feed.md`](contracts/feed.md).
 - `sitemap.xml`, `robots.txt` or `404.html`? Read [`contracts/sitemap-robots-404.md`](contracts/sitemap-robots-404.md).
 - The footer's attribution link, `homepage`, `bh.siteName` or `bh.repoUrl`? Read [`contracts/attribution.md`](contracts/attribution.md).
+- Fonts, Prism, Mermaid, `theme/vendor/`, `npm run vendor` or a CDN `<script>`? Read [`contracts/vendored-assets.md`](contracts/vendored-assets.md).
 - External links, `npm run links`, `links-allowlist.json` or the weekly link-check issue? Read [`contracts/external-links.md`](contracts/external-links.md).
 - GoatCounter, `GOATCOUNTER_CODE` or `npm run stats`? Read [`contracts/page-views.md`](contracts/page-views.md).
 - An interactive isometric figure (the `anatomy` skill, `figures/`, `embed.mjs`)? Read [`contracts/anatomy-figures.md`](contracts/anatomy-figures.md).
@@ -259,7 +265,7 @@ beats five decorative ones.
   compressed ciphertext) are not counted, so the budget bounds the page's own HTML and images, not
   everything it could load.
 - **`npm run a11y` runs axe-core on every public page, at desktop (1280px) and phone (390px) width, in light and dark** (needs Node ≥ 22 and a local
-  Chrome, like `visual`; `--only <text>` limits the pages; web fonts are always blocked, as in CI). Run it
+  Chrome, like `visual`; `--only <text>` limits the pages; the theme's font files are always blocked, as in CI). Run it
   after a theme, component or page change; CI runs it as the `a11y` job (about two minutes). Sealed pages are skipped.
   What it scans beyond the loaded page, and how `a11y-allowlist.json` counts findings: [`contracts/a11y.md`](contracts/a11y.md).
 
@@ -272,7 +278,7 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
   `check` now enforces this order and that imported files exist.
 - **Token contrast is checked.** `check` computes WCAG contrast for every
   text/background token pair, from the `light-dark()` values, in both themes
-  (`CONTRAST_PAIRS` in `scripts/bh.mts`). Add a pair there whenever a new token is
+  (`CONTRAST_PAIRS` in `scripts/check/contrast.mts`). Add a pair there whenever a new token is
   used as text on a new background.
 - **`!important` reverses inside cascade layers:** an important declaration in an *earlier*
   layer beats one in a later layer. Prefer specificity or layer order; use `!important`
@@ -291,6 +297,10 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
   `MODULES` in `bh.js` with the selector that triggers them. A module must be a classic
   script that uses `window.bh` and sets `window.bhModules[file] = true`. `bundle`
   inlines every module.
+- **The theme loads nothing from another host.** Fonts are in `theme/fonts/`, Prism and Mermaid in
+  `theme/vendor/<name>-<version>/`; only GoatCounter's deploy-time tag is third-party. `check` fails on a
+  remote `url()` or `@import`, and on another host's script or stylesheet without an exact version and
+  `integrity`. Upgrading or adding one: [`contracts/vendored-assets.md`](contracts/vendored-assets.md).
 - **Don't set up state only in observer callbacks.** `IntersectionObserver` and
   `ResizeObserver` fire on rendering frames, which can be throttled. Create observers and
   initial state synchronously during setup, and let callbacks refine them. A walkthrough
@@ -302,7 +312,7 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
   stroke rule in `components.css` loses to `.node.cN` in the later diagrams layer.
   `data-change` marks once rendered in the wrong colour for exactly this reason.
 - **Keep geometry constants in sync.** The arrowhead size in `bh.js` markers must equal
-  `ARROW_LEN` in `scripts/bh.mts`. The popup's `--gap` in `glossary.css` must equal
+  `ARROW_LEN` in `scripts/check/diagram-geometry.mts`. The popup's `--gap` in `glossary.css` must equal
   `GAP` in `bh.js`.
 - **Moving focus fires focus handlers synchronously.** Code that closes a popup and then
   focuses its trigger must stop the trigger's focus handler from reopening it. Esc once
