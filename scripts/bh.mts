@@ -24,6 +24,7 @@ import {
   renderCardsFile, parseCardsFile, validateCardsFile, mergeEntries, docCardHtml,
 } from "./private-cards.mts";
 import { pageWeight, pageSizeFinding } from "./page-size.mts";
+import { reviewFiles, readReview, canonicalDocument, isPrivateDocument, reviewRecord, sameReviewMessage, reviewProblems, isSealedFile } from "./reviews.mts";
 import { stripComments, VOID_TAGS, parseTree, nodeAttr, hasClass, walkTree, findNode, nodeText } from "./html-tree.mts";
 import { arrowTipFindings, diagramLabelFindings } from "./check/diagram-geometry.mts";
 import { contrastFindings } from "./check/contrast.mts";
@@ -31,7 +32,7 @@ import { feedContent, feedInteractives } from "./feed-content.mts";
 import { LEAK_ALLOWED } from "./leak-allowed.mts";
 import { remoteAssetProblems, themeRemoteProblems, vendoredPrismLanguages, codeLanguageProblems } from "./remote-assets.mts";
 import { VENDOR } from "./vendor.mts";
-import type { Doc, SocialMeta, JsonLd, Visual, CardJob, GlossaryEntry, TreeNode, ReviewComment, ReviewFile, ReviewRecord, OpItem, Finding } from "./types.mts";
+import type { Doc, SocialMeta, JsonLd, Visual, CardJob, GlossaryEntry, TreeNode, ReviewFile, ReviewRecord, OpItem, Finding } from "./types.mts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DOCS = path.join(ROOT, "docs");
@@ -82,7 +83,7 @@ function allDocFiles(): string[] {
 }
 
 const isPrivateSource = (file: string) => file.endsWith(PRIVATE_EXT);
-const isSealed = (file: string) => !isPrivateSource(file) && /<meta\s+name="bh:sealed"/i.test(fs.readFileSync(file, "utf8"));
+const isSealed = (file: string) => !isPrivateSource(file) && isSealedFile(file);
 
 /** Public documents only: every page that is published, unlisted ones included. */
 function docFiles(): string[] {
@@ -1206,60 +1207,16 @@ function cssImportProblems(file: string): string[] {
   return out;
 }
 
-// ---- review files ---------------------------------------------------------------------
-
-function reviewFiles(dir = path.join(ROOT, "reviews")): string[] {
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-    const p = path.join(dir, e.name);
-    return e.isDirectory() ? reviewFiles(p) : /\.json(\.gz)?$/.test(e.name) && e.name !== "schema.json" ? [p] : [];
-  });
-}
-
-/** Read a review file (plain or gzipped JSON). */
-function readReview(file: string): ReviewFile {
-  const buf = fs.readFileSync(file);
-  return JSON.parse((file.endsWith(".gz") ? zlib.gunzipSync(buf) : buf).toString("utf8"));
-}
-
-/** A review's `document` as a clean site-root path ("docs/x.html"), so "./docs/x.html" and "/docs/x.html" key the same thread list. */
-function canonicalDocument(document: string | undefined): string {
-  return typeof document === "string" ? path.posix.normalize(document.replace(/\\/g, "/")).replace(/^\/+/, "") : document!; // untrusted JSON: not necessarily a string (only `undefined` is typed here)
-}
-
-/**
- * True when a review's `document` is a private page: its plaintext source
- * (docs/<slug>.private.html, whether or not it exists here) or the sealed shell
- * (docs/<slug>.html carrying bh:sealed). Both repo and Pages site are public, so
- * nothing about such a page, quotes and comment bodies included, may be published.
- */
-function isPrivateDocument(document: unknown): boolean {
-  if (typeof document !== "string") return false;
-  const rel = path.posix.normalize(document.replace(/\\/g, "/"));
-  if (rel.endsWith(PRIVATE_EXT)) return true;
-  const file = path.join(ROOT, rel);
-  return file.startsWith(DOCS + path.sep) && fs.existsSync(file) && fs.statSync(file).isFile() && isSealed(file);
-}
-
-/** Export-time location status is not part of a message; attribution is. */
-function reviewRecord(cm: ReviewComment, review: ReviewFile): ReviewRecord {
-  const { outdated, ...keep } = cm;
-  void outdated;
-  return { ...keep, author: cm.author || review.reviewer || null };
-}
-
-function sameReviewMessage(a: { document: string; record: ReviewRecord }, b: { document: string; record: ReviewRecord }): boolean {
-  return a.document === b.document && isDeepStrictEqual(a.record, b.record);
-}
+// ---- review files (helpers and the validator are in reviews.mts) ---------------------
 
 /** Every merged comment and reply, grouped by document, oldest first → theme/reviews.js. */
 function compileReviews() {
   const byDoc: Record<string, (ReviewRecord & { file: string })[]> = {}, ids = new Map<string, { document: string; record: ReviewRecord }>();
-  for (const file of reviewFiles().sort()) {
+  for (const file of reviewFiles(ROOT).sort()) {
     let r: ReviewFile;
     try { r = readReview(file); } catch { continue; } // reported by reviewProblems()
     if (r.format !== "bh-review/1" || !Array.isArray(r.comments)) continue;
-    if (isPrivateDocument(r.document)) continue; // reported by reviewProblems(); never published
+    if (isPrivateDocument(ROOT, r.document)) continue; // reported by reviewProblems(); never published
     const docKey = canonicalDocument(r.document);
     for (const cm of r.comments) {
       const record = reviewRecord(cm, r);
@@ -1289,44 +1246,6 @@ function compileReviews() {
     js: header + "window.BH_REVIEWS = " + JSON.stringify(split(false), null, 1) + ";\n",
     unlistedJs: header + "window.BH_REVIEWS = " + JSON.stringify(split(true), null, 1) + ";\n",
   };
-}
-
-function reviewProblems(): string[] {
-  const out: string[] = [];
-  const ids = new Map<string, { rel: string; document: string; record: ReviewRecord }>(), replies: [string, string, string][] = [];
-  for (const file of reviewFiles().sort()) {
-    const rel = path.relative(ROOT, file);
-    let r: ReviewFile;
-    try { r = readReview(file); } catch (e) { out.push(`${rel}: not readable JSON (${(e as Error).message})`); continue; }
-    if (r.format !== "bh-review/1") { out.push(`${rel}: format must be "bh-review/1"`); continue; }
-    if (isPrivateDocument(r.document)) {
-      out.push(`${rel}: reviews "${r.document}", a private page. The repo and the published site are public, so keep this review file out of the repo (send it to the author privately)`);
-      continue;
-    }
-    if (!r.document || !fs.existsSync(path.join(ROOT, r.document))) out.push(`${rel}: document "${r.document}" doesn't exist`);
-    else if (canonicalDocument(r.document) !== r.document) out.push(`${rel}: document "${r.document}" should be written as "${canonicalDocument(r.document)}" (a path from the site root)`);
-    if (!Array.isArray(r.comments)) { out.push(`${rel}: comments must be an array`); continue; }
-    r.comments.forEach((cm, i) => {
-      const where = `${rel}: comment ${i + 1}`;
-      if (!cm.id || !cm.body) out.push(`${where} needs id and body`);
-      else if (!cm.inReplyTo && !cm.target) out.push(`${where} needs a target (or inReplyTo for a reply)`);
-      else if (!(["comment", "suggestion", "question", "blocker"] as (string | undefined)[]).includes(cm.kind)) out.push(`${where}: kind "${cm.kind}" is unknown`);
-      else if (cm.target && cm.target.quote && typeof cm.target.quote.exact !== "string") out.push(`${where}: target.quote.exact must be text`);
-      if (typeof cm.created !== "string" || Number.isNaN(Date.parse(cm.created))) out.push(`${where}: created must be an ISO date-time`);
-      if (cm.id) {
-        const message = { rel, document: canonicalDocument(r.document), record: reviewRecord(cm, r) };
-        if (ids.has(cm.id)) {
-          if (!sameReviewMessage(ids.get(cm.id)!, message)) out.push(`${where}: id "${cm.id}" is also used in ${ids.get(cm.id)!.rel} with different content or document`);
-        } else ids.set(cm.id, message);
-      }
-      if (cm.inReplyTo) replies.push([where, cm.inReplyTo, canonicalDocument(r.document)]);
-    });
-  }
-  for (const [where, parent, document] of replies) {
-    if (!ids.has(parent)) out.push(`${where}: replies to "${parent}", which isn't in any review file`);
-    else if (ids.get(parent)!.document !== document) out.push(`${where}: replies to "${parent}", which is a comment on ${ids.get(parent)!.document}, not ${document}`);
-  }
-  return out;
 }
 
 // ---- check ------------------------------------------------------------------------
@@ -1401,8 +1320,8 @@ function cmdCheck(skipKeys = false): void {
 
   // Review files (reviews/**/*.json[.gz]) are well-formed and point at real documents.
   {
-    const problems = reviewProblems();
-    const n = reviewFiles().length;
+    const problems = reviewProblems(ROOT);
+    const n = reviewFiles(ROOT).length;
     if (n || problems.length) {
       console.log((problems.length ? c.red("✗ ") : c.green("✓ ")) + `reviews (${n} file${n === 1 ? "" : "s"})`);
       problems.forEach((p) => console.log(c.red("  error  ") + p));
