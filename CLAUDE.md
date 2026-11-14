@@ -1,7 +1,7 @@
 # Bitwise Engineering: house style
 
-This repo is the source of Bitwise Engineering, a software engineering blog on functional
-programming, succinct data structures and AI workflows. It produces technical documents as
+This repo is the source of Bitwise Engineering, a software engineering blog on compression,
+distributed systems, AI workflows, writing and communication. It produces technical documents as
 HTML pages that share one theme (the theme and toolkit keep the name **beautiful-html**, and
 the `bh` prefixes). These rules apply to every page, whether a person or an agent writes
 it. The live reference for every component is `docs/component-gallery.html`. Copy markup
