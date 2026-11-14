@@ -7,7 +7,9 @@
 //                           reviews/inbox/issue-<n>.json, run `bh.mts index`, and copy that file and the
 //                           regenerated review data to <dir>/files. Always writes <dir>/result.json.
 //   apply --from <dir>      copy those files (a fixed list, never a path from the issue) into the checkout
-//   propose                 open the pull request for the branch, or say where to open it by hand
+//   propose                 open the pull request for the branch (or say where to open it by hand), and
+//                           start CI on the branch, which a PR opened by Actions would not start
+//   withdraw                after an edit made the review invalid: close its PR and delete its branch
 //   report                  post (or update) the one comment on the issue that says what happened
 //
 // The issue body is untrusted. It is read from the event file, never from an expression or an env
@@ -96,8 +98,12 @@ export function validateSubmission(root: string, body: unknown, number: number):
   let review: unknown;
   try { review = JSON.parse(extracted.json); } catch (e) { return fail([`The review is not valid JSON: ${(e as Error).message}`]); }
   const rel = reviewPath(number);
+  const all = reviewProblems(root, { extra: [{ rel, review }] });
+  // Without the schema nothing was checked: fail rather than accept.
+  const broken = all.find((p) => p.startsWith("reviews/schema.json:"));
+  if (broken) throw new Error(broken);
   // Problems with files already in the repo are not this reader's to fix; problems with theirs start with its path.
-  const problems = reviewProblems(root, { extra: [{ rel, review }] }).filter((p) => p.startsWith(rel + ":"));
+  const problems = all.filter((p) => p.startsWith(rel + ":"));
   const r = review as ReviewFile;
   if (!problems.length && Array.isArray(r.comments) && !r.comments.length) problems.push(`${rel}: has no comments`);
   if (problems.length) return fail(problems);
@@ -141,7 +147,7 @@ export function applySubmission(root: string, from: string, number: number): str
 
 // ---- talking to GitHub -------------------------------------------------------------------------
 
-export type Fetch = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
+export type Fetch = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
 interface Api { repo: string; token: string; fetch?: Fetch; api?: string }
 
@@ -150,6 +156,7 @@ async function call({ repo, token, fetch: f = globalThis.fetch as unknown as Fet
     method,
     headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28", "content-type": "application/json", "user-agent": "bh-review-submission" },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    signal: AbortSignal.timeout(30_000), // fail by name, well inside the job's timeout
   });
   let data: unknown = null;
   try { data = await res.json(); } catch { /* no body */ }
@@ -167,7 +174,7 @@ export function pullRequestBody(result: SubmissionResult): string {
     "",
     "The review-submission workflow validated it with the rules `npm run check` applies to review files. Read the comments before merging: merging publishes them on the page.",
     "",
-    "GitHub does not start other workflows for a pull request that GitHub Actions opens, so CI has not run here: close and reopen this pull request to run it.",
+    "GitHub does not start CI for a pull request that GitHub Actions opens, so the workflow started CI on this branch itself. If `main` has moved since, update the branch, run `npm run index`, and let CI run again before merging: the regenerated review data here was built from `main` as it was.",
     "",
     `Closes #${result.number}`,
   ].join("\n");
@@ -185,6 +192,29 @@ export async function proposePullRequest(api: Api, result: SubmissionResult, bas
   if (made.ok && typeof url === "string" && PR_URL.test(url)) return { prUrl: url };
   const message = (made.data as { message?: unknown } | null)?.message;
   return { compareUrl: `https://github.com/${api.repo}/compare/${encodeURIComponent(base)}...${head}?expand=1`, reason: `HTTP ${made.status}${typeof message === "string" ? `: ${message}` : ""}` };
+}
+
+/** Start CI (ci.yml has `workflow_dispatch`) on the branch. Events made with the Actions token start no workflows, except a dispatch. */
+export async function dispatchChecks(api: Api, branch: string, workflow = "ci.yml"): Promise<boolean> {
+  return (await call(api, "POST", `/actions/workflows/${workflow}/dispatches`, { ref: branch })).ok;
+}
+
+/** An edit made the review invalid: close the pull request proposed from the earlier version and delete its branch. */
+export async function withdrawPullRequest(api: Api, number: number): Promise<{ closed: number; deleted: boolean }> {
+  if (!REPO.test(api.repo)) throw new Error(`not a repository: ${api.repo}`);
+  const head = branchFor(number), owner = api.repo.split("/")[0];
+  const open = await call(api, "GET", `/pulls?state=open&head=${encodeURIComponent(`${owner}:${head}`)}`);
+  if (!open.ok || !Array.isArray(open.data)) throw new Error(`listing pull requests failed: HTTP ${open.status}`);
+  let closed = 0;
+  for (const pr of open.data as { number?: unknown }[]) {
+    if (!isIssueNumber(pr.number)) continue;
+    const res = await call(api, "PATCH", `/pulls/${pr.number}`, { state: "closed" });
+    if (!res.ok) throw new Error(`closing #${pr.number} failed: HTTP ${res.status}`);
+    closed++;
+  }
+  const del = await call(api, "DELETE", `/git/refs/heads/${head}`);
+  if (!del.ok && del.status !== 404 && del.status !== 422) throw new Error(`deleting ${head} failed: HTTP ${del.status}`);
+  return { closed, deleted: del.ok };
 }
 
 // ---- the comment on the issue -------------------------------------------------------------------
@@ -207,6 +237,8 @@ export function codeBlock(lines: string[], maxLines = 30): string {
 export interface ReportInput {
   result: SubmissionResult | null; // null: validate did not finish
   validate: string; // needs.validate.result: "success" when it finished
+  unchanged?: boolean; // main already holds exactly this review
+  withdrawn?: boolean; // an earlier version's pull request was closed
   prUrl?: string;
   compareUrl?: string;
   runUrl?: string;
@@ -226,10 +258,13 @@ export function reportBody(input: ReportInput): string {
       "",
       "Edit this issue to fix it: the check runs again on every edit. The **Review file** field must hold the whole file that the page's Review panel exports, unchanged. A review that is too large for an issue can instead be added to `reviews/inbox/` in a pull request.",
     );
+    if (input.withdrawn) out.push("", "The pull request proposed from the earlier version of this issue was closed.");
   } else {
     const doc = safeDocument(result.document);
     const what = `Your review (${result.comments} comment${result.comments === 1 ? "" : "s"}${doc ? ` on \`${doc}\`` : ""}) passed the checks`;
-    if (input.prUrl && PR_URL.test(input.prUrl)) {
+    if (input.unchanged) {
+      out.push(`${what}. The repository already holds exactly this review, so there is nothing new to propose.`);
+    } else if (input.prUrl && PR_URL.test(input.prUrl)) {
       out.push(`${what}, and ${input.prUrl} proposes adding it. Once it is merged, your comments appear on the page for every reader, and this issue closes.`);
     } else if (input.compareUrl && input.compareUrl.startsWith("https://github.com/") && !/[\s()<>]/.test(input.compareUrl)) {
       out.push(`${what} and is on the branch \`${branchFor(result.number)}\`. GitHub Actions may not open pull requests in this repository, so a maintainer will [open the pull request](${input.compareUrl}). Once it is merged, your comments appear on the page for every reader.`);
@@ -289,18 +324,24 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     const base = e.repository?.default_branch && /^[\w./-]+$/.test(e.repository.default_branch) ? e.repository.default_branch : "main";
     const got = await proposePullRequest({ repo: env("GITHUB_REPOSITORY"), token: env("GITHUB_TOKEN") }, { ...result, number: n }, base);
     if (got.reason) console.log(`::notice::No pull request opened (${clean(got.reason)}); the comment links the compare page instead`);
+    if (!(await dispatchChecks({ repo: env("GITHUB_REPOSITORY"), token: env("GITHUB_TOKEN") }, branchFor(n)))) console.log("::warning::Could not start CI on the branch; close and reopen the pull request to run it");
     output({ pr_url: got.prUrl ?? "", compare_url: got.compareUrl ?? "" });
+  } else if (cmd === "withdraw") {
+    const got = await withdrawPullRequest({ repo: env("GITHUB_REPOSITORY"), token: env("GITHUB_TOKEN") }, n);
+    console.log(`Closed ${got.closed} pull request(s); branch ${got.deleted ? "deleted" : "not present"}`);
+    output({ withdrawn: String(got.closed > 0) });
   } else if (cmd === "report") {
     let result: SubmissionResult | null = null;
     try { result = JSON.parse(fs.readFileSync(path.join(arg(args, "--from"), "result.json"), "utf8")) as SubmissionResult; } catch { /* validate did not finish */ }
     if (result) result.number = n;
     const body = reportBody({
       result, validate: process.env.VALIDATE_RESULT ?? "",
+      unchanged: process.env.UNCHANGED === "true", withdrawn: process.env.WITHDRAWN === "true",
       prUrl: process.env.PR_URL, compareUrl: process.env.COMPARE_URL, runUrl: process.env.RUN_URL,
     });
     console.log(await postReport({ repo: env("GITHUB_REPOSITORY"), token: env("GITHUB_TOKEN") }, n, body));
   } else {
-    console.error("usage: review-submission.mts validate --out <dir> | apply --from <dir> | propose --from <dir> | report --from <dir>");
+    console.error("usage: review-submission.mts validate --out <dir> | apply --from <dir> | propose --from <dir> | withdraw | report --from <dir>");
     return 2;
   }
   return 0;

@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 import { schemaProblems, readSchema, SCHEMA_KEYWORDS, SCHEMA_ANNOTATIONS, reviewProblems, type Schema } from "../scripts/reviews.mts";
 import {
-  extractReview, validateSubmission, prepareSubmission, applySubmission, reportBody, codeBlock, postReport, proposePullRequest,
+  dispatchChecks, withdrawPullRequest, extractReview, validateSubmission, prepareSubmission, applySubmission, reportBody, codeBlock, postReport, proposePullRequest,
   reviewPath, branchFor, GENERATED, MARKER, BOT_LOGIN, LABEL, FIELD_LABEL, MAX_REVIEW_BYTES, type Fetch, type SubmissionResult,
 } from "../scripts/review-submission.mts";
 
@@ -252,7 +252,7 @@ test("the pull request is opened, reused, or replaced by a compare link when Git
   assert.equal(post.head, "review-submission/issue-8");
   assert.equal(post.base, "main");
   assert.match(post.body, /Closes #8/);
-  assert.match(post.body, /close and reopen/);
+  assert.match(post.body, /started CI on this branch/);
   const made = fakeApi({ [`GET ${API}/pulls`]: () => [200, []], [`POST ${API}/pulls`]: () => [201, { html_url: "https://github.com/o/r/pull/77" }] });
   assert.deepEqual(await proposePullRequest({ repo: "o/r", token: "t", fetch: made.fetch }, result, "main"), { prUrl: "https://github.com/o/r/pull/77" });
   const open = fakeApi({ [`GET ${API}/pulls`]: () => [200, [{ html_url: "https://github.com/o/r/pull/5" }]] });
@@ -272,7 +272,8 @@ test("no untrusted issue text reaches a script, and each job has only the permis
   assert.deepEqual(workflow.permissions, {});
   assert.deepEqual(Object.fromEntries(Object.entries(workflow.jobs).map(([name, job]) => [name, job.permissions])), {
     validate: { contents: "read" },
-    propose: { contents: "write", "pull-requests": "write" },
+    propose: { contents: "write", "pull-requests": "write", actions: "write" },
+    withdraw: { contents: "write", "pull-requests": "write" },
     report: { contents: "read", issues: "write" },
   });
   for (const [name, job] of Object.entries(workflow.jobs)) {
@@ -284,6 +285,9 @@ test("no untrusted issue text reaches a script, and each job has only the permis
   }
   assert.match(workflow.jobs.validate.if!, new RegExp(`contains\\(github\\.event\\.issue\\.labels\\.\\*\\.name, '${LABEL}'\\)`));
   assert.equal(workflow.jobs.propose.if, "needs.validate.outputs.ok == 'true'");
+  assert.equal(workflow.jobs.withdraw.if, "needs.validate.outputs.ok == 'false'");
+  // The jobs that can write never run code on the issue's text: they only copy validate's fixed list of files.
+  for (const name of ["propose", "withdraw"]) assert.ok(!workflow.jobs[name].steps.some((s) => /\bvalidate\b/.test(s.run ?? "")), name);
   // Only the read-only job runs code on the issue's text; it keeps no token in the checkout.
   assert.equal(workflow.jobs.validate.steps.find((s) => s.uses?.startsWith("actions/checkout"))?.with?.["persist-credentials"], false);
 });
@@ -297,4 +301,40 @@ test("the issue form, the script and the page's Submit button agree on the label
   const page = fs.readFileSync(path.join(source, "theme/modules/review.js"), "utf8");
   assert.match(page, new RegExp(`ISSUE_FORM = "review-submission\\.yml", ISSUE_FIELD = "${field.id}"`));
   assert.match(page, new RegExp(`MAX_ISSUE_REVIEW = ${MAX_REVIEW_BYTES}\\b`));
+});
+
+// ---- edits, re-submissions and a broken checkout -----------------------------------------------------
+
+test("an edit replaces the issue's own earlier file instead of colliding with it", (t) => {
+  const root = miniSite(t);
+  fs.writeFileSync(path.join(root, reviewPath(12)), JSON.stringify(review({}, [{ ...comment, id: "mine" }])));
+  assert.equal(validateSubmission(root, formBody(JSON.stringify(review({}, [{ ...comment, id: "mine", body: "Edited" }]))), 12).ok, true);
+  assert.equal(validateSubmission(root, formBody(JSON.stringify(review({}, [{ ...comment, id: "mine", body: "Edited" }]))), 13).ok, false);
+});
+
+test("without a readable schema nothing is accepted", (t) => {
+  const root = miniSite(t);
+  fs.writeFileSync(path.join(root, "reviews/schema.json"), "{broken");
+  assert.throws(() => validateSubmission(root, formBody(JSON.stringify(review())), 7), /reviews\/schema\.json: not readable/);
+});
+
+test("a review already merged, or one withdrawn by an edit, says so in the reply", () => {
+  const ok: SubmissionResult = { ok: true, number: 4, problems: [], document, comments: 1 };
+  assert.match(reportBody({ result: ok, validate: "success", unchanged: true }), /already holds exactly this review/);
+  assert.match(reportBody({ result: { ok: false, number: 4, problems: ["x"] }, validate: "success", withdrawn: true }), /earlier version of this issue was closed/);
+  assert.doesNotMatch(reportBody({ result: { ok: false, number: 4, problems: ["x"] }, validate: "success" }), /was closed/);
+});
+
+test("withdrawing closes the branch's open pull request and deletes the branch; CI is started by dispatch", async () => {
+  const api = fakeApi({
+    [`GET ${API}/pulls`]: () => [200, [{ number: 31 }]],
+    [`PATCH ${API}/pulls/31`]: (b) => { assert.deepEqual(b, { state: "closed" }); return [200, {}]; },
+    [`DELETE ${API}/git/refs/heads/review-submission/issue-6`]: () => [204, null],
+    [`POST ${API}/actions/workflows/ci.yml/dispatches`]: (b) => { assert.deepEqual(b, { ref: "review-submission/issue-6" }); return [204, null]; },
+  });
+  assert.deepEqual(await withdrawPullRequest({ repo: "o/r", token: "t", fetch: api.fetch }, 6), { closed: 1, deleted: true });
+  assert.deepEqual(api.calls.map((c) => c.method), ["GET", "PATCH", "DELETE"]);
+  assert.equal(await dispatchChecks({ repo: "o/r", token: "t", fetch: api.fetch }, branchFor(6)), true);
+  const none = fakeApi({ [`GET ${API}/pulls`]: () => [200, []], [`DELETE ${API}/git/refs`]: () => [422, { message: "Reference does not exist" }] });
+  assert.deepEqual(await withdrawPullRequest({ repo: "o/r", token: "t", fetch: none.fetch }, 6), { closed: 0, deleted: false });
 });

@@ -12,7 +12,6 @@ import { isDeepStrictEqual } from "node:util";
 import type { ReviewComment, ReviewFile, ReviewRecord } from "./types.mts";
 
 export const PRIVATE_EXT = ".private.html";
-export const REVIEW_KINDS = ["comment", "suggestion", "question", "blocker"] as const;
 
 /** True when the file is a sealed (encrypted) private page: it carries the `bh:sealed` meta. */
 export const isSealedFile = (file: string): boolean => /<meta\s+name="bh:sealed"/i.test(fs.readFileSync(file, "utf8"));
@@ -138,7 +137,7 @@ export function schemaProblems(value: unknown, schema: Schema, at = ""): string[
 
 // ---- the rules `check` applies ----------------------------------------------------------------
 
-/** A review that is not (yet) a file under reviews/: the workflow's candidate, at the path it would get. */
+/** A review that is not (yet) a file under reviews/: the workflow's candidate, at the path it would get (it replaces a file already there). */
 export interface ReviewCandidate { rel: string; review: unknown }
 
 /**
@@ -147,8 +146,9 @@ export interface ReviewCandidate { rel: string; review: unknown }
  */
 export function reviewProblems(root: string, { extra = [] }: { extra?: ReviewCandidate[] } = {}): string[] {
   const out: string[] = [];
+  const replaced = new Set(extra.map((c) => c.rel));
   const entries: { rel: string; load: () => unknown }[] = [
-    ...reviewFiles(root).sort().map((file) => ({ rel: path.relative(root, file).split(path.sep).join("/"), load: () => readReview(file) })),
+    ...reviewFiles(root).sort().map((file) => ({ rel: path.relative(root, file).split(path.sep).join("/"), load: () => readReview(file) })).filter((e) => !replaced.has(e.rel)),
     ...extra.map((c) => ({ rel: c.rel, load: () => c.review })),
   ];
   if (!entries.length) return out;

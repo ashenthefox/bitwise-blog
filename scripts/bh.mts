@@ -24,7 +24,7 @@ import {
   renderCardsFile, parseCardsFile, validateCardsFile, mergeEntries, docCardHtml,
 } from "./private-cards.mts";
 import { pageWeight, pageSizeFinding } from "./page-size.mts";
-import { reviewFiles, readReview, canonicalDocument, isPrivateDocument, reviewRecord, sameReviewMessage, reviewProblems, isSealedFile } from "./reviews.mts";
+import { reviewFiles, readReview, canonicalDocument, isPrivateDocument, reviewRecord, sameReviewMessage, reviewProblems, isSealedFile, PRIVATE_EXT } from "./reviews.mts";
 import { stripComments, VOID_TAGS, parseTree, nodeAttr, hasClass, walkTree, findNode, nodeText } from "./html-tree.mts";
 import { arrowTipFindings, diagramLabelFindings } from "./check/diagram-geometry.mts";
 import { contrastFindings } from "./check/contrast.mts";
@@ -56,7 +56,6 @@ const UNLISTED_REVIEWS_OUT = path.join(ROOT, "theme", "unlisted-reviews.js");
 // Private pages: plaintext in docs/<slug>.private.html (git-ignored), published only as an
 // encrypted docs/<slug>.html that decrypts in the browser with the key in the URL fragment.
 // Keys live in 1Password (vault $BH_OP_VAULT, default "Private"), never in the repo.
-const PRIVATE_EXT = ".private.html";
 const OP_VAULT = process.env.BH_OP_VAULT || "Private";
 
 const c = {

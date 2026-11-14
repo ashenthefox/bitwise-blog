@@ -670,7 +670,7 @@
   }
 
   function submit() {
-    if (!canSubmit()) return;
+    if (!canSubmit() || !state.comments.length) return;
     const file = reviewFile();
     const note = panel.querySelector(".bh-review-submit-note");
     const url = submitUrl(file);
@@ -690,8 +690,8 @@
       el("p", { class: "bh-review-help", text: "Your review is too long to fill in through a link, so it has been downloaded. Copy it, open the form, and paste it into the Review file field, then press Create." }),
       el("div", { class: "bh-review-export" }, [copy, el("a", { class: "btn primary", href: issueUrl(null), target: "_blank", rel: "noopener", text: "Open the GitHub form" })]),
     ] : [
-      el("p", { class: "bh-review-help", text: "Your review is too large for a GitHub issue, so it has been downloaded. Add the file to reviews/inbox/ in a pull request instead." }),
-      el("div", { class: "bh-review-export" }, [el("a", { class: "btn primary", href: `https://github.com/${submitRepo()}/upload/main/reviews/inbox`, target: "_blank", rel: "noopener", text: "Upload it to reviews/inbox/" })]),
+      el("p", { class: "bh-review-help", text: "Your review is too large for a GitHub issue, so it has been downloaded. Add the file to reviews/inbox/ in a pull request instead: open the folder on GitHub and use Add file → Upload files." }),
+      el("div", { class: "bh-review-export" }, [el("a", { class: "btn primary", href: `https://github.com/${submitRepo()}/tree/HEAD/reviews/inbox`, target: "_blank", rel: "noopener", text: "Open reviews/inbox/ on GitHub" })]),
     ]));
     note.hidden = false;
     name.then((n) => announce(`Downloaded ${n}: ${fits ? "paste it into the GitHub form" : "add it to reviews/inbox/ in a pull request"}`));
