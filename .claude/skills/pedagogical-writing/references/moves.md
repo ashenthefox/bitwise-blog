@@ -2,7 +2,10 @@
 
 Each move has the rule, how it looks on a page of this blog, and a verbatim line
 showing it done: from a 3Blue1Brown video (by YouTube id), or from another source,
-named (details and links in [sources.md](sources.md)). Headings match SKILL.md.
+named (details and links in [sources.md](sources.md)). Headings match SKILL.md,
+except four drafting moves that have no rule there because no eval has shown a gap
+for them: "Find the cause by elimination", "Reconcile a refuted guess that comes
+back", "A minimal pair" and "Personification has a cost".
 Search with `grep -n "^### " references/moves.md`.
 
 Sentence-level moves are in [sentences.md](sentences.md); figure and interactive design
@@ -227,7 +230,7 @@ part of the mechanism; history as colour is not.
   (Sundararajan & Adesope, 2020, via a summary).
 - Muller's study added "interesting information" to an exposition; it did not help.
 
-### Applications in order of dose
+### Order the applications by one stated principle
 After the mechanism, order its uses by one principle under which each is the same mechanism
 pushed further: more nodes, more load, a failure, all at once. Each then needs no new framing,
 and the order itself is an argument. Say the principle where the applications begin.
@@ -469,8 +472,9 @@ when the belief does hold.
   recap repeats "They don't explode" without separating the two.
 - Page: "a hash lookup is not a scan" in the opening; at the collision chain, "this is the
   scan we ruled out, confined to one bucket: it stays short while the load factor stays low".
-- Unmeasured. As a review check (in SKILL.md and review.md) it did not change what Claude
-  flagged on a test passage, so it is kept here as a drafting move only.
+- Measured once as a review check, with no effect: it did not change what Claude flagged on
+  a test passage, so the check was removed from SKILL.md and review.md. It is kept here as a
+  drafting move only, and as a drafting move it is unmeasured.
 
 ### A minimal pair
 Set two cases side by side that differ in exactly one part, and say which part.

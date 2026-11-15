@@ -96,7 +96,7 @@ seem to disagree.
 | Steve Mould | **Observed only** | Demote the wrong primary cause; turn a button into a slider; the gap from the textbook number is content |
 | Sebastian Lague | **Observed only** | A plausible-range check that lets a wrong value introduce a concept; a failure count as the spine |
 | Mathologer | Thin stated; observed | Rescue the true kernel of a viral wrong explanation |
-| Beyond The Graph, "What Happens When Electrons Are Forced Into Protons?" | **Observed only**, one video, from its auto-generated captions | A mapping analogy introduced early and reused by name; uses named in the hook and paid off; applications in order of dose; cause by elimination; a minimal pair. Its script leaks a stage direction, so treat it as an example of the moves, not as authority for them; the rules rest on the eval gaps and the research rows above |
+| Beyond The Graph, "What Happens When Electrons Are Forced Into Protons?" | **Observed only**, one video, from its auto-generated captions | A mapping analogy introduced early and reused by name; uses named in the hook and paid off; applications ordered by one principle (the same mechanism at a growing dose); cause by elimination; a minimal pair. Its script leaks a stage direction, so treat it as an example of the moves, not as authority for them; the rules rest on the eval gaps and the research rows above |
 
 ## Programming and functional programming
 
@@ -133,7 +133,7 @@ file restates this skill's rules; it adds no new evidence.
 | "Let care show" vs seductive details | Relevant enthusiasm stays; trivia and biography go to sidenotes or after the payoff. |
 | High-affect explanation (3Blue1Brown) vs detailed understanding | Grant Sanderson, as Matuschak and Nielsen report it, doubts that "more than a small fraction of viewers are taking away much detailed understanding". Pair the moves with checks. |
 | Yorgey's "analogy at the end" vs a running analogy that leads | Two kinds. A summary analogy (the author's compressed insight) goes after the payoff; a mapping analogy (a relation the argument computes with, per Gentner) arrives with the mechanism, returns by name, and says where it breaks. The earlier wording put every analogy last, and on an outline case the skill then scored below no skill (0.42 vs 0.67). |
-| "Save why this matters for the end" (Grant Sanderson) vs relevance in the hook | His own advice is to "motivate using clear examples, not sweeping statements or promises of what is to come". A named use (a system, a cost in numbers) is such an example; what he warns against is announcing the payoff in the abstract. So concrete uses may lead, and the review counts each as a promise the page must pay off; abstract significance waits for the end. |
+| "Save why this matters for the end" (Grant Sanderson) vs relevance in the hook | His own advice is to "motivate using clear examples, not sweeping statements or promises of what is to come". A named use (a system, a cost in numbers) is such an example. His "promises of what is to come" are announcements that a payoff is coming; this skill uses "promise" in another sense, for a debt the page takes on by naming something and must pay off (the author's reading of the quote, not his wording). So when the page covers its uses, one concrete use leads, and the review counts each named use as a debt to pay; abstract significance waits for the end. |
 
 ## Looked at and left out
 

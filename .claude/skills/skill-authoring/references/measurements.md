@@ -28,7 +28,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-12: what the scheduled run costs, measured through `npm run skill-evals` (#122)
 - 2026-11-13: `pedagogical-writing` gets guidance for drafting with GPT and Claude models (#150)
 - 2026-11-13: the per-model cases on Haiku and Opus, and a prose base prompt (#152)
-- 2026-11-14: `pedagogical-writing` gets two kinds of analogy, hook uses as promises, and ordered applications
+- 2026-11-14: `pedagogical-writing` gets two kinds of analogy, hook uses as promises, and ordered applications (#171)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -783,7 +783,7 @@ List $2.30, prose $2.41. Equal within noise, so the prose version was kept: no w
 form Anthropic's guide recommends. **This does not test what the change is for.** Whether a prose prompt makes Astra write
 fewer bullets needs Astra's own output; a direct API run was not made here.
 
-## 2026-11-14: `pedagogical-writing` gets two kinds of analogy, hook uses as promises, and ordered applications
+## 2026-11-14: `pedagogical-writing` gets two kinds of analogy, hook uses as promises, and ordered applications (#171)
 
 Claude Code 2.1.318, agent `claude-sonnet-5-5`, judge `claude-haiku-5-5` unless stated, three runs per arm. The gaps came
 from reading a science explainer video against the skill. Three cases were written, graders included, before any
@@ -862,4 +862,27 @@ Total cost about $14.70.
   Its two fixes were checked against the page and hold: "leaky bucket" appears only as a table row and a reading-list link,
   never mapped, and the three gotchas are in dose order (one machine, ten with a bucket each, ten sharing one) under an
   intro that says only "go wrong in three ways".
+
+**Review corrections, 2026-11-16.**
+
+- **The "promised uses paid off" grader was deleted: it measured nothing.** Its rubric failed an outline whose
+  opening named no use, yet it passed in the same runs where "opening promises a use" failed (old skill 5 of 6 against
+  0 of 6; no skill 6 of 6 against 0 of 6). A rewrite that made the judge list the opening's uses first and fail an empty
+  list still passed 3 of 3 baseline outlines whose openings name no system: the Haiku judge appears to count the running
+  example's "cache cluster" as a use. "Opening promises a use" already asks for a use "the page will come back to", so
+  nothing replaces it. Every `outline-consistent-hashing` score above includes that grader, which lifted both arms by
+  about the same amount.
+- **The case re-run on two graders** (both arms, three runs, $0.45, run with the rewritten grader still present and
+  rescored without it): with the skill, opening 3 of 3 and ordering 3 of 3 (1.00); without, 0 of 3 and 0 of 3 (0.00);
+  Δ +1.00. The opening rule is now 7 of 9 since it was made conditional.
+- **The 0.88 in the first follow-up does not match its counts.** Opening 4, ordering 6 and uses paid off 5, each of 6,
+  are 15 of 18, or 0.83. 0.88 is 21 of 24, which is what the three graders plus `skill-fired` (6 of 6) would give, while
+  the 0.67 before it (6 of 9) leaves `skill-fired` out. The results directory was not kept, so which one the tool
+  printed is not known; read the counts, not the 0.88.
+- **The opening rule was tuned on its only case.** The rule's condition ("when the page covers where the idea is
+  used") was written after the first wording failed 0 of 3 on `outline-consistent-hashing`, whose prompt says "where it
+  gets used in practice". No prompt phrased another way has been run, so the 7 of 9 shows that the rule works on this
+  prompt, not that it transfers.
+- **"Analogy before the mechanism" is still below the baseline** (4 of 6 against 6 of 6 over the both-arm and suite
+  runs, 3 of 3 on the final text): the gap from the old skill (3 of 6) is narrowed, not closed.
 

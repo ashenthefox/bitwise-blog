@@ -286,10 +286,10 @@ has each with its verbatim example.
   computes with (a budget a few cents short of a price; a buffer as a bathtub
   whose level is inflow minus outflow). Introduce it with the mechanism, not
   after; bring it back by name at each later step it can explain, extending it
-  rather than switching to a new one; and say where it stops matching. A *summary* analogy compresses
-  an insight and makes sense only once the reader has it: it goes after the
-  payoff. Either earns its place only by leading towards the quantitative step
-  or defusing a named misconception.
+  rather than switching to a new one; and say where it stops matching. A
+  *summary* analogy compresses an insight and makes sense only once the reader
+  has it: it goes after the payoff. Either earns its place only by leading
+  towards the quantitative step or defusing a named misconception.
 - **Climb a size ladder.** Start at the smallest case that means anything, grow
   one step at a time, show one more iteration than needed before "and so on",
   and when scaling back up, name exactly what changes.
