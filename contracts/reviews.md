@@ -23,8 +23,12 @@ in the read-only job (`tests/review-submission.test.mts` checks both).
 Two repository settings are deliberately off: "Allow GitHub Actions to create and approve pull requests"
 (the reply links the compare page instead of opening the PR) and "Automatically delete head branches".
 A live run (issue #188) exercised the path without a PR: reply, branch, the dispatched `ci.yml` run, and
-`withdraw` deleting the branch after an edit made the review invalid. The PR-opening and PR-closing
-paths have only the unit tests behind them until the first setting is turned on.
+`withdraw` deleting the branch after an edit made the review invalid. A second live run (issue #189,
+PRs #203 to #205) opened PRs from two submissions by hand and merged one: the refresh rebuilt the other
+branch as one commit on the new `main` and dispatched `ci.yml`, whose `check` passed; `cleanup` deleted the
+merged branch, and closing the other issue made `cleanup` close its PR and delete its branch. The second
+PR was not merged (the first was reverted in #205), and the PR-opening path has only the unit tests behind
+it until the first setting is turned on.
 
 **Keeping submission PRs current.** The branch carries the review file and the data `npm run index`
 regenerates from everything in `reviews/` (`theme/reviews.js`, `theme/site.js`,
@@ -34,13 +38,16 @@ submission) makes an open branch stale, and two open ones conflict. `.github/wor
 runs `scripts/review-submission.mts refresh` on every push to `main`: for each branch named exactly
 `review-submission/issue-<n>` it checks the review again against the new `main` (same code as `validate`),
 runs `index`, replaces the branch's single commit (`--force-with-lease`, so an edit that landed meanwhile
-is not overwritten) and starts `ci.yml` on it, since a push made with the Actions token starts nothing.
+is not overwritten) and starts `ci.yml` on it by dispatch. A push made with the Actions token starts no run
+on its own: with a PR open, GitHub creates the PR's CI and Leak check runs but holds them (`action_required`)
+until a maintainer approves them.
 A branch whose review no longer passes (for example its comment ids now clash with a review that was merged),
 or that holds anything besides the review and its generated data (a maintainer's fixup), is left as it is and
 the run logs a warning; every such branch is refreshed whether or not its PR is still open (an unmerged
 one is removed by `cleanup` when its issue is closed); a review already on `main` is skipped. So **do not run
 `npm run index` on a submission branch by hand**, and merge submissions one after another, each once the CI
-run that follows the latest refresh is green. The one manual step left: if a PR is merged in the seconds
+run that follows the latest refresh is green. That run is the dispatched one, listed under the branch in
+the Actions tab and on the branch's head commit; the PR's checks list does not show it. The one manual step left: if a PR is merged in the seconds
 between another merge and its refresh, `main` can end up with stale generated data (`check` fails there):
 run `npm run index` on `main` and commit. The refresh never deletes branches: that is `withdraw`'s and
 `cleanup`'s job.
