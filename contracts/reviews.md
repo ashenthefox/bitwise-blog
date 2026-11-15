@@ -20,6 +20,12 @@ Actions open PRs, the reply links the compare page) and starts `ci.yml` on the b
 untrusted: never put `${{ github.event.issue.* }}` in a script or env var, and keep untrusted parsing
 in the read-only job (`tests/review-submission.test.mts` checks both).
 
+Two repository settings are deliberately off: "Allow GitHub Actions to create and approve pull requests"
+(the reply links the compare page instead of opening the PR) and "Automatically delete head branches".
+A live run (issue #188) exercised the path without a PR: reply, branch, the dispatched `ci.yml` run, and
+`withdraw` deleting the branch after an edit made the review invalid. The PR-opening and PR-closing
+paths have only the unit tests behind them until the first setting is turned on.
+
 **Published threads.** Every review file in `reviews/` is compiled by `npm run index` into
 `theme/reviews.js`, so once a review PR is merged its comments show on the published page
 for everyone: highlights and pins, opening into threads.
