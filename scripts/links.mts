@@ -16,7 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { isSealedShell } from "./publish.mts";
+import { classifyPage } from "./hidden-pages.mts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -96,7 +96,6 @@ export type Env = Record<string, string | undefined>;
 // ---- Pages and links ------------------------------------------------------------------
 
 const stripComments = (html: string) => html.replace(/<!--[\s\S]*?-->/g, "");
-const metaTrue = (html: string, name: string) => new RegExp(`<meta\\s+name="${name.replace(":", "\\:")}"\\s+content="true"`, "i").test(html);
 
 /**
  * The pages whose links readers can follow: the home page and every `docs/*.html` that is published and readable.
@@ -107,7 +106,7 @@ export function publishedPages(root: string = ROOT): LinkPage[] {
   return readPages(root).map((p) => p.page);
 }
 
-/** `publishedPages` with each page's HTML, so it is read once. Sealed and example are decided as `publish.mts` decides them. */
+/** `publishedPages` with each page's HTML, so it is read once. Sealed and example pages are left out and unlisted ones marked, as `classifyPage` (scripts/hidden-pages.mts) decides. */
 export function readPages(root: string): Array<{ page: LinkPage; html: string }> {
   const read = (href: string) => fs.readFileSync(path.join(root, href), "utf8");
   const pages = fs.existsSync(path.join(root, "index.html")) ? [{ page: { href: "index.html", unlisted: false }, html: read("index.html") }] : [];
@@ -115,9 +114,9 @@ export function readPages(root: string): Array<{ page: LinkPage; html: string }>
   if (!fs.existsSync(dir)) return pages;
   for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".html") && !f.endsWith(".private.html")).sort()) {
     const href = `docs/${file}`, html = read(href);
-    const head = stripComments(html).match(/<head\b[^>]*>([\s\S]*?)<\/head>/i)?.[1] ?? "";
-    if (isSealedShell(html) || metaTrue(head, "bh:example")) continue;
-    pages.push({ page: { href, unlisted: metaTrue(head, "bh:unlisted") }, html });
+    const kind = classifyPage(file, html);
+    if (kind === "sealed" || kind === "example") continue;
+    pages.push({ page: { href, unlisted: kind === "unlisted" }, html });
   }
   return pages;
 }

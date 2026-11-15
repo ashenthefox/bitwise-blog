@@ -6,16 +6,12 @@ import path from "node:path";
 import vm from "node:vm";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { hiddenPages, hiddenHrefs, isSealedShell } from "./hidden-pages.mts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, "");
-function examples(root: string): string[] {
-  return fs.readdirSync(path.join(root, "docs")).filter((name) => name.endsWith(".html"))
-    .filter((name) => {
-      const head = uncomment(fs.readFileSync(path.join(root, "docs", name), "utf8")).match(/<head\b[^>]*>([\s\S]*?)<\/head>/i)?.[1] || "";
-      return /<meta\s+name="bh:example"\s+content="true"/i.test(head);
-    }).map((name) => `docs/${name}`).sort();
-}
+/** The pages `root` publishes no longer: the ones HIDDEN_RULE removes from the artifact (examples), as "docs/x.html". */
+const examples = (root: string): string[] => [...hiddenHrefs(root, "publish")].sort();
 /** The value a generated `window.<global> = …` file assigns: dynamic JSON-like data, so `any`. */
 const readData = (root: string, file: string, global: string): any => {
   const window: Record<string, any> = {};
@@ -30,8 +26,6 @@ const writeData = (root: string, file: string, global: string, data: unknown) =>
 const GOATCOUNTER_CODE = /^[a-z0-9-]+$/;
 const goatcounterTag = (code: string) => `<script data-goatcounter="https://${code}.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>`;
 const publishedPages = (stage: string) => ["index.html", ...fs.readdirSync(path.join(stage, "docs")).filter((f) => f.endsWith(".html")).map((f) => `docs/${f}`)];
-// A sealed shell holds the encrypted payload and the sealed meta; either one marks it.
-export const isSealedShell = (html: string) => /<script\b[^>]*\bid="sealed-payload"/i.test(html) || /<meta\s+name="bh:sealed"/i.test(html);
 function addGoatcounter(stage: string, code: string): { tagged: string[]; sealed: string[] } {
   const tag = goatcounterTag(code);
   const tagged: string[] = [], sealed: string[] = [];
@@ -68,10 +62,10 @@ export function preparePublishedSite(stage: string, source: string = ROOT, { goa
   const removed = new Set(marked);
   // An unlisted page is noindex and must not describe itself to crawlers; `index` writes it no
   // JSON-LD, so one here means the source was never re-indexed (and `check` would have failed).
-  for (const page of publishedPages(stage).filter((p) => !removed.has(p))) {
+  const staged = hiddenPages(stage);
+  for (const page of publishedPages(stage).filter((p) => !removed.has(p) && staged.get(p) === "unlisted")) {
     const html = uncomment(fs.readFileSync(path.join(stage, page), "utf8"));
-    const head = html.match(/<head\b[^>]*>([\s\S]*?)<\/head>/i)?.[1] || "";
-    if (/<meta\s+name="bh:unlisted"\s+content="true"/i.test(head) && /<script\b[^>]*\btype\s*=\s*["']?application\/ld\+json\b/i.test(html)) {
+    if (/<script\b[^>]*\btype\s*=\s*["']?application\/ld\+json\b/i.test(html)) {
       throw new Error(`Refusing to publish JSON-LD on the unlisted page ${page}: run \`npm run index\``);
     }
   }
