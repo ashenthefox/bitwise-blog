@@ -380,10 +380,5 @@ window.BH_SITE = {
    }
   ]
  },
- "reviews": {
-  "docs/edge-rate-limiting-design.html": {
-   "threads": 1,
-   "open": 1
-  }
- }
+ "reviews": {}
 };
