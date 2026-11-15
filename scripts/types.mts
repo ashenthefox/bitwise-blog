@@ -13,6 +13,8 @@ export interface Doc {
   tags: string;
   example: boolean;
   unlisted: boolean;
+  /** `bh:feed`: "full" when the page asks for its content in the feed, else "" (or whatever the author wrote, which `check` rejects). */
+  feed: string;
   authors: string;
   supersedes: string;
   supersededBy: string;

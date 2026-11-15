@@ -30,6 +30,7 @@ import { arrowTipFindings, diagramLabelFindings } from "./check/diagram-geometry
 import { contrastFindings } from "./check/contrast.mts";
 import { linkTargetFindings } from "./check/link-targets.mts";
 import { feedContent, feedInteractives } from "./feed-content.mts";
+import { hiddenPages, hiddenHrefs, HIDDEN_RULE, type HiddenKind } from "./hidden-pages.mts";
 import { LEAK_ALLOWED } from "./leak-allowed.mts";
 import { remoteAssetProblems, themeRemoteProblems, vendoredPrismLanguages, codeLanguageProblems } from "./remote-assets.mts";
 import { VENDOR } from "./vendor.mts";
@@ -114,6 +115,7 @@ function readDoc(file: string): Doc {
     // Published but not surfaced: off the home page, search and backlinks, and links to it are inert,
     // unless the reader opened a page with #unlisted=true (theme/unlisted.js decides in the browser).
     unlisted: getMeta(html, "bh:unlisted") === "true",
+    feed: getMeta(html, "bh:feed"),
     authors: getMeta(html, "bh:authors"),
     // Lifecycle links (relative to the doc in the source; root-relative here).
     supersedes: resolveDocLink(file, getMeta(html, "bh:supersedes")),
@@ -679,23 +681,16 @@ const atomDate = (d: string) => `${d}T00:00:00Z`;
  */
 const quotesPrivateWriting = (d: Doc) => Object.hasOwn(LEAK_ALLOWED, d.href);
 
-/** Page URLs a feed entry's content must not link to: example, unlisted, sealed and private pages. */
-function feedHiddenUrls(): Set<string> {
-  const rel = (f: string) => path.relative(ROOT, f).split(path.sep).join("/");
-  const hidden = new Set<string>();
-  for (const f of docFiles()) { const d = readDoc(f); if (d.example || d.unlisted) hidden.add(pageUrl(d.href)); }
-  for (const f of sealedFiles()) hidden.add(pageUrl(rel(f)));
-  for (const f of privateSources()) { hidden.add(pageUrl(rel(f))); hidden.add(pageUrl(rel(f).slice(0, -PRIVATE_EXT.length) + ".html")); }
-  return hidden;
-}
+/** Page URLs a feed entry's content must not link to (HIDDEN_RULE.feed in scripts/hidden-pages.mts). */
+const feedHiddenUrls = (): Set<string> => new Set([...hiddenHrefs(ROOT, "feed")].map(pageUrl));
 
 function buildFeed(posts: Doc[] = feedPosts()): string {
   const home = stripComments(fs.readFileSync(INDEX, "utf8"));
   const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
   let hidden: Set<string> | undefined;
   const content = (d: Doc) => {
+    if (d.feed !== "full" || quotesPrivateWriting(d)) return [];
     const html = stripComments(fs.readFileSync(d.file, "utf8"));
-    if (getMeta(html, "bh:feed") !== "full" || quotesPrivateWriting(d)) return [];
     hidden ??= feedHiddenUrls();
     return [`    <content type="html">${xmlEscape(feedContent(html, { pageUrl: pageUrl(d.href), hidden: (u) => hidden!.has(u) }))}</content>`];
   };
@@ -1352,8 +1347,10 @@ function cmdCheck(skipKeys = false): void {
     warnings += keysSkipped ? 1 : 0;
   }
 
-  const exampleHrefs = new Set(publicDocs.filter((d) => d.example).map((d) => d.href));
-  const unlistedHrefs = new Set(publicDocs.filter((d) => d.unlisted).map((d) => d.href));
+  // The pages a link must not reach (scripts/hidden-pages.mts decides which, and HIDDEN_RULE.check whether `check` looks).
+  const hiddenKinds = new Map([...hiddenPages(ROOT)].filter(([, kind]) => HIDDEN_RULE[kind].check));
+  const hrefsOfKind = (kind: HiddenKind) => new Set([...hiddenKinds].filter(([, k]) => k === kind).map(([href]) => href));
+  const exampleHrefs = hrefsOfKind("example"), unlistedHrefs = hrefsOfKind("unlisted");
   const prismLanguages = vendoredPrismLanguages(ROOT);
   for (const file of files) {
     const rel = path.relative(ROOT, file);
@@ -1544,8 +1541,8 @@ function cmdCheck(skipKeys = false): void {
     // Public pages never link to private ones: the link would either break or reveal the page.
     if (!isPrivateSource(file)) for (const m of html.matchAll(/\s(?:href|src)="([^"#?]+\.html)(?:[#?][^"]*)?"/g)) {
       if (/^[a-z]+:/i.test(m[1])) continue;
-      const slug = path.basename(m[1]).replace(PRIVATE_EXT, ".html").replace(/\.html$/, "");
-      if (path.resolve(path.dirname(file), m[1]).startsWith(DOCS + path.sep) && privateSlugs.has(slug)) err(`links to private page ${m[1]}`);
+      const kind = hiddenKinds.get(path.relative(ROOT, path.resolve(path.dirname(file), m[1])).split(path.sep).join("/"));
+      if (kind === "private" || kind === "sealed") err(`links to private page ${m[1]}`);
     }
 
     // Relative links and assets exist
