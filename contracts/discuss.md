@@ -58,3 +58,20 @@ What to do with each finding:
 The report can run in a public workflow, so it names an unlisted page only as "an unlisted page" (never its path or
 title), never matches an unlisted page by title, and never reads a private page or sealed shell. It prints thread
 numbers, not their titles or text. See [External links](external-links.md) for the same rule in the link check.
+
+### What a run on GitHub has shown
+
+The tests stub `gh`, so these paths were checked by dispatching the workflow from the Actions tab, with the job's own
+`GITHUB_TOKEN`. Recheck them when you change the workflow's permissions or how the report writes its summary.
+
+- **Clean.** On `main` the job is green, and the summary is the one-line count ("Checked 8 posts against 1 discussion:
+  0 problems.") with the pointer to this contract.
+- **A problem.** A branch with the patchcov pin removed turned the job red (exit 1), and the summary listed
+  `docs/announcing-patchcov.html` under "Thread exists, post not pinned" with the `<meta>` to add. A workflow
+  dispatched with `--ref <branch>` runs that branch's copy of the workflow and pages, which is how to repeat this
+  without touching `main`.
+- **Permissions.** The same branch with `discussions: read` dropped (only `contents: read`) was still green: while
+  the repository is public the token can list its discussions anyway. The grant stays, because it says what the job
+  needs and a private copy of the repo would need it. So an exit 2 with a GraphQL error on this repo is not a
+  missing grant.
+- **Not exercised:** exit 2 itself. It writes nothing to the summary, only the error to the log.
