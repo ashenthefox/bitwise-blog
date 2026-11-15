@@ -327,14 +327,11 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     if (got.reason) console.log(`::notice::No pull request opened (${clean(got.reason)}); the comment links the compare page instead`);
     if (!(await dispatchChecks({ repo: env("GITHUB_REPOSITORY"), token: env("GITHUB_TOKEN") }, branchFor(n)))) console.log("::warning::Could not start CI on the branch; close and reopen the pull request to run it");
     output({ pr_url: got.prUrl ?? "", compare_url: got.compareUrl ?? "" });
-  } else if (cmd === "withdraw") {
+  } else if (cmd === "withdraw" || cmd === "cleanup") {
+    // `cleanup` runs when the issue is closed. A merged pull request is not open and its branch may already be gone: a no-op.
     const got = await withdrawPullRequest({ repo: env("GITHUB_REPOSITORY"), token: env("GITHUB_TOKEN") }, n);
     console.log(`Closed ${got.closed} pull request(s); branch ${got.deleted ? "deleted" : "not present"}`);
-    output({ withdrawn: String(got.closed > 0) });
-  } else if (cmd === "cleanup") {
-    // A merged pull request is not open, and its branch may already be gone: both are a no-op here.
-    const got = await withdrawPullRequest({ repo: env("GITHUB_REPOSITORY"), token: env("GITHUB_TOKEN") }, n);
-    console.log(`Closed ${got.closed} pull request(s); branch ${got.deleted ? "deleted" : "not present"}`);
+    if (cmd === "withdraw") output({ withdrawn: String(got.closed > 0) });
   } else if (cmd === "report") {
     let result: SubmissionResult | null = null;
     try { result = JSON.parse(fs.readFileSync(path.join(arg(args, "--from"), "result.json"), "utf8")) as SubmissionResult; } catch { /* validate did not finish */ }
