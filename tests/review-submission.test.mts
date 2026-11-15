@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 import { schemaProblems, readSchema, SCHEMA_KEYWORDS, SCHEMA_ANNOTATIONS, reviewProblems, type Schema } from "../scripts/reviews.mts";
 import {
-  dispatchChecks, withdrawPullRequest, extractReview, validateSubmission, prepareSubmission, applySubmission, reportBody, codeBlock, postReport, proposePullRequest,
+  dispatchChecks, withdrawPullRequest, main, extractReview, validateSubmission, prepareSubmission, applySubmission, reportBody, codeBlock, postReport, proposePullRequest,
   reviewPath, branchFor, GENERATED, MARKER, BOT_LOGIN, LABEL, FIELD_LABEL, MAX_REVIEW_BYTES, type Fetch, type SubmissionResult,
 } from "../scripts/review-submission.mts";
 
@@ -268,12 +268,13 @@ interface Job { if?: string; needs?: string | string[]; permissions?: Record<str
 const workflow = parse(fs.readFileSync(path.join(source, ".github/workflows/review-submission.yml"), "utf8")) as { on: Record<string, { types: string[] }>; permissions: unknown; jobs: Record<string, Job> };
 
 test("no untrusted issue text reaches a script, and each job has only the permissions it needs", () => {
-  assert.deepEqual(workflow.on, { issues: { types: ["opened", "edited", "reopened"] } });
+  assert.deepEqual(workflow.on, { issues: { types: ["opened", "edited", "reopened", "closed"] } });
   assert.deepEqual(workflow.permissions, {});
   assert.deepEqual(Object.fromEntries(Object.entries(workflow.jobs).map(([name, job]) => [name, job.permissions])), {
     validate: { contents: "read" },
     propose: { contents: "write", "pull-requests": "write", actions: "write" },
     withdraw: { contents: "write", "pull-requests": "write" },
+    cleanup: { contents: "write", "pull-requests": "write" },
     report: { contents: "read", issues: "write" },
   });
   for (const [name, job] of Object.entries(workflow.jobs)) {
@@ -286,8 +287,15 @@ test("no untrusted issue text reaches a script, and each job has only the permis
   assert.match(workflow.jobs.validate.if!, new RegExp(`contains\\(github\\.event\\.issue\\.labels\\.\\*\\.name, '${LABEL}'\\)`));
   assert.equal(workflow.jobs.propose.if, "needs.validate.outputs.ok == 'true'");
   assert.equal(workflow.jobs.withdraw.if, "needs.validate.outputs.ok == 'false'");
+  // A closed issue runs only `cleanup`: the others would parse or reply on an issue nobody is reading.
+  assert.match(workflow.jobs.validate.if!, /github\.event\.issue\.state == 'open'/);
+  assert.match(workflow.jobs.report.if!, /needs\.validate\.result != 'skipped'/);
+  assert.equal(workflow.jobs.cleanup.if, `github.event.action == 'closed' && contains(github.event.issue.labels.*.name, '${LABEL}')`);
+  assert.equal(workflow.jobs.cleanup.needs, undefined);
+  assert.deepEqual(workflow.jobs.cleanup.steps.filter((s) => s.run).map((s) => s.run), ["node scripts/review-submission.mts cleanup"]);
+  assert.equal(workflow.jobs.cleanup.steps.find((s) => s.uses?.startsWith("actions/checkout"))?.with?.["persist-credentials"], false);
   // The jobs that can write never run code on the issue's text: they only copy validate's fixed list of files.
-  for (const name of ["propose", "withdraw"]) assert.ok(!workflow.jobs[name].steps.some((s) => /\bvalidate\b/.test(s.run ?? "")), name);
+  for (const name of ["propose", "withdraw", "cleanup"]) assert.ok(!workflow.jobs[name].steps.some((s) => /\bvalidate\b/.test(s.run ?? "")), name);
   // Only the read-only job runs code on the issue's text; it keeps no token in the checkout.
   assert.equal(workflow.jobs.validate.steps.find((s) => s.uses?.startsWith("actions/checkout"))?.with?.["persist-credentials"], false);
 });
@@ -337,4 +345,35 @@ test("withdrawing closes the branch's open pull request and deletes the branch; 
   assert.equal(await dispatchChecks({ repo: "o/r", token: "t", fetch: api.fetch }, branchFor(6)), true);
   const none = fakeApi({ [`GET ${API}/pulls`]: () => [200, []], [`DELETE ${API}/git/refs`]: () => [422, { message: "Reference does not exist" }] });
   assert.deepEqual(await withdrawPullRequest({ repo: "o/r", token: "t", fetch: none.fetch }, 6), { closed: 0, deleted: false });
+});
+
+test("closing the issue unmerged removes its pull request and branch; a merge leaves nothing to do and does not error", async () => {
+  const run = async (api: ReturnType<typeof fakeApi>, number: number) => {
+    const saved = { fetch: globalThis.fetch, event: process.env.GITHUB_EVENT_PATH, repo: process.env.GITHUB_REPOSITORY, token: process.env.GITHUB_TOKEN };
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bh-cleanup-event-"));
+    const file = path.join(dir, "event.json");
+    fs.writeFileSync(file, JSON.stringify({ action: "closed", issue: { number, body: "not read" } }));
+    Object.assign(process.env, { GITHUB_EVENT_PATH: file, GITHUB_REPOSITORY: "o/r", GITHUB_TOKEN: "t" });
+    globalThis.fetch = api.fetch as unknown as typeof fetch;
+    const log = console.log;
+    console.log = () => {};
+    try { return await main(["cleanup"]); }
+    finally {
+      console.log = log;
+      globalThis.fetch = saved.fetch;
+      for (const [k, v] of [["GITHUB_EVENT_PATH", saved.event], ["GITHUB_REPOSITORY", saved.repo], ["GITHUB_TOKEN", saved.token]] as const) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  const unmerged = fakeApi({
+    [`GET ${API}/pulls`]: () => [200, [{ number: 41 }]],
+    [`PATCH ${API}/pulls/41`]: (b) => { assert.deepEqual(b, { state: "closed" }); return [200, {}]; },
+    [`DELETE ${API}/git/refs/heads/review-submission/issue-9`]: () => [204, null],
+  });
+  assert.equal(await run(unmerged, 9), 0);
+  assert.deepEqual(unmerged.calls.map((c) => c.method), ["GET", "PATCH", "DELETE"]);
+  // Merged: no open pull request, and the repository already deleted the head branch.
+  const merged = fakeApi({ [`GET ${API}/pulls`]: () => [200, []], [`DELETE ${API}/git/refs/heads/review-submission/issue-9`]: () => [422, { message: "Reference does not exist" }] });
+  assert.equal(await run(merged, 9), 0);
+  assert.deepEqual(merged.calls.map((c) => c.method), ["GET", "DELETE"]);
 });

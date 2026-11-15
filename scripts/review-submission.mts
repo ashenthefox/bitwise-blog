@@ -10,6 +10,7 @@
 //   propose                 open the pull request for the branch (or say where to open it by hand), and
 //                           start CI on the branch, which a PR opened by Actions would not start
 //   withdraw                after an edit made the review invalid: close its PR and delete its branch
+//   cleanup                 after the issue was closed: the same, so an unmerged submission leaves nothing behind
 //   report                  post (or update) the one comment on the issue that says what happened
 //
 // The issue body is untrusted. It is read from the event file, never from an expression or an env
@@ -326,10 +327,11 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     if (got.reason) console.log(`::notice::No pull request opened (${clean(got.reason)}); the comment links the compare page instead`);
     if (!(await dispatchChecks({ repo: env("GITHUB_REPOSITORY"), token: env("GITHUB_TOKEN") }, branchFor(n)))) console.log("::warning::Could not start CI on the branch; close and reopen the pull request to run it");
     output({ pr_url: got.prUrl ?? "", compare_url: got.compareUrl ?? "" });
-  } else if (cmd === "withdraw") {
+  } else if (cmd === "withdraw" || cmd === "cleanup") {
+    // `cleanup` runs when the issue is closed. A merged pull request is not open and its branch may already be gone: a no-op.
     const got = await withdrawPullRequest({ repo: env("GITHUB_REPOSITORY"), token: env("GITHUB_TOKEN") }, n);
     console.log(`Closed ${got.closed} pull request(s); branch ${got.deleted ? "deleted" : "not present"}`);
-    output({ withdrawn: String(got.closed > 0) });
+    if (cmd === "withdraw") output({ withdrawn: String(got.closed > 0) });
   } else if (cmd === "report") {
     let result: SubmissionResult | null = null;
     try { result = JSON.parse(fs.readFileSync(path.join(arg(args, "--from"), "result.json"), "utf8")) as SubmissionResult; } catch { /* validate did not finish */ }
@@ -341,7 +343,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     });
     console.log(await postReport({ repo: env("GITHUB_REPOSITORY"), token: env("GITHUB_TOKEN") }, n, body));
   } else {
-    console.error("usage: review-submission.mts validate --out <dir> | apply --from <dir> | propose --from <dir> | withdraw | report --from <dir>");
+    console.error("usage: review-submission.mts validate --out <dir> | apply --from <dir> | propose --from <dir> | withdraw | cleanup | report --from <dir>");
     return 2;
   }
   return 0;
