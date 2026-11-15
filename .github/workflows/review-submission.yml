@@ -19,9 +19,12 @@ name: Review submissions
 # page instead, for a maintainer to open the pull request. A pull request or push made with the
 # Actions token starts no workflow, so `propose` starts ci.yml on the branch by dispatch. When an
 # edit makes the review invalid, `withdraw` closes the earlier pull request and deletes its branch.
+# When the issue is closed, `cleanup` does the same: a spam or withdrawn submission closed by hand
+# leaves no branch or open pull request behind. A merge closes the issue through `Closes #N`; its
+# pull request is no longer open and its branch is usually gone, so `cleanup` then does nothing.
 on:
   issues:
-    types: [opened, edited, reopened]
+    types: [opened, edited, reopened, closed]
 
 permissions: {}
 
@@ -151,6 +154,30 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/review-submission.mts withdraw
+
+  cleanup:
+    name: Remove an unmerged submission
+    if: github.event.action == 'closed' && contains(github.event.issue.labels.*.name, 'review-submission')
+    runs-on: ubuntu-latest
+    # Normally under 30 seconds.
+    timeout-minutes: 5
+    permissions:
+      contents: write # to delete the branch
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Reads only the issue number from the event file, never its text.
+      - name: Close the pull request and delete the branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/review-submission.mts cleanup
 
   report:
     name: Reply on the issue

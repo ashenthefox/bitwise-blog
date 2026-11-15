@@ -16,7 +16,7 @@ for a link is downloaded, to paste into the form). Its `review-submission` label
 code as `check`, writes it to `reviews/inbox/issue-<n>.json` and regenerates the review data;
 `propose` pushes `review-submission/issue-<n>`, opens the PR (or, while the repo does not let
 Actions open PRs, the reply links the compare page) and starts `ci.yml` on the branch by dispatch;
-`withdraw` closes that PR when an edit makes the review invalid; `report` replies on the issue. The issue body is
+`withdraw` closes that PR when an edit makes the review invalid, and `cleanup` does the same when the issue is closed (a merge leaves nothing open, so it is then a no-op); `report` replies on the issue. The issue body is
 untrusted: never put `${{ github.event.issue.* }}` in a script or env var, and keep untrusted parsing
 in the read-only job (`tests/review-submission.test.mts` checks both).
 
