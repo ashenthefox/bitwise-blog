@@ -66,6 +66,8 @@ test("mentions finds the whole URL, with a fragment or punctuation after it, and
   assert.ok(!mentions(`${u}-old`, u));
   assert.ok(!mentions(`https://other.example/x/${u}`, u), "the tail of another URL");
   assert.ok(!mentions("nothing here", u));
+  assert.ok(mentions(`About ${u.replace("blog.example", "Blog.Example")}`, u), "host case is no evidence");
+  assert.ok(mentions(`see:${u}`, u));
 });
 
 test("a thread matches by URL; only a thread with no URL match falls back to its exact title", () => {
@@ -78,6 +80,13 @@ test("a thread matches by URL; only a thread with no URL match falls back to its
   ]);
   assert.deepEqual(m.get("docs/a.html")?.map((x) => [x.thread.number, x.weak]), [[1, false]]);
   assert.deepEqual(m.get("docs/b.html")?.map((x) => [x.thread.number, x.weak]), [[2, true], [3, false]]);
+});
+
+test("posts that share a title are not told apart by it", () => {
+  const m = matchThreads([page("part-1", "Part 1"), page("part-1-again", "Part 1"), page("b", "Beta")], [thread(1, "Part 1", "no link"), thread(2, "Beta", "no link")]);
+  assert.equal(m.get("docs/part-1.html"), undefined);
+  assert.equal(m.get("docs/part-1-again.html"), undefined);
+  assert.deepEqual(m.get("docs/b.html")?.map((x) => x.thread.number), [2]);
 });
 
 // ---- Findings -------------------------------------------------------------------------
@@ -106,6 +115,17 @@ test("duplicates are reported for a pinned post too, and then say nothing about 
   const f = findFindings([pinned], [thread(7, "x", `About ${url("a")}`), thread(9, "y", url("a"))], DISCUSSIONS);
   assert.deepEqual(f.map((x) => x.kind), ["duplicates"]);
   assert.doesNotMatch(f[0]!.message, /pin the one/);
+});
+
+test("a thread that only shares the title does not make a correctly pinned post look duplicated", () => {
+  const pinned = page("a", "Alpha", { pin: `${DISCUSSIONS}/7` });
+  assert.deepEqual(findFindings([pinned], [thread(7, "x", `About ${url("a")}`), thread(12, "Alpha", "an unrelated Q&A")], DISCUSSIONS), []);
+});
+
+test("a pin to a title-only thread, with the URL in another, is one finding with one remedy", () => {
+  const pinned = page("a", "Alpha", { pin: `${DISCUSSIONS}/5` });
+  const f = findFindings([pinned], [thread(5, "Alpha", "no link"), thread(6, "x", `About ${url("a")}`)], DISCUSSIONS);
+  assert.deepEqual(f.map((x) => [x.kind, x.threads]), [["wrong-pin", [5, 6]]]);
 });
 
 test("a pin to a thread that does not mention the post is reported, naming the thread that does", () => {
@@ -193,6 +213,18 @@ test("fetchDiscussions throws on a GraphQL error, on an answer with no discussio
   assert.throws(() => fetchDiscussions("a", "b", () => "not json"));
 });
 
+test("fetchDiscussions sends the repo and cursor as strings, so a numeric-looking name is not coerced", () => {
+  const { gh, calls } = ghWith(Array.from({ length: 3 }, (_, i) => thread(i + 1, "t", "b")), 2);
+  fetchDiscussions("2024", "null", gh);
+  for (const call of calls) assert.ok(!call.includes("-F"), "gh -F coerces numbers, true, null and @file");
+  assert.ok(calls[0]!.includes("owner=2024") && calls[0]!.includes("name=null"));
+});
+
+test("fetchDiscussions throws when GitHub promises another page and gives no cursor", () => {
+  const broken: Gh = () => JSON.stringify({ data: { repository: { discussions: { pageInfo: { hasNextPage: true, endCursor: null }, nodes: [] } } } });
+  assert.throws(() => fetchDiscussions("a", "b", broken), /no cursor/);
+});
+
 test("fetchDiscussions refuses a list it cannot finish rather than reporting on part of it", () => {
   const forever: Gh = () => JSON.stringify({ data: { repository: { discussions: { pageInfo: { hasNextPage: true, endCursor: "x" }, nodes: [] } } } });
   assert.throws(() => fetchDiscussions("a", "b", forever), /may be incomplete/);
@@ -267,15 +299,14 @@ test("main --help prints the usage", () => {
   assert.match(c.logs.join("\n"), /npm run discussions/);
 });
 
-test("the real site's pinned post and its thread agree, with no problem to report (as the repo stands)", () => {
-  // The pin in docs/announcing-patchcov.html points at thread 185, whose body quotes the post's URL.
+test("every real page is a post here exactly when `npm run index` gives it a Discuss block", () => {
+  // The post rule is written twice (discussExclusion in bh.mts, readSitePages here): this fails when they drift apart.
   const pages = readSitePages(ROOT);
-  const base = pages.find((p) => p.href === "docs/announcing-patchcov.html");
-  assert.ok(base, "the post exists");
-  const url185 = `${discussionsUrl(ROOT, {})}/185`;
-  assert.equal(base.pin, url185);
-  const f = findFindings(pages, [thread(185, "Announcing patchcov", `About ${base.url}\r\n\r\n`)], discussionsUrl(ROOT, {}));
-  assert.deepEqual(f, []);
+  assert.ok(pages.length > 5, "the real site has pages");
+  for (const p of pages) {
+    const hasBlock = /\sdata-discuss(?=[\s>=])/.test(fs.readFileSync(path.join(ROOT, p.href), "utf8"));
+    assert.equal(p.post, hasBlock, `${p.href}: report says post=${p.post}, the page ${hasBlock ? "has" : "has no"} Discuss block`);
+  }
 });
 
 // ---- The workflow ---------------------------------------------------------------------

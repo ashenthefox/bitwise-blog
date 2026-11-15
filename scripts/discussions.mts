@@ -18,6 +18,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readPages, siteBase } from "./links.mts";
+import type { Gh as LinksGh, Env as LinksEnv, Output as LinksOutput } from "./links.mts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -56,9 +57,9 @@ export interface Finding {
 
 export interface Report { findings: Finding[]; posts: number; threads: number; date: string }
 
-export type Gh = (args: string[]) => string;
-export type Env = Record<string, string | undefined>;
-export interface Output { log: (...args: unknown[]) => void; error: (...args: unknown[]) => void }
+export type Gh = (args: string[], input?: string) => string;
+export type Env = LinksEnv;
+export type Output = LinksOutput;
 
 // ---- Pages -----------------------------------------------------------------------------
 
@@ -99,7 +100,7 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** True when `body` contains `url` as a whole URL: not as the tail of another URL, nor the head of a longer path (`a.html5`). */
 export function mentions(body: string, url: string): boolean {
-  return new RegExp(`(?<![\\w./-])${escapeRe(url)}(?![\\w%~-])`).test(body.replace(/\r/g, ""));
+  return new RegExp(`(?<![\\w./-])${escapeRe(url)}(?![\\w%~-])`, "i").test(body.replace(/\r/g, "")); // slugs are lowercase: case is no evidence
 }
 
 const normTitle = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
@@ -109,17 +110,20 @@ interface Match { thread: Thread; weak: boolean }
 /**
  * Each page's threads: those whose body mentions its canonical URL; only a thread that mentions no page's URL is
  * matched by title instead, when it repeats a post's title exactly (a weaker hint: the "start it" link prefills the
- * title, but anyone can retitle a thread). An unlisted page is matched by URL alone, since a title match would need
- * its title.
+ * title, but anyone can retitle a thread) and the title is that post's alone. An unlisted page is matched by URL
+ * alone, since a title match would need its title.
  */
 export function matchThreads(pages: Page[], threads: Thread[]): Map<string, Match[]> {
   const byPage = new Map<string, Match[]>();
   const add = (href: string, m: Match) => byPage.set(href, [...(byPage.get(href) ?? []), m]);
+  // Two posts with one title (a series) cannot be told apart by it.
+  const titleCount = new Map<string, number>();
+  for (const p of pages) if (p.post) titleCount.set(normTitle(p.title), (titleCount.get(normTitle(p.title)) ?? 0) + 1);
   for (const thread of threads) {
     const urlHits = pages.filter((p) => mentions(thread.body, p.url));
     if (urlHits.length) { for (const p of urlHits) add(p.href, { thread, weak: false }); continue; }
     const title = normTitle(thread.title);
-    for (const p of pages) if (p.post && title && normTitle(p.title) === title) add(p.href, { thread, weak: true });
+    for (const p of pages) if (p.post && title && normTitle(p.title) === title && titleCount.get(title) === 1) add(p.href, { thread, weak: true });
   }
   return byPage;
 }
@@ -140,7 +144,10 @@ export function findFindings(pages: Page[], threads: Thread[], discussionsUrl: s
   const out: Finding[] = [];
 
   for (const page of pages) {
-    const found = [...(matches.get(page.href) ?? [])].sort((a, b) => a.thread.number - b.thread.number);
+    // A title-only match is a guess, so it counts only when no thread quotes the URL: otherwise an unrelated thread
+    // that shares the title would turn a correctly pinned post into "duplicates".
+    const all = matches.get(page.href) ?? [];
+    const found = (all.some((m) => !m.weak) ? all.filter((m) => !m.weak) : [...all]).sort((a, b) => a.thread.number - b.thread.number);
     const numbers = found.map((m) => m.thread.number);
     const weak = found.length > 0 && found.every((m) => m.weak);
     if (page.unlisted) {
@@ -234,7 +241,7 @@ export function fetchDiscussions(owner: string, name: string, gh: Gh = runGh): T
   const threads: Thread[] = [];
   let after = "";
   for (let i = 0; i < MAX_PAGES; i++) {
-    const args = ["api", "graphql", "-f", `query=${QUERY}`, "-F", `owner=${owner}`, "-F", `name=${name}`, ...(after ? ["-F", `after=${after}`] : [])];
+    const args = ["api", "graphql", "-f", `query=${QUERY}`, "-f", `owner=${owner}`, "-f", `name=${name}`, ...(after ? ["-f", `after=${after}`] : [])];
     const answer = JSON.parse(gh(args)) as Answer;
     if (answer.errors?.length) throw new Error(`GitHub answered with an error: ${answer.errors.map((e) => e.message).join("; ")}`);
     const d = answer.data?.repository?.discussions;
@@ -242,8 +249,9 @@ export function fetchDiscussions(owner: string, name: string, gh: Gh = runGh): T
     for (const n of d.nodes) {
       if (n && typeof n.number === "number") threads.push({ number: n.number, title: n.title ?? "", body: n.body ?? "", url: n.url ?? "" });
     }
-    after = d.pageInfo?.hasNextPage ? d.pageInfo.endCursor ?? "" : "";
-    if (!after) return threads;
+    if (!d.pageInfo?.hasNextPage) return threads;
+    after = d.pageInfo.endCursor ?? "";
+    if (!after) throw new Error("GitHub says there are more discussions but gave no cursor: stopped, because the list is incomplete");
   }
   throw new Error(`more than ${MAX_PAGES * PAGE_SIZE} discussions: stopped, because the list may be incomplete`);
 }
