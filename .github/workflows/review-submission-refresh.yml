@@ -1,0 +1,53 @@
+name: Refresh review submissions
+
+# A review submitted from a page (see review-submission.yml) becomes a branch holding the review file and the
+# review data `npm run index` regenerates from everything in reviews/: theme/reviews.js, theme/site.js and
+# theme/unlisted-reviews.js. `check` fails while those are stale, so the pull request must carry them. They are
+# shared by every submission, so each time `main` moves, a submission branch goes stale, and two of them
+# conflict as soon as one is merged.
+#
+# This workflow runs after every push to main (that includes the merge of a submission) and rebuilds each
+# `review-submission/issue-<n>` branch from the new main: it checks the review again, regenerates the data and
+# replaces the branch's commit. A branch whose review no longer passes, or that holds anything besides the review
+# and its generated data, is left as it is, with a warning. It does not look at pull requests: a branch that is
+# not deleted after its pull request is closed is refreshed too (clean-up is #190). A push
+# made with the Actions token starts no workflow, so it starts ci.yml on each branch it changed by dispatch.
+#
+# The code that runs is main's own (this workflow is not triggered by an issue or a pull request). The only
+# input from outside it is the review file on a branch that review-submission.yml wrote, which is size-capped,
+# parsed as JSON and validated by the same code as `npm run check` before anything reads it further.
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+# One refresh at a time; a run that is waiting is replaced by a newer one, which sees the newer main.
+concurrency:
+  group: review-submission-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Rebuild the review submission branches
+    runs-on: ubuntu-latest
+    # Normally under a minute: a few seconds of `index` per branch.
+    timeout-minutes: 10
+    permissions:
+      contents: write # to replace the branches
+      actions: write # to start ci.yml on them
+    steps:
+      # The whole history: the branches and main must share it for the new commit to sit on main.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # No `npm ci`: the script and `bh.mts index` use Node built-ins only.
+      - name: Rebuild the branches
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/review-submission.mts refresh

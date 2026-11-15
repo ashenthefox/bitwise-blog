@@ -12,6 +12,8 @@
 //   withdraw                after an edit made the review invalid: close its PR and delete its branch
 //   cleanup                 after the issue was closed: the same, so an unmerged submission leaves nothing behind
 //   report                  post (or update) the one comment on the issue that says what happened
+//   refresh                 after `main` moved: rebuild every open submission branch from it, so the
+//                           generated review data on the branch is never stale (no issue event needed)
 //
 // The issue body is untrusted. It is read from the event file, never from an expression or an env
 // var, only `validate` parses it, and that job's token can only read. No dependencies: the
@@ -98,6 +100,11 @@ export function validateSubmission(root: string, body: unknown, number: number):
   if ("problem" in extracted) return fail([extracted.problem]);
   let review: unknown;
   try { review = JSON.parse(extracted.json); } catch (e) { return fail([`The review is not valid JSON: ${(e as Error).message}`]); }
+  return checkReview(root, review, number);
+}
+
+/** The rules `check` applies, for `review` as reviews/inbox/issue-<n>.json. Shared by `validate` and `refresh`. */
+export function checkReview(root: string, review: unknown, number: number): SubmissionResult & { review?: ReviewFile } {
   const rel = reviewPath(number);
   const all = reviewProblems(root, { extra: [{ rel, review }] });
   // Without the schema nothing was checked: fail rather than accept.
@@ -107,8 +114,18 @@ export function validateSubmission(root: string, body: unknown, number: number):
   const problems = all.filter((p) => p.startsWith(rel + ":"));
   const r = review as ReviewFile;
   if (!problems.length && Array.isArray(r.comments) && !r.comments.length) problems.push(`${rel}: has no comments`);
-  if (problems.length) return fail(problems);
+  if (problems.length) return { ok: false, number, problems };
   return { ok: true, number, problems: [], document: r.document, comments: r.comments!.length, review: r };
+}
+
+/** Write a checked review to reviews/inbox/issue-<n>.json and regenerate the review data from it. */
+function stageReview(root: string, review: ReviewFile, number: number, index: boolean): void {
+  const rel = reviewPath(number);
+  fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+  fs.writeFileSync(path.join(root, rel), JSON.stringify(review, null, 2) + "\n");
+  if (!index) return;
+  const run = spawnSync(process.execPath, [path.join(root, "scripts", "bh.mts"), "index"], { cwd: root, encoding: "utf8", timeout: 120_000 });
+  if (run.status !== 0) throw new Error(`bh.mts index failed: ${run.error?.message ?? ""}${run.stdout}${run.stderr}`);
 }
 
 /** The `validate` job: decide, and if the review is valid stage it and the data it regenerates under `out/files`. */
@@ -117,12 +134,7 @@ export function prepareSubmission(root: string, body: unknown, number: number, o
   fs.mkdirSync(out, { recursive: true });
   if (result.ok && review) {
     const rel = reviewPath(number);
-    fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
-    fs.writeFileSync(path.join(root, rel), JSON.stringify(review, null, 2) + "\n");
-    if (index) {
-      const run = spawnSync(process.execPath, [path.join(root, "scripts", "bh.mts"), "index"], { cwd: root, encoding: "utf8", timeout: 120_000 });
-      if (run.status !== 0) throw new Error(`bh.mts index failed: ${run.error?.message ?? ""}${run.stdout}${run.stderr}`);
-    }
+    stageReview(root, review, number, index);
     for (const p of [rel, ...GENERATED]) {
       fs.mkdirSync(path.dirname(path.join(out, "files", p)), { recursive: true });
       fs.copyFileSync(path.join(root, p), path.join(out, "files", p));
@@ -144,6 +156,92 @@ export function applySubmission(root: string, from: string, number: number): str
     fs.copyFileSync(src, path.join(root, p));
   }
   return paths;
+}
+
+// ---- keeping open submission branches current ---------------------------------------------------
+
+/** What `refresh` did with one branch. */
+export interface RefreshOutcome {
+  number: number;
+  branch: string;
+  /** `updated`: pushed. `current`: already what a rebuild produces. `merged`: main already holds the review. `invalid`: left alone. `raced`: the branch moved while we worked. `failed`: an error; the branch was not pushed. */
+  state: "updated" | "current" | "merged" | "invalid" | "raced" | "failed";
+  problems?: string[];
+}
+
+/** Only the branches `propose` makes: the number is the issue's, digits only. */
+const SUBMISSION_BRANCH = /^review-submission\/issue-([1-9]\d{0,9})$/;
+
+const git = (root: string, args: string[], { input }: { input?: string } = {}) =>
+  spawnSync("git", args, { cwd: root, encoding: "utf8", input, timeout: 120_000, maxBuffer: 16 * 1024 * 1024 });
+
+function gitOk(root: string, args: string[]): string {
+  const run = git(root, args);
+  if (run.status !== 0) throw new Error(`git ${args[0]} failed: ${run.stderr || run.error?.message || run.stdout}`.trim());
+  return run.stdout;
+}
+
+/** Rebuild one branch from `baseSha`. Throws on an error; the caller reports it and goes on. */
+function refreshBranch(root: string, { remote, branch, number, baseSha, index }: { remote: string; branch: string; number: number; baseSha: string; index: boolean }): RefreshOutcome {
+  const rel = reviewPath(number), prefix = `refs/remotes/${remote}/`;
+  const branchSha = gitOk(root, ["rev-parse", `${prefix}${branch}`]).trim();
+  const outcome = (state: RefreshOutcome["state"], problems?: string[]): RefreshOutcome => ({ number, branch, state, ...(problems ? { problems } : {}) });
+  // A clean tree on main for every branch: nothing from the last one may leak into this one.
+  gitOk(root, ["checkout", "--detach", "--force", baseSha]);
+  gitOk(root, ["clean", "-fd"]);
+  // The branch is replaced, so it must hold nothing but what this workflow put there.
+  const mergeBase = git(root, ["merge-base", baseSha, branchSha]);
+  if (mergeBase.status !== 0) return outcome("invalid", [`${branch} shares no history with main`]);
+  const changed = gitOk(root, ["diff", "--name-only", "-z", mergeBase.stdout.trim(), branchSha]).split("\0").filter(Boolean);
+  const extra = changed.filter((f) => f !== rel && !GENERATED.includes(f));
+  if (extra.length) return outcome("invalid", [`${branch} changes files other than the review and its generated data (${extra.slice(0, 5).join(", ")}${extra.length > 5 ? ", …" : ""}); left as it is so that nothing is overwritten`]);
+  // The size first, so that nothing oversized is read into memory.
+  const size = git(root, ["cat-file", "-s", `${branchSha}:${rel}`]);
+  if (size.status !== 0) return outcome("invalid", [`${rel} is not on ${branch}`]);
+  if (Number(size.stdout.trim()) > MAX_REVIEW_BYTES) return outcome("invalid", [`${rel} is larger than ${MAX_REVIEW_BYTES} bytes`]);
+  const shown = git(root, ["show", `${branchSha}:${rel}`]);
+  if (shown.status !== 0) throw new Error(`reading ${rel} from ${branch} failed: ${shown.stderr || shown.error?.message}`);
+  let parsed: unknown;
+  try { parsed = JSON.parse(shown.stdout); } catch (e) { return outcome("invalid", [`${rel} is not valid JSON: ${(e as Error).message}`]); }
+  const checked = checkReview(root, parsed, number);
+  if (!checked.ok || !checked.review) return outcome("invalid", checked.problems);
+  stageReview(root, checked.review, number, index);
+  gitOk(root, ["add", "--", rel, ...GENERATED]);
+  if (git(root, ["diff", "--cached", "--quiet"]).status === 0) return outcome("merged");
+  gitOk(root, ["-c", "user.name=github-actions[bot]", "-c", "user.email=41898282+github-actions[bot]@users.noreply.github.com", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", `Add the review submitted in #${number}`]);
+  // Current means the same tree on top of today's main: a branch behind main is pushed again, so that GitHub shows it up to date.
+  const parent = git(root, ["rev-parse", `${branchSha}^`]).stdout.trim();
+  if (parent === baseSha && git(root, ["diff", "--quiet", branchSha, "HEAD"]).status === 0) return outcome("current");
+  // The lease names the commit we read, so a push that landed since (an edit of the issue) is not overwritten.
+  const push = git(root, ["push", `--force-with-lease=refs/heads/${branch}:${branchSha}`, remote, `HEAD:refs/heads/${branch}`]);
+  return push.status === 0 ? outcome("updated") : outcome("raced", [(push.stderr || "push failed").trim().split("\n").pop()!]);
+}
+
+/**
+ * Each `review-submission/issue-<n>` branch carries the review plus the data `npm run index` regenerates from
+ * everything in the repo, so it goes stale whenever `main` moves, and two of them conflict in theme/reviews.js.
+ * Rebuild each one from the current `main`: check its review again against `main` as it is now, regenerate, and
+ * replace the branch's single commit. A review that no longer passes, or a branch that holds anything else, is left as it is. Needs `fetch-depth: 0`
+ * (or a full clone) so the branches and `main` share history.
+ */
+export function refreshSubmissions(root: string, { remote = "origin", base = "main", index = true }: { remote?: string; base?: string; index?: boolean } = {}): RefreshOutcome[] {
+  gitOk(root, ["fetch", "--prune", remote, `+refs/heads/${base}:refs/remotes/${remote}/${base}`, `+refs/heads/review-submission/*:refs/remotes/${remote}/review-submission/*`]);
+  const prefix = `refs/remotes/${remote}/`;
+  const branches = gitOk(root, ["for-each-ref", "--format=%(refname)", `${prefix}review-submission/`]).split("\n")
+    .map((ref) => ref.trim().slice(prefix.length)).filter((b) => SUBMISSION_BRANCH.test(b)).sort((x, y) => Number(x.match(SUBMISSION_BRANCH)![1]) - Number(y.match(SUBMISSION_BRANCH)![1]));
+  const baseSha = gitOk(root, ["rev-parse", `${prefix}${base}`]).trim();
+  const outcomes: RefreshOutcome[] = [];
+  for (const branch of branches) {
+    const number = Number(branch.match(SUBMISSION_BRANCH)![1]);
+    try {
+      outcomes.push(refreshBranch(root, { remote, branch, number, baseSha, index }));
+    } catch (e) {
+      // One broken branch must not stop the others.
+      outcomes.push({ number, branch, state: "failed", problems: [(e as Error).message] });
+    }
+  }
+  gitOk(root, ["checkout", "--detach", "--force", baseSha]);
+  return outcomes;
 }
 
 // ---- talking to GitHub -------------------------------------------------------------------------
@@ -175,7 +273,7 @@ export function pullRequestBody(result: SubmissionResult): string {
     "",
     "The review-submission workflow validated it with the rules `npm run check` applies to review files. Read the comments before merging: merging publishes them on the page.",
     "",
-    "GitHub does not start CI for a pull request that GitHub Actions opens, so the workflow started CI on this branch itself. If `main` has moved since, update the branch, run `npm run index`, and let CI run again before merging: the regenerated review data here was built from `main` as it was.",
+    "GitHub does not start CI for a pull request that GitHub Actions opens, so the workflow started CI on this branch itself. Whenever `main` changes, the review-submission refresh workflow rebuilds this branch from it, regenerates the review data and starts CI again, so two of these pull requests can be merged one after the other without running `npm run index`. Merge once the CI run that follows the latest refresh is green.",
     "",
     `Closes #${result.number}`,
   ].join("\n");
@@ -310,8 +408,24 @@ function output(values: Record<string, string>): void {
 const arg = (args: string[], name: string) => { const i = args.indexOf(name); if (i < 0 || !args[i + 1]) throw new Error(`${name} <dir> is required`); return path.resolve(args[i + 1]); };
 const env = (name: string) => { const v = process.env[name]; if (!v) throw new Error(`${name} is not set`); return v; };
 
+/** The `refresh` command: rebuild the submission branches from `main`, then start CI on each one it changed. */
+async function refresh(): Promise<number> {
+  const api = { repo: env("GITHUB_REPOSITORY"), token: env("GITHUB_TOKEN") }; // before any push, so that none goes without its CI run
+  const outcomes = refreshSubmissions(ROOT);
+  for (const o of outcomes) {
+    console.log(`${o.branch}: ${o.state}${o.problems ? `\n  ${o.problems.map((p) => clean(p)).join("\n  ")}` : ""}`);
+    if (o.state === "invalid") console.log(`::warning::${o.branch} no longer passes the review checks against main and was left as it is; see the log`);
+    if (o.state === "failed") console.log(`::error::${o.branch} could not be refreshed`);
+    if (o.state === "raced") console.log(`::warning::${o.branch} changed while it was being refreshed; the next push to main refreshes it`);
+    if (o.state === "updated" && !(await dispatchChecks(api, o.branch))) console.log(`::warning::Could not start CI on ${o.branch}; close and reopen its pull request to run it`);
+  }
+  if (!outcomes.length) console.log("No review submission branches.");
+  return outcomes.some((o) => o.state === "failed") ? 1 : 0;
+}
+
 export async function main(argv = process.argv.slice(2)): Promise<number> {
   const [cmd, ...args] = argv;
+  if (cmd === "refresh") return refresh();
   const e = event(), n = e.issue.number;
   if (cmd === "validate") {
     const result = prepareSubmission(ROOT, e.issue.body, n, arg(args, "--out"));
@@ -343,7 +457,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     });
     console.log(await postReport({ repo: env("GITHUB_REPOSITORY"), token: env("GITHUB_TOKEN") }, n, body));
   } else {
-    console.error("usage: review-submission.mts validate --out <dir> | apply --from <dir> | propose --from <dir> | withdraw | cleanup | report --from <dir>");
+    console.error("usage: review-submission.mts validate --out <dir> | apply --from <dir> | propose --from <dir> | withdraw | cleanup | report --from <dir> | refresh");
     return 2;
   }
   return 0;
