@@ -1,9 +1,6 @@
 // Review files (bh-review/1): reading them and deciding whether they are valid.
 //
-// One validator for every route a review takes into the repo: `npm run check` (scripts/bh.mts)
-// runs it on the files in reviews/, and the review-submission workflow
-// (scripts/review-submission.mts) runs it on a review pasted into a GitHub issue before it
-// proposes the file. Node built-ins only: the workflow runs it without `npm ci`.
+// `npm run check` (scripts/bh.mts) runs it on the files in reviews/.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -137,20 +134,10 @@ export function schemaProblems(value: unknown, schema: Schema, at = ""): string[
 
 // ---- the rules `check` applies ----------------------------------------------------------------
 
-/** A review that is not (yet) a file under reviews/: the workflow's candidate, at the path it would get (it replaces a file already there). */
-export interface ReviewCandidate { rel: string; review: unknown }
-
-/**
- * Every problem with the review files under `<root>/reviews`, plus `extra` candidates as if they were
- * files at their `rel` paths. Each message starts with the file's repo-relative path.
- */
-export function reviewProblems(root: string, { extra = [] }: { extra?: ReviewCandidate[] } = {}): string[] {
+/** Every problem with the review files under `<root>/reviews`. Each message starts with the file's repo-relative path. */
+export function reviewProblems(root: string): string[] {
   const out: string[] = [];
-  const replaced = new Set(extra.map((c) => c.rel));
-  const entries: { rel: string; load: () => unknown }[] = [
-    ...reviewFiles(root).sort().map((file) => ({ rel: path.relative(root, file).split(path.sep).join("/"), load: () => readReview(file) })).filter((e) => !replaced.has(e.rel)),
-    ...extra.map((c) => ({ rel: c.rel, load: () => c.review })),
-  ];
+  const entries = reviewFiles(root).sort().map((file) => ({ rel: path.relative(root, file).split(path.sep).join("/"), load: () => readReview(file) }));
   if (!entries.length) return out;
   let schema: Schema;
   try { schema = readSchema(root); } catch (e) { return [`reviews/schema.json: not readable (${(e as Error).message})`]; }

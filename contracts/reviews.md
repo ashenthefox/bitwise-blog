@@ -9,41 +9,13 @@ reappear on later visits, and are exported from the Review panel as a `bh-review
 file by adding it to `reviews/inbox/` in a pull request. `check` validates every review file
 against the schema and its own rules (`scripts/reviews.mts`).
 
-**Submitting from the page.** On a page the site lists, the panel's "Submit on GitHub" opens the
-issue form `.github/ISSUE_TEMPLATE/review-submission.yml` with the file filled in (a review too long
-for a link is downloaded, to paste into the form). Its `review-submission` label runs
-`.github/workflows/review-submission.yml`: `validate` (read-only) checks the review with the same
-code as `check`, writes it to `reviews/inbox/issue-<n>.json` and regenerates the review data;
-`propose` pushes `review-submission/issue-<n>`, opens the PR (or, while the repo does not let
-Actions open PRs, the reply links the compare page) and starts `ci.yml` on the branch by dispatch;
-`withdraw` closes that PR when an edit makes the review invalid, and `cleanup` does the same when the issue is closed (a merge leaves nothing open, so it is then a no-op); `report` replies on the issue. The issue body is
-untrusted: never put `${{ github.event.issue.* }}` in a script or env var, and keep untrusted parsing
-in the read-only job (`tests/review-submission.test.mts` checks both).
-
-Two repository settings are deliberately off: "Allow GitHub Actions to create and approve pull requests"
-(the reply links the compare page instead of opening the PR) and "Automatically delete head branches".
-A live run (issue #188) exercised the path without a PR: reply, branch, the dispatched `ci.yml` run, and
-`withdraw` deleting the branch after an edit made the review invalid. The PR-opening and PR-closing
-paths have only the unit tests behind them until the first setting is turned on.
-
-**Keeping submission PRs current.** The branch carries the review file and the data `npm run index`
-regenerates from everything in `reviews/` (`theme/reviews.js`, `theme/site.js`,
-`theme/unlisted-reviews.js`), because `check` fails while those are stale and must pass on the PR. Those
-three files are shared by every submission, so any push to `main` (including the merge of another
-submission) makes an open branch stale, and two open ones conflict. `.github/workflows/review-submission-refresh.yml`
-runs `scripts/review-submission.mts refresh` on every push to `main`: for each branch named exactly
-`review-submission/issue-<n>` it checks the review again against the new `main` (same code as `validate`),
-runs `index`, replaces the branch's single commit (`--force-with-lease`, so an edit that landed meanwhile
-is not overwritten) and starts `ci.yml` on it, since a push made with the Actions token starts nothing.
-A branch whose review no longer passes (for example its comment ids now clash with a review that was merged),
-or that holds anything besides the review and its generated data (a maintainer's fixup), is left as it is and
-the run logs a warning; every such branch is refreshed whether or not its PR is still open (an unmerged
-one is removed by `cleanup` when its issue is closed); a review already on `main` is skipped. So **do not run
-`npm run index` on a submission branch by hand**, and merge submissions one after another, each once the CI
-run that follows the latest refresh is green. The one manual step left: if a PR is merged in the seconds
-between another merge and its refresh, `main` can end up with stale generated data (`check` fails there):
-run `npm run index` on `main` and commit. The refresh never deletes branches: that is `withdraw`'s and
-`cleanup`'s job.
+**Submitting from the page waits for a hosted service** (#207). A "Submit on GitHub" button that
+filed the review as a GitHub issue, and workflows that turned the issue into a pull request, were
+removed in #199: they let any GitHub account make a workflow with a write token push a branch to this
+repo and start CI on it, again on every edit, with no rate limit. (CI checking a review file in a
+contributor's own pull request is fine: that runs with a read-only token, and GitHub asks you to approve
+a first-time contributor's run.) Don't bring back an issue-, comment- or label-triggered workflow that
+writes to the repo or starts CI on a stranger's input; that is the service's job, outside this repo.
 
 **Published threads.** Every review file in `reviews/` is compiled by `npm run index` into
 `theme/reviews.js`, so once a review PR is merged its comments show on the published page
