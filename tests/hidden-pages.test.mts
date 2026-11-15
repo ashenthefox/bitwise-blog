@@ -86,6 +86,7 @@ test("classifyPage reads the kind from the file name and the head, not from comm
   assert.equal(classifyPage("docs/a.html", page(unlisted)), "unlisted");
   assert.equal(classifyPage("docs/a.html", page('<meta name="bh:sealed" content="true">')), "sealed");
   assert.equal(classifyPage("docs/a.html", page("", '<script type="application/octet-stream" id="sealed-payload">x</script>')), "sealed");
+  assert.equal(classifyPage("docs/a.html", page(`<!-- <meta name="bh:sealed" content="true"> -->${example}`)), "example", "a sealed marker in a comment does not make a page sealed");
   assert.equal(classifyPage("docs/a.private.html", page(example)), "private", "a private source is private whatever its head says");
   assert.equal(classifyPage("docs/a.html", page('<meta name="bh:example" content="false">')), null);
   assert.equal(classifyPage("docs/a.html", page(`<!-- ${example} -->`)), null, "a marker in a comment does not count");
@@ -119,11 +120,16 @@ test("the feed leaves a link as text exactly where HIDDEN_RULE says", (t) => {
 
 test("check reports a link exactly where HIDDEN_RULE says", (t) => {
   const f = site(t);
-  const out = f.bh("check").stdout;
-  const block = out.slice(out.indexOf(LINKER)).split(/\n(?=\S*(?:docs|templates)\/)/)[0]; // the lines under the linker page
-  assert.ok(block.length > 0 && block.includes(LINKER), "check reached the linker page");
+  // `check` prints a page's name on its own line and each finding indented under it.
+  const lines = f.bh("check").stdout.replace(/\x1b\[[0-9;]*m/g, "").split("\n");
+  const at = lines.findIndex((l) => /^\S+\s+docs\/probe-linker\.html$/.test(l));
+  assert.notEqual(at, -1, "check reached the linker page");
+  const under: string[] = [];
+  for (const l of lines.slice(at + 1)) { if (!/^\s/.test(l)) break; under.push(l); }
+  const block = under.join("\n");
   for (const kind of HIDDEN_KINDS) assert.equal(PROBES[kind].checkMessage.test(block), HIDDEN_RULE[kind].check, `${kind}: reported by check`);
   assert.doesNotMatch(block, /links to (?:example|unlisted|private) page glossary/);
+  assert.match(block, /probe-example/, "the findings under the linker page were read");
 });
 
 test("publish unwraps a link exactly where HIDDEN_RULE says, and stages no hidden page it removes", (t) => {

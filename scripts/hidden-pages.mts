@@ -15,7 +15,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { PRIVATE_EXT } from "./reviews.mts";
+import { PRIVATE_EXT, isSealedShell } from "./reviews.mts";
 
 export const HIDDEN_KINDS = ["example", "unlisted", "sealed", "private"] as const;
 export type HiddenKind = (typeof HIDDEN_KINDS)[number];
@@ -38,8 +38,6 @@ export const HIDDEN_RULE: Record<HiddenKind, Record<HiddenConsumer, boolean>> = 
   private: { feed: true, check: true, publish: false },
 };
 
-/** A sealed shell holds the encrypted payload and the sealed meta; either one marks it. */
-export const isSealedShell = (html: string) => /<script\b[^>]*\bid="sealed-payload"/i.test(html) || /<meta\s+name="bh:sealed"/i.test(html);
 
 const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, "");
 const head = (html: string) => uncomment(html).match(/<head\b[^>]*>([\s\S]*?)<\/head>/i)?.[1] || "";
@@ -48,7 +46,7 @@ const metaTrue = (headHtml: string, name: string) => new RegExp(`<meta\\s+name="
 /**
  * The kind of hidden page a file is, or null for an ordinary one. `file` is a name or path (a private
  * source is known by its `.private.html` name); `html` is the page's text. An example marker in a
- * comment does not count, and a sealed shell is judged before its head (it has no readable meta).
+ * comment does not count, and a sealed shell is judged first, by `isSealedShell` (scripts/reviews.mts), the same test `docFiles()` uses.
  */
 export function classifyPage(file: string, html: string): HiddenKind | null {
   if (file.endsWith(PRIVATE_EXT)) return "private";

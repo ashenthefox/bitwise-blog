@@ -13,8 +13,18 @@ import type { ReviewComment, ReviewFile, ReviewRecord } from "./types.mts";
 
 export const PRIVATE_EXT = ".private.html";
 
-/** True when the file is a sealed (encrypted) private page: it carries the `bh:sealed` meta. */
-export const isSealedFile = (file: string): boolean => /<meta\s+name="bh:sealed"/i.test(fs.readFileSync(file, "utf8"));
+/**
+ * True when the page's HTML is a sealed (encrypted) private page: it carries the `bh:sealed` meta or the
+ * encrypted payload script, outside comments (a page that quotes the markup in a comment is not one).
+ * The one sealed test: `classifyPage` (scripts/hidden-pages.mts), the generators and `publish` all use it.
+ */
+export const isSealedShell = (html: string): boolean => {
+  const live = html.replace(/<!--[\s\S]*?-->/g, "");
+  return /<script\b[^>]*\bid="sealed-payload"/i.test(live) || /<meta\s+name="bh:sealed"/i.test(live);
+};
+
+/** True when the file is a sealed (encrypted) private page. */
+export const isSealedFile = (file: string): boolean => isSealedShell(fs.readFileSync(file, "utf8"));
 
 /** Every review file under `<root>/reviews` (plain or gzipped JSON; not the schema). */
 export function reviewFiles(root: string, dir = path.join(root, "reviews")): string[] {

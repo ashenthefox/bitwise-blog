@@ -6,7 +6,8 @@ import path from "node:path";
 import vm from "node:vm";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { hiddenPages, hiddenHrefs, isSealedShell } from "./hidden-pages.mts";
+import { hiddenPages, hiddenHrefs } from "./hidden-pages.mts";
+import { isSealedShell } from "./reviews.mts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, "");
