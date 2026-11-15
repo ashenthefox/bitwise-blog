@@ -37,13 +37,13 @@ runs `index`, replaces the branch's single commit (`--force-with-lease`, so an e
 is not overwritten) and starts `ci.yml` on it, since a push made with the Actions token starts nothing.
 A branch whose review no longer passes (for example its comment ids now clash with a review that was merged),
 or that holds anything besides the review and its generated data (a maintainer's fixup), is left as it is and
-the run logs a warning; every such branch is refreshed whether or not its PR is still open (clean-up of
-unmerged ones is a separate issue); a review already on `main` is skipped. So **do not run
+the run logs a warning; every such branch is refreshed whether or not its PR is still open (an unmerged
+one is removed by `cleanup` when its issue is closed); a review already on `main` is skipped. So **do not run
 `npm run index` on a submission branch by hand**, and merge submissions one after another, each once the CI
 run that follows the latest refresh is green. The one manual step left: if a PR is merged in the seconds
 between another merge and its refresh, `main` can end up with stale generated data (`check` fails there):
-run `npm run index` on `main` and commit. The refresh never deletes branches (merged or withdrawn ones are
-left to their own clean-up).
+run `npm run index` on `main` and commit. The refresh never deletes branches: that is `withdraw`'s and
+`cleanup`'s job.
 
 **Published threads.** Every review file in `reviews/` is compiled by `npm run index` into
 `theme/reviews.js`, so once a review PR is merged its comments show on the published page
