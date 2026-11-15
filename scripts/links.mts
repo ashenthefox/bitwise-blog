@@ -108,7 +108,7 @@ export function publishedPages(root: string = ROOT): LinkPage[] {
 }
 
 /** `publishedPages` with each page's HTML, so it is read once. Sealed and example are decided as `publish.mts` decides them. */
-function readPages(root: string): Array<{ page: LinkPage; html: string }> {
+export function readPages(root: string): Array<{ page: LinkPage; html: string }> {
   const read = (href: string) => fs.readFileSync(path.join(root, href), "utf8");
   const pages = fs.existsSync(path.join(root, "index.html")) ? [{ page: { href: "index.html", unlisted: false }, html: read("index.html") }] : [];
   const dir = path.join(root, "docs");

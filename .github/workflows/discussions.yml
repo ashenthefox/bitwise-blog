@@ -1,0 +1,42 @@
+name: Discussions
+
+# Lists the repository's GitHub Discussions once a week (`npm run discussions`, scripts/discussions.mts) and
+# reports the posts whose thread exists but is not pinned with `bh:discuss`, posts with more than one thread, and
+# pins that point at a thread about something else. It only reads: it opens no issue and edits no page. The report
+# goes to the job summary, and the job fails while there is something to fix, so GitHub's failed-run email is how the
+# author finds out. A discussion can quote an unlisted page's URL, and this log and summary are public, so the report
+# calls such a page only "an unlisted page". See contracts/discuss.md.
+#
+# GitHub switches a scheduled workflow off in a public repository after 60 days without repository activity,
+# and says nothing when it does: if the blog goes quiet, re-enable it from the Actions tab.
+on:
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+
+# discussions: read to list the threads; nothing is written.
+permissions:
+  contents: read
+  discussions: read
+
+concurrency:
+  group: discussions
+  cancel-in-progress: false
+
+jobs:
+  discussions:
+    runs-on: ubuntu-latest
+    # A normal run takes seconds; each `gh` call has its own 60-second timeout.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # No `npm ci`: the script needs nothing beyond Node and the preinstalled `gh`.
+      - name: Report the threads that are not pinned
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/discussions.mts

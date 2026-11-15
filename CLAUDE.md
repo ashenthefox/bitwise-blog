@@ -65,7 +65,7 @@ Read it before you use or change the feature; `check` fails if a file named here
 - `feed.xml`, its autodiscovery link or the footer's Subscribe link? Read [`contracts/feed.md`](contracts/feed.md).
 - `sitemap.xml`, `robots.txt` or `404.html`? Read [`contracts/sitemap-robots-404.md`](contracts/sitemap-robots-404.md).
 - The footer's attribution link, `homepage`, `bh.siteName` or `bh.repoUrl`? Read [`contracts/attribution.md`](contracts/attribution.md).
-- The "Discuss this post" block, `bh:discuss`, `bh.discussionsUrl` or `bh.discussionCategory`? Read [`contracts/discuss.md`](contracts/discuss.md).
+- The "Discuss this post" block, `bh:discuss`, `bh.discussionsUrl`, `bh.discussionCategory`, `npm run discussions` or `.github/workflows/discussions.yml`? Read [`contracts/discuss.md`](contracts/discuss.md).
 - Fonts, Prism, Mermaid, `theme/vendor/`, `npm run vendor` or a CDN `<script>`? Read [`contracts/vendored-assets.md`](contracts/vendored-assets.md).
 - External links, `npm run links`, `links-allowlist.json` or the weekly link-check issue? Read [`contracts/external-links.md`](contracts/external-links.md).
 - GoatCounter, `GOATCOUNTER_CODE` or `npm run stats`? Read [`contracts/page-views.md`](contracts/page-views.md).

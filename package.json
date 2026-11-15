@@ -24,6 +24,7 @@
     "a11y": "node scripts/a11y.mts",
     "stats": "node scripts/stats.mts",
     "links": "node scripts/links.mts",
+    "discussions": "node scripts/discussions.mts",
     "sync-posts": "node scripts/sync-posts.mts",
     "advisor": "node scripts/advisor.mts",
     "vendor": "node scripts/vendor.mts",

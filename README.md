@@ -149,6 +149,10 @@ The authoring and publishing commands (`index`, `check`, `bundle`, `seal`, …) 
   Monday and keeps one issue, labelled `link-check`, listing the broken and permanently moved ones (closed when a
   run is clean). It is not a PR check, so a slow third-party site never makes a PR flaky. Run it locally with
   `npm run links`; sites that refuse automated clients go in `links-allowlist.json`, with a reason.
+- **Discussions** (`.github/workflows/discussions.yml`) lists the repository's GitHub Discussions each Monday and
+  reports a post whose thread exists but is not pinned with `bh:discuss`, a post with more than one thread, and a
+  pin that points at the wrong thread. It only reads, and fails the run while there is something to fix. Run it
+  locally with `npm run discussions` (needs `gh`); see `contracts/discuss.md`.
 
 ## Layout
 
@@ -199,6 +203,7 @@ scripts/chrome.mts      Finds and drives a local Chrome over the DevTools protoc
 scripts/vendor.mts      `npm run vendor`: re-fetches the fonts, Prism and Mermaid at their pinned versions
 scripts/stats.mts       `npm run stats`: views per page from GoatCounter's export, joined with titles and tags
 scripts/links.mts       `npm run links`: external link check (weekly via .github/workflows/links.yml; allowlist in links-allowlist.json)
+scripts/discussions.mts `npm run discussions`: posts whose GitHub Discussions thread is not pinned (weekly via .github/workflows/discussions.yml)
 scripts/sync-posts.mts  `npm run sync-posts`: pull a writer's posts into corpus/<writer>/posts/ (git-ignored); see corpus/README.md
 scripts/ingest/         The platform ingesters sync-posts runs: Substack, LessWrong, Medium, WordPress, Ghost
 scripts/visual.mts      Visual regression: Chrome via DevTools protocol, PNG diff, HTML report
