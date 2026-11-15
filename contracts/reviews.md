@@ -35,8 +35,10 @@ runs `scripts/review-submission.mts refresh` on every push to `main`: for each b
 `review-submission/issue-<n>` it checks the review again against the new `main` (same code as `validate`),
 runs `index`, replaces the branch's single commit (`--force-with-lease`, so an edit that landed meanwhile
 is not overwritten) and starts `ci.yml` on it, since a push made with the Actions token starts nothing.
-A branch whose review no longer passes (for example its comment ids now clash with a review that was merged)
-is left as it is and the run logs a warning; a review already on `main` is skipped. So **do not run
+A branch whose review no longer passes (for example its comment ids now clash with a review that was merged),
+or that holds anything besides the review and its generated data (a maintainer's fixup), is left as it is and
+the run logs a warning; every such branch is refreshed whether or not its PR is still open (clean-up of
+unmerged ones is a separate issue); a review already on `main` is skipped. So **do not run
 `npm run index` on a submission branch by hand**, and merge submissions one after another, each once the CI
 run that follows the latest refresh is green. The one manual step left: if a PR is merged in the seconds
 between another merge and its refresh, `main` can end up with stale generated data (`check` fails there):

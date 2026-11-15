@@ -439,6 +439,16 @@ test("open submission branches are rebuilt from main when it moves, so two can b
   const second = refreshSubmissions(work);
   assert.deepEqual(second.map((o) => [o.number, o.state]), [[1, "merged"], [2, "current"]]);
   assert.equal(gOk(work, "rev-parse", `origin/${branchFor(2)}`), after, "not pushed again");
+
+  // main moves in a way that changes no generated data: the branch is still moved onto it, so GitHub shows it up to date.
+  gOk(work, "checkout", "-q", "main");
+  fs.writeFileSync(path.join(work, "unrelated.txt"), "x");
+  gOk(work, "add", "-A");
+  gOk(work, "commit", "-q", "-m", "unrelated");
+  gOk(work, "push", "-q", "origin", "main");
+  assert.deepEqual(refreshSubmissions(work).map((o) => [o.number, o.state]), [[1, "merged"], [2, "updated"]]);
+  assert.equal(gOk(work, "rev-list", "--count", `main..origin/${branchFor(2)}`), "1");
+  assert.equal(gOk(work, "merge-base", "main", `origin/${branchFor(2)}`), gOk(work, "rev-parse", "main"));
 });
 
 test("refresh leaves a review that no longer passes, and ignores branches `propose` would not have made", { timeout: 175_000 }, (t) => {
@@ -456,12 +466,14 @@ test("refresh leaves a review that no longer passes, and ignores branches `propo
   gOk(work, "add", "-A");
   gOk(work, "commit", "-q", "-m", "a merged review");
   gOk(work, "push", "-q", "origin", "main");
-  const onBranch = (name: string, file: string, text: string) => {
+  const onBranch = (name: string, file: string | null, text = "") => {
     gOk(work, "checkout", "-q", "-b", name, "main");
-    fs.mkdirSync(path.dirname(path.join(work, file)), { recursive: true });
-    fs.writeFileSync(path.join(work, file), text);
+    if (file) {
+      fs.mkdirSync(path.dirname(path.join(work, file)), { recursive: true });
+      fs.writeFileSync(path.join(work, file), text);
+    }
     gOk(work, "add", "-A");
-    gOk(work, "commit", "-q", "-m", name);
+    gOk(work, "commit", "-q", "--allow-empty", "-m", name);
     gOk(work, "push", "-q", "origin", `HEAD:refs/heads/${name}`);
     gOk(work, "checkout", "-q", "main");
   };
@@ -469,14 +481,51 @@ test("refresh leaves a review that no longer passes, and ignores branches `propo
   onBranch(branchFor(4), reviewPath(4), "{not json");
   onBranch("review-submission/issue-x", reviewPath(5), JSON.stringify(review()));
   onBranch("review-submission/issue-07", reviewPath(7), JSON.stringify(review()));
-  onBranch("review-submission/issue-9", "notes.txt", "no review here");
-  const heads = Object.fromEntries(["issue-3", "issue-4", "issue-9"].map((n) => [n, gOk(work, "rev-parse", `origin/review-submission/${n}`)]));
+  onBranch("review-submission/issue-9", null);
+  // A review that passes, but a maintainer's file beside it: the branch is not replaced.
+  onBranch(branchFor(10), reviewPath(10), JSON.stringify(review({}, [{ ...comment, id: "fresh" }])));
+  gOk(work, "checkout", "-q", branchFor(10));
+  fs.writeFileSync(path.join(work, "notes.txt"), "a maintainer's change");
+  gOk(work, "add", "-A");
+  gOk(work, "commit", "-q", "-m", "fixup");
+  gOk(work, "push", "-q", "origin", `HEAD:refs/heads/${branchFor(10)}`);
+  gOk(work, "checkout", "-q", "main");
+  const heads = Object.fromEntries(["issue-3", "issue-4", "issue-9", "issue-10"].map((n) => [n, gOk(work, "rev-parse", `origin/review-submission/${n}`)]));
   const got = refreshSubmissions(work);
-  assert.deepEqual(got.map((o) => [o.number, o.state]), [[3, "invalid"], [4, "invalid"], [9, "invalid"]]);
+  assert.deepEqual(got.map((o) => [o.number, o.state]), [[3, "invalid"], [4, "invalid"], [9, "invalid"], [10, "invalid"]]); // in issue-number order
   assert.match(got[0].problems!.join("\n"), /taken/);
   assert.match(got[1].problems!.join("\n"), /not valid JSON/);
   assert.match(got[2].problems!.join("\n"), /is not on/);
+  assert.match(got[3].problems!.join("\n"), /changes files other than the review.*notes\.txt/);
   for (const [n, sha] of Object.entries(heads)) assert.equal(gOk(work, "rev-parse", `origin/review-submission/${n}`), sha, `${n} is untouched`);
+});
+
+test("a branch that cannot be refreshed is reported, does not stop the others, and is not pushed", { timeout: 175_000 }, (t) => {
+  const work = siteCopy(t), origin = fs.mkdtempSync(path.join(os.tmpdir(), "bh-origin-")), out = fs.mkdtempSync(path.join(os.tmpdir(), "bh-out-"));
+  t.after(() => { fs.rmSync(origin, { recursive: true, force: true }); fs.rmSync(out, { recursive: true, force: true }); });
+  gOk(work, "init", "-q", "-b", "main");
+  gOk(work, "add", "-A");
+  gOk(work, "commit", "-q", "-m", "site");
+  gOk(origin, "init", "-q", "--bare", "-b", "main");
+  gOk(work, "remote", "add", "origin", origin);
+  gOk(work, "push", "-q", "origin", "main");
+  for (const n of [1, 2]) {
+    gOk(work, "checkout", "-q", "-b", branchFor(n), "main");
+    assert.equal(prepareSubmission(work, formBody(JSON.stringify(review({}, [{ ...comment, id: `sub-${n}` }]))), n, out).ok, true);
+    gOk(work, "add", "--", reviewPath(n), ...GENERATED);
+    gOk(work, "commit", "-q", "-m", `#${n}`);
+    gOk(work, "push", "-q", "origin", `HEAD:refs/heads/${branchFor(n)}`);
+    gOk(work, "checkout", "-q", "main");
+  }
+  // `index` can no longer run on main, so each rebuild throws.
+  gOk(work, "rm", "-q", "scripts/bh.mts");
+  gOk(work, "commit", "-q", "-m", "break index");
+  gOk(work, "push", "-q", "origin", "main");
+  const heads = [1, 2].map((n) => gOk(work, "rev-parse", `origin/${branchFor(n)}`));
+  const got = refreshSubmissions(work);
+  assert.deepEqual(got.map((o) => [o.number, o.state]), [[1, "failed"], [2, "failed"]]);
+  assert.match(got[1].problems![0], /bh\.mts index failed/);
+  assert.deepEqual([1, 2].map((n) => gOk(work, "rev-parse", `origin/${branchFor(n)}`)), heads);
 });
 
 const refreshWorkflow = parse(fs.readFileSync(path.join(source, ".github/workflows/review-submission-refresh.yml"), "utf8")) as { on: unknown; permissions: unknown; concurrency: { "cancel-in-progress": boolean }; jobs: Record<string, Job> };
