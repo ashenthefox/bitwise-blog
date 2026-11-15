@@ -14,7 +14,8 @@ on:
     - cron: "41 5 * * 1"
   workflow_dispatch:
 
-# discussions: read to list the threads; nothing is written.
+# discussions: read to list the threads; nothing is written. A public repository's threads are readable without it;
+# what a live run showed is in contracts/discuss.md ("What a run on GitHub has shown").
 permissions:
   contents: read
   discussions: read

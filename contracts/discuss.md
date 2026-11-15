@@ -58,3 +58,22 @@ What to do with each finding:
 The report can run in a public workflow, so it names an unlisted page only as "an unlisted page" (never its path or
 title), never matches an unlisted page by title, and never reads a private page or sealed shell. It prints thread
 numbers, not their titles or text. See [External links](external-links.md) for the same rule in the link check.
+
+### What a run on GitHub has shown
+
+The tests stub `gh`, so these paths were checked on 2026-11-15 by dispatching the workflow with the job's own
+`GITHUB_TOKEN`, each from its own branch: `gh workflow run discussions.yml --ref <branch>` (or the Actions tab's "Use
+workflow from" list) runs that branch's copy of the workflow and pages, so nothing touches `main`. Recheck them when
+you change the workflow's permissions or how the report writes its summary.
+
+- **Clean.** On `main` the job was green. The summary is a `## Discussions` heading, one line that says when the report
+  ran and `Checked <n> posts against <m> discussions: 0 problems.`, and the pointer to this contract.
+- **A problem.** A branch off `main` with only the patchcov pin removed turned the job red (exit 1), and the summary
+  listed `docs/announcing-patchcov.html` under "Thread exists, post not pinned" with the `<meta>` to add.
+- **Permissions.** A branch off `main` with only `discussions: read` dropped (leaving `contents: read`) was still
+  green: while the repository is public, the token can list its discussions without the grant. The grant stays,
+  because it says what the job needs and a private repository needs it. So while the repository is public, an exit 2
+  with a GraphQL error is not a missing grant; in a private one, check the grant first.
+- **Not exercised: exit 2.** A failure of the report itself (`gh`, the token, GraphQL) writes nothing to the summary,
+  and its failed-run email looks like the one for a missing pin. An empty summary on a red run means exit 2: read the
+  job's log for the error.
