@@ -22,6 +22,8 @@ name: Review submissions
 # When the issue is closed, `cleanup` does the same: a spam or withdrawn submission closed by hand
 # leaves no branch or open pull request behind. A merge closes the issue through `Closes #N`; its
 # pull request is no longer open and its branch is usually gone, so `cleanup` then does nothing.
+# The branch carries data shared by every submission, which goes stale when main moves: see
+# review-submission-refresh.yml, which rebuilds each open branch after every push to main.
 on:
   issues:
     types: [opened, edited, reopened, closed]

@@ -26,6 +26,23 @@ A live run (issue #188) exercised the path without a PR: reply, branch, the disp
 `withdraw` deleting the branch after an edit made the review invalid. The PR-opening and PR-closing
 paths have only the unit tests behind them until the first setting is turned on.
 
+**Keeping submission PRs current.** The branch carries the review file and the data `npm run index`
+regenerates from everything in `reviews/` (`theme/reviews.js`, `theme/site.js`,
+`theme/unlisted-reviews.js`), because `check` fails while those are stale and must pass on the PR. Those
+three files are shared by every submission, so any push to `main` (including the merge of another
+submission) makes an open branch stale, and two open ones conflict. `.github/workflows/review-submission-refresh.yml`
+runs `scripts/review-submission.mts refresh` on every push to `main`: for each branch named exactly
+`review-submission/issue-<n>` it checks the review again against the new `main` (same code as `validate`),
+runs `index`, replaces the branch's single commit (`--force-with-lease`, so an edit that landed meanwhile
+is not overwritten) and starts `ci.yml` on it, since a push made with the Actions token starts nothing.
+A branch whose review no longer passes (for example its comment ids now clash with a review that was merged)
+is left as it is and the run logs a warning; a review already on `main` is skipped. So **do not run
+`npm run index` on a submission branch by hand**, and merge submissions one after another, each once the CI
+run that follows the latest refresh is green. The one manual step left: if a PR is merged in the seconds
+between another merge and its refresh, `main` can end up with stale generated data (`check` fails there):
+run `npm run index` on `main` and commit. The refresh never deletes branches (merged or withdrawn ones are
+left to their own clean-up).
+
 **Published threads.** Every review file in `reviews/` is compiled by `npm run index` into
 `theme/reviews.js`, so once a review PR is merged its comments show on the published page
 for everyone: highlights and pins, opening into threads.
