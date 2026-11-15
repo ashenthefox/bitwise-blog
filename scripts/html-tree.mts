@@ -41,3 +41,7 @@ export const hasClass = (n: TreeNode, c: string) => (nodeAttr(n, "class") || "")
 export function walkTree(n: TreeNode, fn: (n: TreeNode) => void): void { for (const c of n.children) { fn(c); walkTree(c, fn); } }
 export function findNode(n: TreeNode, pred: (n: TreeNode) => boolean): TreeNode | null { let hit = null as TreeNode | null; walkTree(n, (c) => { if (!hit && pred(c)) hit = c; }); return hit; }
 export const nodeText = (src: string, n: TreeNode) => src.slice(n.start, n.end).replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+
+export function decodeEntities(s: string): string {
+  return s.replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (m, e) => ({ amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", nbsp: " " } as Record<string, string>)[e]);
+}
