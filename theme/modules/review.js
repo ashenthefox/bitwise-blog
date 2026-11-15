@@ -8,6 +8,10 @@
    and added to the repo by pull request; once merged they become part of the threads,
    and the local drafts are dropped automatically.
 
+   Submitting: "Submit on GitHub" opens the repo's review issue form with the file filled
+   in; .github/workflows/review-submission.yml checks it and proposes the pull request.
+   A review too long for a link is downloaded instead, to paste into the same form.
+
    Turn on with the top bar's Review button (or ?review). Then:
    - select text and press "Comment", or use "+ Comment" on any section/figure;
    - open any pin to read the thread and Reply (optionally marking it resolved);
@@ -42,6 +46,11 @@
   const build = () => window.BH_BUILD || { repo: null, commit: null, dirty: null, builtAt: null };
   const docPath = () => bh.sitePath() || bh.meta("bh:source") || location.pathname.replace(/^\//, "");
   const storeKey = () => `bh-review/v1/${build().repo || "local"}/${docPath()}`;
+  // Submitting through a GitHub issue form (.github/ISSUE_TEMPLATE/review-submission.yml). GitHub
+  // refuses new-issue URLs at around 8 KB; 6,000 characters leaves room for proxies on the way.
+  // The issue body takes about 65,000, and the workflow accepts a review of up to 60,000 bytes.
+  const ISSUE_FORM = "review-submission.yml", ISSUE_FIELD = "review";
+  const MAX_SUBMIT_URL = 6000, MAX_ISSUE_REVIEW = 60000;
 
   let state = { reviewer: "", comments: [] };            // local drafts (comments + replies)
   let published = [];                                      // merged comments for this document
@@ -543,6 +552,7 @@
   }
 
   function buildPanel() {
+    const submittable = canSubmit();
     const reviewer = el("input", { type: "text", class: "bh-review-reviewer", placeholder: "Your name (optional)", "aria-label": "Your name", value: state.reviewer });
     reviewer.addEventListener("input", () => { state.reviewer = reviewer.value.trim(); save(); });
     const clear = el("button", { type: "button", class: "btn ghost", "data-clear": "", text: "Delete all drafts…" });
@@ -570,10 +580,14 @@
       el("ol", { class: "bh-review-list bh-review-mylist" }),
       el("label", { class: "bh-review-label" }, ["Your name", reviewer]),
       el("div", { class: "bh-review-export" }, [
-        el("button", { type: "button", class: "btn primary", "data-export": "json", text: "Download drafts .json", onclick: () => exportFile(false) }),
+        submittable ? el("button", { type: "button", class: "btn primary", "data-export": "submit", text: "Submit on GitHub", onclick: submit }) : null,
+        el("button", { type: "button", class: submittable ? "btn" : "btn primary", "data-export": "json", text: "Download drafts .json", onclick: () => exportFile(false) }),
         el("button", { type: "button", class: "btn", "data-export": "gz", text: ".json.gz", onclick: () => exportFile(true) }),
       ]),
-      el("p", { class: "bh-review-help muted", text: "Drafts stay in this browser until they are published. To submit: add the file to reviews/inbox/ in a pull request (GitHub → Add file → Upload files). Once merged, they appear here for everyone. You can export again with new drafts: unchanged messages are published once. Editing an already-submitted draft causes an id conflict; submit a new reply instead." }),
+      el("div", { class: "bh-review-submit-note", hidden: true, role: "status" }),
+      el("p", { class: "bh-review-help muted", text: submittable
+        ? "Drafts stay in this browser until they are published. Submit on GitHub opens an issue with your drafts filled in (you need a GitHub account): press Create there, and a pull request adding them is prepared for the author. Or download the file and add it to reviews/inbox/ in a pull request. Once merged, they appear here for everyone. You can submit again with new drafts: unchanged messages are published once. Editing an already-submitted draft causes an id conflict; submit a new reply instead."
+        : "Drafts stay in this browser until they are published. To submit: add the file to reviews/inbox/ in a pull request (GitHub → Add file → Upload files). Once merged, they appear here for everyone. You can export again with new drafts: unchanged messages are published once. Editing an already-submitted draft causes an id conflict; submit a new reply instead." }),
       clear,
       el("label", { class: "bh-review-check" }, [pageToggle, " Show comments on the page when not reviewing"]),
     ]);
@@ -618,6 +632,69 @@
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
     announce(`Downloaded ${name}`);
+    return name;
+  }
+
+  // ---- Submit on GitHub ---------------------------------------------------------------------------------------
+
+  /** owner/name from the build stamp, or null (the page then offers only the download). */
+  function submitRepo() {
+    const r = build().repo;
+    return typeof r === "string" && /^[\w.-]+\/[\w.-]+$/.test(r) ? r : null;
+  }
+
+  /** Fail closed: only on a page the site lists, so never on a private or sealed page (not in the site data),
+      an unlisted one (a public issue would surface it), a bundle or a copy opened from disk. */
+  function canSubmit() {
+    if (!submitRepo() || !bh.siteRoot || root.hasAttribute("data-bundled") || (bh.unlisted && bh.unlisted.page)) return false;
+    const pages = window.BH_SITE && window.BH_SITE.pages;
+    return Array.isArray(pages) && pages.some((p) => p && p.href === docPath());
+  }
+
+  /** The new-issue URL of the review form, with `json` in its review field (none: the reader pastes it). */
+  function issueUrl(json) {
+    const u = new URL(`https://github.com/${submitRepo()}/issues/new`);
+    u.searchParams.set("template", ISSUE_FORM);
+    u.searchParams.set("title", `Review: ${doc.title || docPath()}`);
+    if (json != null) u.searchParams.set(ISSUE_FIELD, json);
+    return u.href;
+  }
+
+  /** Where Submit goes: the prefilled form when it fits in a link (pretty JSON, else compact), or null. */
+  function submitUrl(file = reviewFile()) {
+    for (const json of [JSON.stringify(file, null, 2) + "\n", JSON.stringify(file)]) {
+      const url = issueUrl(json);
+      if (url.length <= MAX_SUBMIT_URL) return url;
+    }
+    return null;
+  }
+
+  function submit() {
+    if (!canSubmit() || !state.comments.length) return;
+    const file = reviewFile();
+    const note = panel.querySelector(".bh-review-submit-note");
+    const url = submitUrl(file);
+    if (url) {
+      note.hidden = true;
+      window.open(url, "_blank", "noopener");
+      announce("GitHub opened in a new tab: press Create there to submit your review");
+      return;
+    }
+    // Too long for a link: download the file, and offer the same form to paste it into.
+    const json = JSON.stringify(file, null, 2) + "\n";
+    const name = exportFile(false);
+    const fits = new TextEncoder().encode(json).length <= MAX_ISSUE_REVIEW;
+    const copy = el("button", { type: "button", class: "btn", text: "Copy the review" });
+    copy.addEventListener("click", () => bh.copyText(json).then((ok) => announce(ok ? "Review copied: paste it into the Review file field" : "Couldn't copy: open the downloaded file and copy its text")));
+    note.replaceChildren(...(fits ? [
+      el("p", { class: "bh-review-help", text: "Your review is too long to fill in through a link, so it has been downloaded. Copy it, open the form, and paste it into the Review file field, then press Create." }),
+      el("div", { class: "bh-review-export" }, [copy, el("a", { class: "btn primary", href: issueUrl(null), target: "_blank", rel: "noopener", text: "Open the GitHub form" })]),
+    ] : [
+      el("p", { class: "bh-review-help", text: "Your review is too large for a GitHub issue, so it has been downloaded. Add the file to reviews/inbox/ in a pull request instead: open the folder on GitHub and use Add file → Upload files." }),
+      el("div", { class: "bh-review-export" }, [el("a", { class: "btn primary", href: `https://github.com/${submitRepo()}/tree/HEAD/reviews/inbox`, target: "_blank", rel: "noopener", text: "Open reviews/inbox/ on GitHub" })]),
+    ]));
+    note.hidden = false;
+    name.then((n) => announce(`Downloaded ${n}: ${fits ? "paste it into the GitHub form" : "add it to reviews/inbox/ in a pull request"}`));
   }
 
   // ---- Mode, count, announcements ------------------------------------------------------------------------------
@@ -672,11 +749,13 @@
     const need = [];
     if (bh.siteRoot && !window.BH_BUILD) need.push(new URL("theme/build.js", bh.siteRoot).href);
     if (bh.siteRoot && !window.BH_REVIEWS) need.push(new URL("theme/reviews.js", bh.siteRoot).href);
+    // Which pages may be submitted (see canSubmit); bh.js has usually loaded it already.
+    if (bh.siteRoot && !window.BH_SITE) need.push(new URL("theme/site.js", bh.siteRoot).href);
     return Promise.all(need.map((u) => bh.loadScript(u).catch(() => {}))).then(go);
   }
 
   function toggle() { return start(false).then(() => setActive(!active)); }
 
-  bh.review = { start, toggle, get comments() { return state.comments; }, get threads() { return current; }, file: reviewFile, relocate: relocateAll };
+  bh.review = { start, toggle, get comments() { return state.comments; }, get threads() { return current; }, file: reviewFile, relocate: relocateAll, canSubmit, submitUrl };
   window.bhModules = Object.assign(window.bhModules || {}, { "review.js": true });
 })();

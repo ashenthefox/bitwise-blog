@@ -28,13 +28,13 @@
         "type": "object",
         "required": ["id", "created", "kind", "body"],
         "properties": {
-          "id": { "type": "string" },
+          "id": { "type": "string", "minLength": 1 },
           "created": { "type": "string", "format": "date-time" },
           "updated": { "type": "string", "format": "date-time" },
           "commit": { "type": ["string", "null"], "description": "Commit of the page when this comment was written: `git show <commit>:<document>` is exactly what the reviewer saw" },
           "dirty": { "type": ["boolean", "null"] },
           "kind": { "enum": ["comment", "suggestion", "question", "blocker"] },
-          "body": { "type": "string" },
+          "body": { "type": "string", "minLength": 1 },
           "suggestion": { "type": "string", "description": "Proposed replacement for the quoted text (kind = suggestion)" },
           "outdated": { "type": "boolean", "description": "The quoted text could not be found in the page when exported" },
           "target": {

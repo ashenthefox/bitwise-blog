@@ -1,0 +1,190 @@
+name: Review submissions
+
+# A reader's "Submit on GitHub" in a page's Review panel opens an issue from
+# .github/ISSUE_TEMPLATE/review-submission.yml, which carries the `review-submission` label.
+# This workflow checks the review in it with the rules `npm run check` applies to review files,
+# proposes it as a pull request into reviews/inbox/, and replies on the issue. Editing the
+# issue runs it again.
+#
+# Anyone with a GitHub account can open such an issue (an issue form applies its label whatever
+# the author's permissions), so the issue body is untrusted:
+#   - it is read by scripts/review-submission.mts from the event file, never through `${{ }}`
+#     in a script or an env var;
+#   - only the `validate` job parses it, and that job's token can only read;
+#   - what reaches a branch is a fixed list of paths: reviews/inbox/issue-<n>.json and the review
+#     data `npm run index` regenerates from it. Nothing reaches main without a maintainer's merge.
+#
+# The pull request needs Settings → Actions → General → "Allow GitHub Actions to create and approve
+# pull requests". While that is off, `propose` pushes the branch and the reply links the compare
+# page instead, for a maintainer to open the pull request. A pull request or push made with the
+# Actions token starts no workflow, so `propose` starts ci.yml on the branch by dispatch. When an
+# edit makes the review invalid, `withdraw` closes the earlier pull request and deletes its branch.
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+permissions: {}
+
+concurrency:
+  group: review-submission-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Check the review
+    if: github.event.issue.state == 'open' && contains(github.event.issue.labels.*.name, 'review-submission')
+    runs-on: ubuntu-latest
+    # Normally under a minute.
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      ok: ${{ steps.check.outputs.ok }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # No `npm ci`: the script and `bh.mts index` use Node built-ins only.
+      - name: Validate the review and regenerate the review data
+        id: check
+        run: node scripts/review-submission.mts validate --out "$RUNNER_TEMP/submission"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: review-submission
+          path: ${{ runner.temp }}/submission/
+          if-no-files-found: error
+          retention-days: 3
+          # A re-run of the workflow uploads it again.
+          overwrite: true
+
+  propose:
+    name: Propose the pull request
+    needs: validate
+    if: needs.validate.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    # Normally under a minute.
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write # to start ci.yml on the branch
+    outputs:
+      pr_url: ${{ steps.pr.outputs.pr_url }}
+      compare_url: ${{ steps.pr.outputs.compare_url }}
+      unchanged: ${{ steps.commit.outputs.unchanged }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: review-submission
+          path: ${{ runner.temp }}/submission
+
+      - name: Copy the checked files into the checkout
+        id: apply
+        run: node scripts/review-submission.mts apply --from "$RUNNER_TEMP/submission"
+
+      # The branch belongs to this workflow: an edit to the issue replaces its commit.
+      - name: Commit and push the branch
+        id: commit
+        env:
+          BRANCH: ${{ steps.apply.outputs.branch }}
+          REVIEW: ${{ steps.apply.outputs.review }}
+          NUMBER: ${{ steps.apply.outputs.number }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add -- "$REVIEW" theme/reviews.js theme/site.js theme/unlisted-reviews.js
+          if git diff --cached --quiet; then
+            echo "main already holds exactly this review"
+            echo "unchanged=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "Add the review submitted in #$NUMBER"
+          if git fetch --depth=1 origin "refs/heads/$BRANCH" 2>/dev/null && git diff --quiet FETCH_HEAD HEAD; then
+            echo "The branch already holds this review"
+          else
+            git push --force origin "HEAD:refs/heads/$BRANCH"
+          fi
+
+      - name: Open the pull request and start CI on it
+        id: pr
+        if: steps.commit.outputs.unchanged != 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/review-submission.mts propose --from "$RUNNER_TEMP/submission"
+
+  withdraw:
+    name: Withdraw an earlier pull request
+    needs: validate
+    if: needs.validate.outputs.ok == 'false'
+    runs-on: ubuntu-latest
+    # Normally under 30 seconds.
+    timeout-minutes: 5
+    permissions:
+      contents: write # to delete the branch
+      pull-requests: write
+    outputs:
+      withdrawn: ${{ steps.withdraw.outputs.withdrawn }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Close the pull request and delete the branch
+        id: withdraw
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/review-submission.mts withdraw
+
+  report:
+    name: Reply on the issue
+    needs: [validate, propose, withdraw]
+    if: always() && needs.validate.result != 'skipped'
+    runs-on: ubuntu-latest
+    # Normally under 30 seconds.
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Missing when `validate` failed before uploading it; the reply then says the check could not run.
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: review-submission
+          path: ${{ runner.temp }}/submission
+
+      - name: Post or update the reply
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VALIDATE_RESULT: ${{ needs.validate.result }}
+          UNCHANGED: ${{ needs.propose.outputs.unchanged }}
+          WITHDRAWN: ${{ needs.withdraw.outputs.withdrawn }}
+          PR_URL: ${{ needs.propose.outputs.pr_url }}
+          COMPARE_URL: ${{ needs.propose.outputs.compare_url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/review-submission.mts report --from "$RUNNER_TEMP/submission"
