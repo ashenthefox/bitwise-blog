@@ -618,7 +618,6 @@
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
     announce(`Downloaded ${name}`);
-    return name;
   }
 
   // ---- Mode, count, announcements ------------------------------------------------------------------------------

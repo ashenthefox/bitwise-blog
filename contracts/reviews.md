@@ -11,10 +11,11 @@ against the schema and its own rules (`scripts/reviews.mts`).
 
 **Submitting from the page waits for a hosted service** (#207). A "Submit on GitHub" button that
 filed the review as a GitHub issue, and workflows that turned the issue into a pull request, were
-removed in #199: they let any GitHub account push a branch to this repo and start CI on it, with no
-rate limit, and they ran the review validator on untrusted input inside CI. Don't bring back an
-issue-, comment- or label-triggered workflow that writes to the repo or starts CI on a stranger's
-input; that is the service's job, outside this repo.
+removed in #199: they let any GitHub account make a workflow with a write token push a branch to this
+repo and start CI on it, again on every edit, with no rate limit. (CI checking a review file in a
+contributor's own pull request is fine: that runs with a read-only token, and GitHub asks you to approve
+a first-time contributor's run.) Don't bring back an issue-, comment- or label-triggered workflow that
+writes to the repo or starts CI on a stranger's input; that is the service's job, outside this repo.
 
 **Published threads.** Every review file in `reviews/` is compiled by `npm run index` into
 `theme/reviews.js`, so once a review PR is merged its comments show on the published page
