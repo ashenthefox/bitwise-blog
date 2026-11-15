@@ -258,8 +258,7 @@ process while requests are served.
 - **Reviews:** readers comment directly on the page (select text, or "+ Comment" on a
   section). Comments persist in their browser and export as a JSON review file, stamped
   with the commit and the exact text range, ready to attach to a pull request for a person
-  or an agent to apply (`reviews/schema.json`). "Submit on GitHub" does that for the reader: it
-  opens a prefilled issue, and a workflow checks the review and proposes the pull request. Once merged, comments appear on the
+  or an agent to apply (`reviews/schema.json`). Once merged, comments appear on the
   published page as threads that anyone can reply to and resolve, using the same flow.
 - **Glossary:** terms defined once in `docs/glossary.html` are underlined automatically
   across every page. Hovering, focusing or tapping one shows its definition in a popup
