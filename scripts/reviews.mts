@@ -1,9 +1,6 @@
 // Review files (bh-review/1): reading them and deciding whether they are valid.
 //
-// One validator for every route a review takes into the repo: `npm run check` (scripts/bh.mts)
-// runs it on the files in reviews/, and the review-submission workflow
-// (scripts/review-submission.mts) runs it on a review pasted into a GitHub issue before it
-// proposes the file. Node built-ins only: the workflow runs it without `npm ci`.
+// `npm run check` (scripts/bh.mts) runs it on the files in reviews/.
 
 import fs from "node:fs";
 import path from "node:path";
