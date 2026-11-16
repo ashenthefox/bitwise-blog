@@ -108,21 +108,22 @@ This complements saying what the figure does not show.
 
 What a newcomer needs, someone who already knows the idea can do without. Mayer & Gallini
 (1990) ran three experiments (brakes, pumps and generators; 96, 96 and 108 students). Readers
-saw the text alone, or with illustrations labelling the **parts**, the **steps**, or both in
-"a series of two (or more) frames" showing the device's states. Only **parts and steps**
+saw the text alone, or with illustrations labelling the **parts**, the **steps** (not in the
+third experiment), or both in "a series of two (or more) frames" showing the device's states. Only **parts and steps**
 together beat the text alone, and "these results were obtained mainly for the low
 prior-knowledge (rather than the high prior-knowledge) students". For low-knowledge readers
 problem solving rose in all three experiments (43% against 24%, 47% against 28%, 56% against
-29%); for high-knowledge readers it did not differ in any. Verbatim retention did not improve
-for anyone.
+29%); for high-knowledge readers it did not differ significantly in any. Verbatim retention
+did not improve for the low-knowledge readers, the only group tested on it.
 
-Three limits. Prior knowledge was the student's own report of experience, not a test. The
-split is clean only for problem solving: on recall of the explanation, high-knowledge readers
-also gained in two of the three experiments. And the paper shows that these readers did not
+Four limits. The low-knowledge comparisons rest on groups of 12 to 17 students. Prior
+knowledge was the student's own report of experience, not a test. The
+split is clean only for problem solving: on recall of the explanation, the high-knowledge
+groups also differed in two of the three experiments. And the paper shows that these readers did not
 need the illustrations, not that the illustrations hurt them.
 
 - **First figures of a topic: parts and steps, in more than one frame.** Label the parts,
-  number the steps, draw the motion. Parts alone or steps alone did not help.
+  number the steps, draw the motion. Parts alone (three experiments) or steps alone (two) did not beat the text alone.
 - **Later figures in a series: compact.** Once the parts are known, drop the labels the reader
   can supply and let a figure show only what is new. This is the skill's own inference: no
   study read here tests it, and Hegarty's 2003 report found no sign that one format suited

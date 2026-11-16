@@ -79,8 +79,8 @@ neutral grey of the theme, not another hue.
   effects for certain forms of cueing such as spreading color and weaker effects for other
   forms such as arrows"). The chapter's own limits: it works better "when it is used sparingly
   rather than excessively" and "when the display is complex rather than simple". A cue can
-  also move the eye without moving understanding: in Hegarty's 2003 report, readers looked
-  where the cues pointed and understood the mechanism no better.
+  also move the eye without moving understanding: in Hegarty's 2003 report, readers of an
+  animation looked where its cues pointed and understood the mechanism no better.
 - **Order by importance, not by data.** The thing the reader must read first goes where
   reading starts (top-left in a left-to-right page), and is the biggest.
 - **The Apprehension Principle is the limit.** Differences the eye cannot tell apart at the
@@ -95,6 +95,12 @@ Place things so that position itself says something, and keep that mapping stabl
 
 - **Things used together go together** (Larkin & Simon). If the reader must compare two
   values, put them next to each other in one frame, not on two figures a screen apart.
+  Tversky (2011): "things that are closer conceptually are placed closer on a page".
+- **More goes up; time runs the way the reader reads.** Tversky (2011) advises: "use the
+  vertical for evaluative dimensions, mapping increases upwards. Use the horizontal for
+  neutral dimensions, especially time, mapping increases in reading order." The horizontal
+  half follows the reader's script, so it reverses for a right-to-left language, and she
+  calls these mappings "incomplete and variable".
 - **Align what corresponds.** When two rows describe the same items (symbols and their
   codes), give them the same x so the correspondence is a vertical line the eye follows.
   `decode-table` aligns code lengths, canonical codes and table entries.
@@ -128,15 +134,21 @@ the reader **construct** an understanding that neither gives alone. She offers h
   learners find translating between representations difficult", and the more two pictures
   differ in format, the harder it is. Start with one, add the second when the first has a
   named limit, and say what it fixes.
-- **Make the correspondence visible when the reader must relate them**, which is when one
-  picture explains the other or the two must be combined. Then put them side by side and
-  use "consistent labels" and "the same colours to represent the same objects" (Kalyuga et
-  al.'s second experiment found the same for text and diagram: colour coding reduced the
-  search for referents), an aligned layout, and `data-ref` from the prose.
-- **When the two only do different jobs, do not make the reader map one onto the other.**
-  For the complementary case learners "need not understand the relation between them", and
-  readers try to translate between pictures that sit together even when the task does not
-  need it. Show them at different points of the page.
+- **When one picture explains the other, show them together and make the correspondence
+  visible.** For this case Ainsworth says "designers must find ways of signalling the
+  mapping" and that the two "should be co-present". The cues she lists are "consistent
+  labels" and "the same colours to represent the same objects" (Kalyuga et al.'s second
+  experiment found the same for text and diagram: colour coding reduced the search for
+  referents). Here that is shared colour, an aligned layout, and `data-ref` from the prose.
+- **When the reader must combine two pictures, show them together too.** That much is hers.
+  Making the mapping visible in this case is the skill's extension, and she warns against
+  doing all of it for the reader: if translation is "made too easy", the insight that comes
+  from working it out "does not occur". Leave the reader one step, and check it with a
+  `details.predict`.
+- **When the two only do different jobs, do not invite the reader to map one onto the
+  other.** For the complementary case learners "need not understand the relation between
+  them", and she notes that learners often try to translate between pictures that sit
+  together even when the task does not need it. Consider showing them apart.
 - **A picture that only explains another can go once the reader knows the other.** Ainsworth's
   2008 chapter says such a picture "is not necessary if the learner has understood the second
   representation".

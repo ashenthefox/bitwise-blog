@@ -34,8 +34,8 @@ detail.
    coherence principle).
    → [form-and-content.md](references/form-and-content.md)
 3. **Let the subject of the current point dominate, and context recede.** Use the smallest
-   difference the eye reliably sees; spend one emphasis per frame, since signalling works "used
-   sparingly" (Mayer's signalling principle; Tversky et al.'s apprehension principle).
+   difference the eye reliably sees; spend one emphasis per frame (Mayer's signalling principle,
+   which has more support "used sparingly"; Tversky et al.'s apprehension principle).
    → [form-and-content.md](references/form-and-content.md)
 4. **Make position carry meaning.** Things used together go together; corresponding things are
    aligned; more goes up and time runs in reading order; the layout stays fixed across the
@@ -49,7 +49,8 @@ detail.
 6. **For a mechanism prefer steps to animation, and draw the motion and cause** instead of
    leaving the reader to infer them: mental animation is piecemeal and limited (Hegarty). A few
    frames taught as much as an animation, and both beat one still (Hegarty's 2003 report). No
-   study read here shows frames doing better, so the preference rests on cost and on control.
+   study read here shows frames doing better: the preference is the skill's, for what an
+   animation costs to make.
    → [process-diagrams.md](references/process-diagrams.md)
 7. **Put words in the figure, or leave them out.** If the diagram cannot be read without the
    text, integrate the text into it; if it can, cut the text that only restates it (Kalyuga et al.
@@ -57,15 +58,16 @@ detail.
    → [text-and-labels.md](references/text-and-labels.md)
 8. **Keep one colour vocabulary and one meaning per arrow style**, said once.
    → [text-and-labels.md](references/text-and-labels.md)
-9. **With several pictures of one idea, use the fewest that do the job, say what each is for,
-   and make the correspondence visible** (shared labels and colour, alignment, `data-ref`) when
-   one picture explains the other or the reader must combine them (Ainsworth 2006, who offers
-   these as heuristics). "Say what each is for" is the skill's wording.
+9. **With several pictures of one idea, use the fewest that do the job and say what each is
+   for.** When one explains the other, show them together and make the correspondence visible
+   (shared labels and colour, alignment, `data-ref`) (Ainsworth 2006, who offers these as
+   heuristics). "Say what each is for", and doing the same when the reader must combine two
+   pictures, are the skill's.
    → [form-and-content.md](references/form-and-content.md)
 10. **Write the first figures of a topic for novices: parts and steps together, in two or more
-    frames.** In three experiments this helped low-knowledge readers solve problems and made no
-    difference to high-knowledge ones (Mayer & Gallini 1990). Making later figures compact is
-    the skill's own inference: no study read here tests it.
+    frames.** In three experiments this helped low-knowledge readers solve problems, and made no
+    significant difference to high-knowledge readers' problem solving (Mayer & Gallini 1990).
+    Making later figures compact is the skill's own inference: no study read here tests it.
     → [text-and-labels.md](references/text-and-labels.md)
 
 ## In this repo
