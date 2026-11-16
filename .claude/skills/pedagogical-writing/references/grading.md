@@ -49,8 +49,8 @@ Options:
 - `--only opening-need,one-idea`, `--json`, `--out <file>`, `--extract` (print what the judges
   see, and run nothing).
 
-Cost: one model call per criterion per judge per run, measured at US$0.05–0.10 each with Sonnet
-on pages of 2,000–7,000 words, so about $0.50–1.10 for one run of all eleven; the scorecard prints
+Cost: one model call per criterion per judge per run, measured at about US$0.03 each with Sonnet
+on pages of 2,000–7,000 words, so about $0.30 for one run of all eleven; the scorecard prints
 the total. Grade when you need the comparison; to improve a page, review it.
 
 In pi, run the same command with `--judge pi:<provider/model>`. pi has no subagents, so the

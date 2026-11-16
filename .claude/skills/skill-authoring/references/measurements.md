@@ -1100,35 +1100,48 @@ confirms or corrects the references.
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 (1 run) | first draft | 60/66 (91%) | 9/11 | — | 0/1 | $6.81 |
 | 2 | broken copy made crisper; `need-before-name` and `figures-earn` reworded; two references revised | 189/198 (95%) | 37/39 | 62/66 (94%) | 1/3 | $9.06 |
-| **3 (kept)** | `one-idea` exempts edge-case lists; `need-before-name` checks every fix; the third reference revised; the broken-copy test compares with the reference, so a miss the page already had counts neither way | **186/198 (94%)** | **39/45 (87%)** | **63/66 (95%)** | **3/3** | $9.58 |
+| 3 | `one-idea` exempts edge-case lists; `need-before-name` checks every fix; the third reference revised; the broken-copy test compares with the reference, so a miss the page already had counts neither way | 186/198 (94%) | 39/45 (87%) | 63/66 (95%) | 3/3 | $9.58 |
+| **4 (kept)** | the same rubric and references; the grader fixed after code review, chiefly so judges run in a scratch directory holding only the page | **180/198 (91%)** | **34/45 (76%)** | **62/66 (94%)** | **3/3** | $5.80 |
+
+**Why run 4, not run 3, is the result.** Runs 1 to 3 started each judge in the repo with read and search tools, so
+a judge could have opened `evals/calibration/`, which holds the reference verdicts. Nothing shows that one did
+(the traces were not kept), but the numbers cannot rule it out. Run 4 runs each judge in a scratch directory with
+only a copy of the page. It is also cheaper because the judges no longer load the repo's `CLAUDE.md`. Its misses
+column fell from 87% to 76%: on how DEFLATE works at `ca066f8`, `companion-voice` went from 3/3 not met to 3/3 met,
+and `one-idea` stayed at 0/3. Either the earlier judges were reading the references, or `CLAUDE.md`'s house style
+made them stricter; these runs cannot tell the two apart. The extract fix in the same change altered one code line
+on the token bucket pages and no prose on any calibration page.
 
 Targets (#242): agreement ≥ 80%, same verdict on ≥ 90% of criteria over three runs, the broken copy fails exactly
-the broken criteria. All three hold on run 3. Scored against the references as first written, run 3 agrees
-on 180/198 (91%) and on 30/33 misses, and the broken copy fails 0/3 runs, all on the coin machine (below). A judge
-that always says met would agree on 51/66 (77%) of the final references and 55/66 (83%) of the first ones, so
-the 80% target alone proves little here; the misses column is the one to read.
+the broken criteria. All three hold on run 4. Scored against the references as first written, run 4 agrees
+on 177/198 (89%) and on 27/33 misses, and the broken copy fails exactly on 1/3 runs, the others on the coin
+machine (below). A judge that always says met would agree on 51/66 (77%) of the final references and 55/66 (83%)
+of the first ones, so the 80% target alone proves little here; the misses column is the one to read, and at 76%
+it says the grader is softer than these references on about a quarter of real misses.
 
 - **The broken copy works only once each edit breaks one thing.** In run 1, cutting the need from `#no-timer`
   also cut the page's one voiced objection ("But who turns the tap?"), so `companion-voice` failed too, rightly;
   and removing `#gotchas` left a promise the Redis tab could be said to pay. The kept copy keeps the question,
   cuts only the cost of a million timers, and adds a deferral to "a later section" that was removed.
-- **Where judges and references still part, and why.** Token bucket `need-before-name`: 3/3 not met in run 3,
-  because "list every fix, small ones included" (added after run 2 to catch lazy refill) also catches the
-  one-line cost-weighting note in `#choosing-parameters`. The DEFLATE page at `ca066f8`, `one-idea`: 2/3 not met
-  in run 2, 0/3 in run 3, after the edge-case exemption. Token bucket `figures-earn` on the coin machine: 3/3
-  not met in run 2, 3/3 met in run 3, and 3/3 not met on the broken copy in run 3, though the figure is the same.
+- **Where judges and references still part, and why.** Token bucket `need-before-name`: 3/3 not met in run 3
+  and 2/3 in run 4, because "list every fix, small ones included" (added after run 2 to catch lazy refill) also
+  catches the one-line cost-weighting note in `#choosing-parameters`; how a DEFLATE block sends its code fails it
+  3/3 in run 4 the same way. The DEFLATE page at `ca066f8`, `one-idea`: 2/3 not met in run 2, 0/3 in runs 3 and
+  4, after the edge-case exemption. Token bucket `figures-earn` on the coin machine: 3/3 not met in run 2, 3/3 met
+  in runs 3 and 4, and 3/3 then 2/3 not met on the broken copy, though the figure is the same.
   So "same verdict every run" (95%) measures repeat runs of one prompt; a small change to the rubric or to an
   unrelated part of the page can still flip a borderline criterion. These are the criteria to reword next,
   against references a person has checked.
 - **Validation earns its place.** In run 2 one judge cited "Anything over the cap spills." under `#mental-model`;
   it is in `#how-it-works`, so the verdict was voided to unknown rather than counted.
-- **Cost:** about $0.05 a judge call, so $0.50 per page for 11 criteria and one run, once the judges' shared
-  system prompt is cached (run 3: $9.58 for 198 calls); run 1, mostly uncached, cost $0.10 a call (Sonnet, prose
+- **Cost:** about $0.03 a judge call in run 4 ($5.80 for 198 calls), so about $0.30 per page for 11 criteria and
+  one run; $0.05 a call in run 3 and $0.10 in run 1, when the judges also loaded the repo's context (Sonnet, prose
   extracts of 15–42 KB).
 
-**Claude Code and pi on one page.** The Claude Code scorecard for `docs/token-bucket-rate-limiting.html` is run 3's
-(`--runs 3`, reader "a backend engineer who has never built a rate limiter", $1.36): 10 of 11 met, every criterion
-the same on all three runs; the one miss is `need-before-name`, on the cost-weighting note, as above. In pi 0.84.4 the same command with
+**Claude Code and pi on one page.** The Claude Code scorecard for `docs/token-bucket-rate-limiting.html` is run 4's
+(`--runs 3`, reader "a backend engineer who has never built a rate limiter", rubric `b32d9785e9`, $0.85): 10 of 10
+judged met, 1 unknown, which is `need-before-name`, where the runs split 1 met and 2 not met on the cost-weighting
+note, as above. In pi 0.84.4 the same command with
 `--judge pi:zai/glm-5.3` and with `--judge pi:anthropic/claude-sonnet-5` gave 0 of 0 judged: every criterion unknown,
 "judge failed (exit 1): 429 … Insufficient balance" and "401 … invalid x-api-key". The grader handled it as
 designed (no verdict from a failed judge), but no pi model could run on this machine, so a pi scorecard is still
