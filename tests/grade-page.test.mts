@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -6,8 +6,8 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { pageStats, scriptChecks } from "../.claude/skills/pedagogical-writing/scripts/page-stats.mjs";
-import { buildPrompt, extract, parseReply, quoteInSection, readCriteria, splitArgs, validate, withoutExamples } from "../.claude/skills/pedagogical-writing/scripts/grade.mjs";
-import { applyEdit, readRefs, score } from "../.claude/skills/pedagogical-writing/scripts/calibrate.mjs";
+import { blobId, buildPrompt, decodeOnce, extract, parseReply, quoteInSection, readCriteria, scorecardMarkdown, splitArgs, stable, validate, withoutExamples } from "../.claude/skills/pedagogical-writing/scripts/grade.mjs";
+import { applyEdit, materialize, readRefs, score } from "../.claude/skills/pedagogical-writing/scripts/calibrate.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SKILL = path.join(ROOT, ".claude/skills/pedagogical-writing");
@@ -35,13 +35,21 @@ ${Array.from({ length: predicts }, () => fold).join("")}
 </article></body></html>`;
 }
 
-function tmp(): string { return fs.mkdtempSync(path.join(os.tmpdir(), "grade-page-")); }
+// Every scratch directory goes under one root, removed when the file's tests end.
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "grade-page-"));
+after(() => fs.rmSync(TMP, { recursive: true, force: true }));
+function tmp(): string { return fs.mkdtempSync(path.join(TMP, "t-")); }
 
-// A stand-in judge: reads the criterion id from the prompt (its last argument) and answers from
+// A stand-in judge: reads the prompt on stdin, takes the criterion id from it, and answers from
 // FAKE_PLAN[id] (or FAKE_PLAN["*"]): { reply } printed as is, { json } printed as JSON, or { exit }.
+// It exits 7 unless it is running beside a copy of the page, away from the repo, with the same
+// prompt in GRADE_PROMPT_FILE.
 const FAKE_JUDGE = `
-const prompt = process.argv[process.argv.length - 1];
+const fs = require("fs"), path = require("path");
+const prompt = fs.readFileSync(0, "utf8");
 const id = /## Criterion \`([a-z0-9-]+)\`/.exec(prompt)[1];
+const page = /^Page: ([^.\\s]+\\.html)\\./m.exec(prompt)[1];
+if (!fs.existsSync(page) || fs.existsSync("evals") || fs.existsSync(".claude") || fs.readFileSync(process.env.GRADE_PROMPT_FILE, "utf8") !== prompt) process.exit(7);
 const plan = JSON.parse(process.env.FAKE_PLAN);
 const p = plan[id] ?? plan["*"];
 if (p.exit) { process.stderr.write("boom\\n"); process.exit(p.exit); }
@@ -59,7 +67,7 @@ function grade(file: string, plan: Record<string, unknown>, ...extra: string[]):
   const json = path.join(dir, "card.json");
   const judges = extra.includes("--judge") ? [] : ["--judge", `node ${judge}`];
   const args = [GRADE, file, ...judges, ...extra.map(a => a.replace("$JUDGE", judge)), "--out", json];
-  const r = spawnSync(process.execPath, args, { encoding: "utf8", env: { ...process.env, FAKE_PLAN: JSON.stringify(plan) }, timeout: 60_000 });
+  const r = spawnSync(process.execPath, args, { encoding: "utf8", cwd: ROOT, env: { ...process.env, FAKE_PLAN: JSON.stringify(plan) }, timeout: 60_000 });
   assert.equal(r.status, 0, r.stderr);
   return { card: JSON.parse(fs.readFileSync(json, "utf8")), out: r.stdout, status: r.status };
 }
@@ -270,4 +278,53 @@ test("score: per-run agreement, agreement on misses, and the broken-copy test", 
     { id: "c", calls: [call("met"), call("not_met"), call("not_met")] },
   ] };
   assert.deepEqual(score(card2, ref2).exact, [true, true, false]);
+});
+
+test("the extract survives escaped markup in code, and data-id is not a section", () => {
+  const src = page().replace("<pre><code>let x = 1;</code></pre>",
+    `<pre><code>if sym &lt; 256: emit(sym)</code></pre>\n<h2 id="after">After the code</h2>\n<p>This paragraph must survive.</p>\n<svg><g data-id="refill"></g></svg>`);
+  const ex = extract(src);
+  assert.match(ex.text, /if sym < 256: emit\(sym\)/, "the code keeps its text");
+  assert.match(ex.text, /^## After the code \{#after\}$/m, "the heading after it is not swallowed");
+  assert.match(ex.text, /This paragraph must survive\./);
+  assert.deepEqual(ex.sections.map((s: any) => s.id), ["top", "the-need", "the-fix", "after"]);
+  assert.equal(ex.ids.has("refill"), false, "an SVG data-id is not a section id");
+  assert.equal(decodeOnce("&amp;lt; &#8212; &mdash; &rsquo;"), "&lt; — — ’", "entities decode once");
+});
+
+test("parseReply skips braces inside strings; validate takes (top) and records each quote's h2", () => {
+  const reply = 'Here: {"verdict": "met", "evidence": [{"section": "the-fix", "quote": "if (tokens > 0) {"}], "reason": "a } and a {"}';
+  assert.equal(parseReply(reply)?.evidence[0].quote, "if (tokens > 0) {");
+  const ex = extract(page());
+  const c = { id: "opening-need", statement: "", body: "" };
+  assert.equal(validate({ verdict: "met", evidence: [{ section: "(top)", quote: "Point 1." }] }, c, ex).verdict, "met");
+  const v = validate({ verdict: "not_met", evidence: [{ section: "bucket", quote: "Notice the spill." }], gap: "g" }, c, ex);
+  assert.equal(v.verdict, "not_met");
+  assert.equal(v.evidence[0].h2, "the-fix", "a figure id is placed in its h2");
+});
+
+test("the biggest leap is the earliest miss by h2, even when a figure is cited", () => {
+  const card = { page: "p", judges: ["j"], runs: 1, date: "d", met: 9, judged: 11, total: 11, rubric: "0123456789ab", order: ["top", "the-need", "the-fix", "later"], checks: [],
+    results: [
+      { id: "one-idea", statement: "s", verdict: "not_met", evidence: [{ section: "later", h2: "later", quote: "q" }], gap: "late gap", reason: "", calls: [] },
+      { id: "need-before-name", statement: "s", verdict: "not_met", evidence: [{ section: "bucket", h2: "the-need", quote: "q" }], gap: "early gap", reason: "", calls: [] },
+    ] };
+  assert.match(scorecardMarkdown(card), /Biggest leap.*`need-before-name` at #bucket: early gap/);
+});
+
+test("stability leaves out judges that never ran", () => {
+  const ok = (verdict: string) => ({ verdict }), failed = { verdict: "unknown", failed: true };
+  assert.deepEqual(stable([[failed, failed, failed], [failed, failed, failed]]), { same: 0, of: 0 }, "a judge that never ran is not stable");
+  assert.deepEqual(stable([[ok("met"), ok("met"), failed], [ok("met"), ok("not_met"), ok("met")], [ok("met"), failed, failed]]), { same: 1, of: 2 });
+});
+
+test("a pinned reference falls back to the working tree only if the page is unchanged", () => {
+  const live = fs.readFileSync(path.join(ROOT, "docs/token-bucket-rate-limiting.html"));
+  const ref = { name: "x", page: "docs/token-bucket-rate-limiting.html", rev: "0000000000", pageBlob: blobId(live) };
+  assert.equal(materialize(ref, ROOT), live.toString("utf8"), "no such commit, unchanged page: use it");
+  assert.throws(() => materialize({ ...ref, pageBlob: "f".repeat(40) }, ROOT), /not in this clone.*has changed since/);
+  for (const r of readRefs()) assert.match(r.rev, /^[0-9a-f]{7,40}$/, `${r.name} pins a commit`);
+  const bad = spawnSync(process.execPath, [CALIBRATE, "-j", "0"], { encoding: "utf8" });
+  assert.equal(bad.status, 2);
+  assert.match(bad.stderr, /positive whole numbers/);
 });

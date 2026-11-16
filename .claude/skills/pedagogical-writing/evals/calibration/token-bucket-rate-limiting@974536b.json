@@ -1,6 +1,7 @@
 {
   "page": "docs/token-bucket-rate-limiting.html",
   "rev": "974536b",
+  "pageBlob": "85a67d33f3324939331856cbb8228b879b9d1a28",
   "blob": "85a67d33f3324939331856cbb8228b879b9d1a28",
   "reader": "a backend engineer who has never built a rate limiter",
   "graded_by": "Claude Opus 5.5 (claude-opus-5-5) on 2026-11-17, from references/grading.md, before any judge run. Not yet confirmed by the author.",

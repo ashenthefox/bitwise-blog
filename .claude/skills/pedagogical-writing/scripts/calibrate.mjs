@@ -3,11 +3,11 @@
 //        node calibrate.mjs --materialize <name> <dir>
 //
 // Grades every page in ../evals/calibration/*.json with grade.mjs and compares the verdicts with
-// the reference grades there (references/grading.md, Calibration). A reference names a page, and
-// optionally the commit it was graded at (`rev`) and exact edits that break it on purpose
-// (`edits`, each of which must match exactly once). The page is rebuilt from those into
-// ../evals/results/calibration/, which is git-ignored, and its git blob id is checked against the
-// reference's `blob`, so a page that has changed since it was graded is reported, not trusted.
+// the reference grades there (references/grading.md, Calibration). A reference names a page, the
+// commit it was graded at (`rev`, with `pageBlob`, the page's blob id there) and, for a broken
+// copy, exact edits that break it on purpose (`edits`, each of which must match exactly once).
+// The page is rebuilt from those into ../evals/results/calibration/, which is git-ignored, and its
+// blob id is checked against the reference's `blob`.
 //
 // Prints, per page and in all: agreement with the reference per run, agreement on the reference's
 // misses alone (a judge that always says "met" scores well on the first and zero on the second),
@@ -18,7 +18,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { blobId, grade, localDate, DEFAULT_JUDGE } from "./grade.mjs";
+import { blobId, grade, localDate, stable, DEFAULT_JUDGE } from "./grade.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REFS = path.join(HERE, "..", "evals", "calibration");
@@ -29,11 +29,20 @@ export function readRefs(dir = REFS) {
     .map(f => ({ name: f.replace(/\.json$/, ""), ...JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")) }));
 }
 
-// The page's text as the reference graded it: the file at `rev` (or in the working tree), then the edits.
+// The page's text as the reference graded it: the file at `rev`, then the edits. Every reference
+// pins `rev`, so later edits to the live page cannot break the edits' anchors or move the grade.
+// Without the history (a shallow clone), the working-tree file stands in only if its blob id is
+// still `pageBlob`, the page as it was at `rev`.
 export function materialize(ref, repo = process.cwd()) {
-  let src = ref.rev
-    ? execFileSync("git", ["-C", repo, "show", `${ref.rev}:${ref.page}`], { encoding: "utf8", maxBuffer: 64 << 20 })
-    : fs.readFileSync(path.join(repo, ref.page), "utf8");
+  let src;
+  try {
+    src = execFileSync("git", ["-C", repo, "show", `${ref.rev}:${ref.page}`], { encoding: "utf8", maxBuffer: 64 << 20, stdio: ["ignore", "pipe", "ignore"] });
+  } catch {
+    const live = fs.readFileSync(path.join(repo, ref.page));
+    if (!ref.pageBlob || blobId(live) !== ref.pageBlob)
+      throw new Error(`${ref.name ?? ref.page}: commit ${ref.rev} is not in this clone (fetch the full history), and ${ref.page} has changed since`);
+    src = live.toString("utf8");
+  }
   for (const e of ref.edits ?? []) src = applyEdit(src, e);
   return src;
 }
@@ -80,12 +89,11 @@ export function score(card, ref) {
         ids.filter(id => ref.grades[id].verdict === "met").every(id => v(id) !== "not_met");
     });
   }
-  const stable = card.results.filter(r => new Set(r.calls.map(c => c.verdict)).size === 1).length;
   const rows = ids.map(id => {
     const r = card.results.find(x => x.id === id);
     return { id, want: ref.grades[id].verdict, got: r.calls.map(c => c.verdict), reason: r.reason };
   });
-  return { all, misses, exact, stable: { same: stable, of: card.results.length }, rows };
+  return { all, misses, exact, stable: stable(card.results.map(r => r.calls)), rows };
 }
 
 const pct = x => (x ? `${x.agree}/${x.of} (${Math.round(100 * x.agree / x.of)}%)` : "n/a");
@@ -96,12 +104,13 @@ function parseArgs(argv) {
     const a = argv[k], v = () => { const x = argv[++k]; if (x === undefined) throw new Error(`${a} needs a value`); return x; };
     if (a === "--judge") o.judges.push(v());
     else if (a === "--runs") o.runs = Number(v());
-    else if (a === "--only") o.only = v().split(",");
+    else if (a === "--only") o.only = v().split(",").map(s => s.trim()).filter(Boolean);
     else if (a === "--json") o.json = v();
     else if (a === "-j") o.jobs = Number(v());
     else if (a === "--materialize") { o.materialize = v(); o.dir = v(); }
     else throw new Error(`unknown option ${a}`);
   }
+  if (!(Number.isInteger(o.runs) && o.runs >= 1) || !(Number.isInteger(o.jobs) && o.jobs >= 1)) throw new Error("--runs and -j must be positive whole numbers");
   if (!o.judges.length) o.judges.push(DEFAULT_JUDGE);
   return o;
 }

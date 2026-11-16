@@ -1,6 +1,7 @@
 {
   "page": "docs/how-deflate-works.html",
   "rev": "ca066f8",
+  "pageBlob": "fa55e4ced4e6ac9579d53a1bb73eb47969c2c6fe",
   "blob": "fa55e4ced4e6ac9579d53a1bb73eb47969c2c6fe",
   "reader": "a programmer new to compression",
   "graded_by": "Claude Opus 5.5 (claude-opus-5-5) on 2026-11-17, from references/grading.md, before any judge run. Not yet confirmed by the author.",

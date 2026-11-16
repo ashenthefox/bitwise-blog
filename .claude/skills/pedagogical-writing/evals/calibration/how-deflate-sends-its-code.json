@@ -1,5 +1,7 @@
 {
   "page": "docs/how-deflate-sends-its-code.html",
+  "rev": "14c6d15",
+  "pageBlob": "937033e54f318d69ba298af0d6821d4712f34cce",
   "blob": "937033e54f318d69ba298af0d6821d4712f34cce",
   "reader": "a programmer who has read part 1 of the series, How DEFLATE compresses",
   "graded_by": "Claude Opus 5.5 (claude-opus-5-5) on 2026-11-17, from references/grading.md, before any judge run. Not yet confirmed by the author.",

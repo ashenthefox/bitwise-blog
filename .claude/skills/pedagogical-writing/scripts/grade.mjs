@@ -8,8 +8,10 @@
 // miss); anything that fails the check, and any judge that fails, counts as unknown.
 //
 //   --judge <spec>     claude | claude:<model> | pi:<provider/model> | any command, which
-//                      gets the prompt as its last argument. Repeat it for several judges;
-//                      a disagreement between them is unknown. Default: claude:claude-sonnet-5-5
+//                      gets the prompt on stdin (its path is in GRADE_PROMPT_FILE too). Repeat
+//                      it for several judges; a disagreement between them is unknown.
+//                      Default: claude:claude-sonnet-5-5. Judges run in a scratch directory
+//                      that holds only a copy of the page, never in the repo.
 //   --reader <text>    the target reader (default: the reader the page assumes)
 //   --runs <n>         run each judge n times; runs that disagree make the verdict unknown
 //   --only <ids>       comma-separated criterion ids
@@ -22,11 +24,12 @@
 //
 // No dependencies beyond Node and the judge's own CLI.
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { articleHtml, decode, pageStats, scriptChecks } from "./page-stats.mjs";
+import { articleHtml, pageStats, scriptChecks } from "./page-stats.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const RUBRIC = path.join(HERE, "..", "references", "grading.md");
@@ -52,6 +55,18 @@ export function readCriteria(md = fs.readFileSync(RUBRIC, "utf8")) {
 
 // ---------------------------------------------------------------- the page
 
+const NAMED = { nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", rsquo: "’", lsquo: "‘", ldquo: "“", rdquo: "”",
+  mdash: "—", ndash: "–", hellip: "…", times: "×", minus: "−", rarr: "→", larr: "←", middot: "·" };
+// Entities decoded in one pass, so "&amp;lt;" becomes "&lt;" and not "<".
+export const decodeOnce = s => s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+\d*);/gi, (m, e) => {
+  if (e[0] === "#") { const n = e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : Number(e.slice(1)); return Number.isFinite(n) && n > 0 && n < 0x110000 ? String.fromCodePoint(n) : " "; }
+  return NAMED[e.toLowerCase()] ?? " ";
+});
+// Text put back into the HTML before the last tag strip must not look like a tag.
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+// An element's id from its attributes; data-id and other *-id attributes are not ids.
+const idOf = attrs => (/(?<![\w-])id="([^"]+)"/.exec(attrs) || [])[1];
+
 // The page as the judges read it: headings with their ids, prose, captions, the accessible
 // names of figures, the names of interactive components, and fold summaries and bodies.
 // SVG internals, scripts and styles are dropped; long code and tables are cut short.
@@ -59,14 +74,14 @@ export function readCriteria(md = fs.readFileSync(RUBRIC, "utf8")) {
 export function extract(src) {
   let h = articleHtml(src);
   h = h.replace(/<(script|style|template)\b[\s\S]*?<\/\1>/gi, " ").replace(/<!--[\s\S]*?-->/g, " ");
-  const plain = s => decode(s.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+  const plain = s => esc(decodeOnce(s.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim());
   h = h.replace(/<svg\b([^>]*)>[\s\S]*?<\/svg>/gi, (_, a) => {
     const label = /aria-label="([^"]*)"/.exec(a);
     return label ? `\n[diagram: ${plain(label[1])}]\n` : " ";
   });
   h = h.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, (_, body) => {
-    const lines = decode(body.replace(/<[^>]+>/g, "")).replace(/\n+$/, "").split("\n");
-    const kept = lines.slice(0, 20).map(l => "    " + l).join("\n");
+    const lines = decodeOnce(body.replace(/<[^>]+>/g, "")).replace(/\n+$/, "").split("\n");
+    const kept = lines.slice(0, 20).map(l => "    " + esc(l)).join("\n");
     return `\n[code]\n${kept}${lines.length > 20 ? `\n    … (${lines.length - 20} more lines)` : ""}\n[/code]\n`;
   });
   h = h.replace(/<table\b[\s\S]*?<\/table>/gi, t => {
@@ -74,8 +89,8 @@ export function extract(src) {
     return `\n[table]\n${rows.slice(0, 12).join("\n")}${rows.length > 12 ? `\n… (${rows.length - 12} more rows)` : ""}\n[/table]\n`;
   });
   h = h.replace(/<(h[2-4])\b([^>]*)>([\s\S]*?)<\/\1>/gi, (_, tag, a, body) => {
-    const id = /\bid="([^"]+)"/.exec(a);
-    return `\n${"#".repeat(Number(tag[1]))} ${plain(body)}${id ? ` {#${id[1]}}` : ""}\n`;
+    const id = idOf(a);
+    return `\n${"#".repeat(Number(tag[1]))} ${plain(body)}${id ? ` {#${id}}` : ""}\n`;
   });
   h = h.replace(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi, (_, b) => `\n# ${plain(b)}\n`);
   h = h.replace(/<details\b([^>]*)>\s*<summary\b[^>]*>([\s\S]*?)<\/summary>/gi, (_, a, s) => {
@@ -84,15 +99,15 @@ export function extract(src) {
   });
   h = h.replace(/<\/details>/gi, "\n[/fold]\n");
   h = h.replace(/<span\b[^>]*class="[^"]*\bsidenote\b[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, (_, b) => ` [sidenote: ${plain(b)}] `);
-  h = h.replace(/<figure\b([^>]*)>/gi, (_, a) => { const id = /\bid="([^"]+)"/.exec(a); return `\n[figure${id ? ` {#${id[1]}}` : ""}]\n`; });
+  h = h.replace(/<figure\b([^>]*)>/gi, (_, a) => { const id = idOf(a); return `\n[figure${id ? ` {#${id}}` : ""}]\n`; });
   h = h.replace(/<\/figure>/gi, "\n[/figure]\n");
   h = h.replace(/<figcaption\b[^>]*>/gi, "\ncaption: ");
-  h = h.replace(/<(bh-[a-z-]+)\b([^>]*)>/gi, (_, tag, a) => { const id = /\bid="([^"]+)"/.exec(a); return `\n[${tag}${id ? ` {#${id[1]}}` : ""}]\n`; });
+  h = h.replace(/<(bh-[a-z-]+)\b([^>]*)>/gi, (_, tag, a) => { const id = idOf(a); return `\n[${tag}${id ? ` {#${id}}` : ""}]\n`; });
   h = h.replace(/<div\b[^>]*class="[^"]*\btldr\b[^"]*"[^>]*>/gi, "\n[tldr]\n");
   h = h.replace(/<li\b[^>]*>/gi, "\n- ").replace(/<(p|dt|dd|blockquote|div|ol|ul|br)\b[^>]*>/gi, "\n");
   // Inline tags vanish (so "10 <em>per second</em>." keeps its full stop in place); others leave a space.
   const INLINE = /<\/?(a|abbr|b|cite|code|dfn|em|i|kbd|mark|q|s|small|span|strong|sub|sup|time|u|var|wbr)\b[^>]*>/gi;
-  const text = decode(h.replace(INLINE, "").replace(/<[^>]+>/g, " "))
+  const text = decodeOnce(h.replace(INLINE, "").replace(/<[^>]+>/g, " "))
     .split("\n").map(l => (l.startsWith("    ") ? l.replace(/\s+$/, "") : l.replace(/[ \t]+/g, " ").trim())).join("\n")
     .replace(/\n{3,}/g, "\n\n").trim() + "\n";
 
@@ -105,7 +120,7 @@ export function extract(src) {
   const ids = new Map([["top", "top"]]);
   const art = articleHtml(src);
   let cur = "top";
-  for (const t of art.matchAll(/<(h2)\b[^>]*\bid="([^"]+)"|\bid="([^"]+)"/gi)) {
+  for (const t of art.matchAll(/<(h2)\b[^>]*(?<![\w-])id="([^"]+)"|(?<![\w-])id="([^"]+)"/gi)) {
     if (t[1]) { cur = t[2]; ids.set(t[2], cur); } else if (!ids.has(t[3])) ids.set(t[3], cur);
   }
   return { text, sections, ids };
@@ -131,18 +146,22 @@ export function quoteInSection(ex, sec, quote) {
 
 // ---------------------------------------------------------------- judges
 
+// How to start a judge, and how it gets the prompt. The prompt never goes in one argument: Linux
+// caps a single argument at 128 KiB, and a long page's prompt passes that. claude reads it on
+// stdin; pi gets it as an attached file (@file); any other command gets it on stdin, with its
+// path in GRADE_PROMPT_FILE as well.
 export function judgeCommand(spec) {
   if (spec === "claude" || spec.startsWith("claude:")) {
     const model = spec.slice("claude:".length) || DEFAULT_JUDGE.slice("claude:".length);
-    return ["claude", "-p", "--model", model, "--tools", "Read,Grep,Glob", "--disable-slash-commands",
-      "--no-session-persistence", "--strict-mcp-config", "--output-format", "json"];
+    return { argv: ["claude", "-p", "--model", model, "--tools", "Read,Grep,Glob", "--disable-slash-commands",
+      "--no-session-persistence", "--strict-mcp-config", "--output-format", "json"], input: "stdin" };
   }
   if (spec.startsWith("pi:")) {
     // --no-approve ignores project-local files, so a judge never waits on pi's trust prompt.
-    return ["pi", "-p", "--no-approve", "--no-session", "--no-skills", "--no-extensions", "--no-context-files", "--no-prompt-templates",
-      "--tools", "read,grep,find,ls", "--model", spec.slice(3)];
+    return { argv: ["pi", "-p", "--no-approve", "--no-session", "--no-skills", "--no-extensions", "--no-context-files", "--no-prompt-templates",
+      "--tools", "read,grep,find,ls", "--model", spec.slice(3)], input: "file" };
   }
-  return splitArgs(spec);
+  return { argv: splitArgs(spec), input: "stdin" };
 }
 
 // A command line split into words, honouring '…' and "…" quotes (no other shell syntax).
@@ -157,8 +176,11 @@ export function splitArgs(s) {
 export const withoutExamples = body => body.split(/\n(?=- )/)
   .map(b => b.replace(/\s+(?:Example|Illustrative):[\s\S]*$/, "")).join("\n");
 
+// page-stats names the part before the first h2 "(top)"; the extract and the judges call it "top".
+const sectionName = id => (id === "(top)" ? "top" : id);
+
 export function buildPrompt({ criterion, reader, page, checks, ex }) {
-  const facts = checks.map(c => `- ${c.id}: ${c.status}, ${c.detail}${c.items?.length ? "\n" + c.items.map(i => `  - #${i.section}: "${i.phrase}"`).join("\n") : ""}`).join("\n");
+  const facts = checks.map(c => `- ${c.id}: ${c.status}, ${c.detail}${c.items?.length ? "\n" + c.items.map(i => `  - #${sectionName(i.section)}: "${i.phrase}"`).join("\n") : ""}`).join("\n");
   return `You grade one criterion of a teaching page. Other judges grade the other criteria, so judge only this one.
 
 Target reader: ${reader}
@@ -185,18 +207,23 @@ ${ex.text}PAGE EXTRACT>>>
 `;
 }
 
-// The last JSON object in the reply that has a "verdict" field, or null.
+// The last JSON object in the reply that has a "verdict" field, or null. Each "{" is scanned
+// forward to its matching "}", skipping string contents, so a brace inside a quote does not count.
 export function parseReply(out) {
   const s = out.replace(/```(?:json)?/g, " ");
-  for (let end = s.lastIndexOf("}"); end >= 0; end = s.lastIndexOf("}", end - 1)) {
-    let depth = 0;
-    for (let i = end; i >= 0; i--) {
-      if (s[i] === "}") depth++;
-      else if (s[i] === "{" && --depth === 0) {
-        try { const v = JSON.parse(s.slice(i, end + 1)); if (v && typeof v === "object" && "verdict" in v) return v; } catch {}
-        break;
-      }
+  const found = [];
+  for (let start = s.indexOf("{"); start >= 0; start = s.indexOf("{", start + 1)) {
+    let depth = 0, inStr = false, esc = false;
+    for (let i = start; i < s.length; i++) {
+      const ch = s[i];
+      if (inStr) { if (esc) esc = false; else if (ch === "\\") esc = true; else if (ch === '"') inStr = false; continue; }
+      if (ch === '"') inStr = true;
+      else if (ch === "{") depth++;
+      else if (ch === "}" && --depth === 0) { found.push(s.slice(start, i + 1)); break; }
     }
+  }
+  for (const candidate of found.reverse()) {
+    try { const v = JSON.parse(candidate); if (v && typeof v === "object" && !Array.isArray(v) && "verdict" in v) return v; } catch {}
   }
   return null;
 }
@@ -212,27 +239,33 @@ export function validate(reply, criterion, ex) {
   if (reply.verdict === "unknown") return clean;
   if (!evidence.length) return bad(`a ${reply.verdict} verdict without evidence`);
   for (const e of evidence) {
-    const sec = String(e?.section ?? "").replace(/^#/, "");
+    const sec = sectionName(String(e?.section ?? "").replace(/^#/, ""));
     const quote = String(e?.quote ?? "");
     const h2 = ex.ids.get(sec);
     if (!h2) return bad(`section "#${sec}" is not on the page`);
     if (!quote.trim()) return bad(`empty quote for #${sec}`);
     if (!quoteInSection(ex, h2, quote)) return bad(`quote not found in #${sec}: "${quote.slice(0, 80)}"`);
     e.section = sec;
+    e.h2 = h2; // the h2 section the cited id sits in, for ordering misses by position
   }
   if (reply.verdict === "not_met" && !clean.gap) return bad("a not_met verdict without a gap");
   return clean;
 }
 
-export function runJudge(argv, prompt, timeoutS) {
+// Runs one judge in `cwd`, a scratch directory that holds only the page and the prompt files,
+// so its read-only tools cannot reach the repo (or the reference grades in evals/calibration/).
+export function runJudge(cmd, promptFile, timeoutS, cwd) {
   return new Promise(resolve => {
     let out = "", err = "", done = false;
-    const child = spawn(argv[0], [...argv.slice(1), prompt], { stdio: ["ignore", "pipe", "pipe"] });
+    const extra = cmd.input === "file" ? [`@${promptFile}`, "Follow the instructions in the attached file. Reply with only the JSON object it asks for."] : [];
+    const child = spawn(cmd.argv[0], [...cmd.argv.slice(1), ...extra], { cwd, stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, GRADE_PROMPT_FILE: promptFile } });
     const timer = setTimeout(() => { if (!done) { child.kill("SIGTERM"); finish(null, `timed out after ${timeoutS} s`); } }, timeoutS * 1000);
     const finish = (code, why) => { if (done) return; done = true; clearTimeout(timer); resolve({ code, out, err, why }); };
     child.stdout.on("data", d => (out += d));
     child.stderr.on("data", d => (err += d));
-    child.on("error", e => finish(null, `could not start ${argv[0]}: ${e.message}`));
+    child.stdin.on("error", () => {}); // a judge that exits without reading stdin is reported by its exit code
+    child.stdin.end(cmd.input === "stdin" ? fs.readFileSync(promptFile) : "");
+    child.on("error", e => finish(null, `could not start ${cmd.argv[0]}: ${e.message}`));
     child.on("close", code => finish(code, code === 0 ? "" : `exit ${code}`));
   });
 }
@@ -248,13 +281,15 @@ export function unwrap(out) {
 }
 
 // One judge call, validated. Never throws: a failure is an unknown verdict with its reason.
-export async function judgeOnce(spec, prompt, criterion, ex, timeoutS) {
-  const r = await runJudge(judgeCommand(spec), prompt, timeoutS);
+// `failed` marks a judge that never gave a reply (it could not start, exited non-zero, timed
+// out or returned an error), as against one whose reply failed the checks.
+export async function judgeOnce(spec, promptFile, criterion, ex, timeoutS, cwd) {
+  const r = await runJudge(judgeCommand(spec), promptFile, timeoutS, cwd);
   const { text, cost, error } = unwrap(r.out);
   const last = t => t.trim().split("\n").slice(-1)[0]?.slice(0, 160) ?? "";
   if (r.why || error) {
     const tail = error ? last(error) : last(r.err || r.out);
-    return { verdict: "unknown", evidence: [], gap: "", reason: `judge failed (${r.why || "error reply"})${tail ? `: ${tail}` : ""}`, invalid: true, cost };
+    return { verdict: "unknown", evidence: [], gap: "", reason: `judge failed (${r.why || "error reply"})${tail ? `: ${tail}` : ""}`, invalid: true, failed: true, cost };
   }
   const reply = parseReply(text);
   const v = validate(reply, criterion, ex);
@@ -287,6 +322,22 @@ async function pool(n, jobs) {
 // Today as YYYY-MM-DD in local time (toISOString is UTC, a day off for half the world).
 export const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
+// Run-to-run stability over lists of calls (one list per criterion): the share of criteria on
+// which every call that ran gave one verdict. Calls whose judge failed are left out, and a
+// criterion with fewer than two calls that ran is not counted, so a judge that never ran cannot
+// look perfectly stable. Returns { same, of }.
+export function stable(callLists) {
+  let same = 0, of = 0;
+  for (const calls of callLists) {
+    const ran = calls.filter(c => !c.failed);
+    if (ran.length < 2) continue;
+    of++;
+    if (new Set(ran.map(c => c.verdict)).size === 1) same++;
+  }
+  return { same, of };
+}
+const stableShare = lists => { const s = stable(lists); return s.of ? s.same / s.of : null; };
+
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 export async function grade({ page, judges = [DEFAULT_JUDGE], reader, runs = 1, only, jobs = 4, timeout = 600 }) {
@@ -300,19 +351,32 @@ export async function grade({ page, judges = [DEFAULT_JUDGE], reader, runs = 1, 
     criteria = criteria.filter(c => only.includes(c.id));
   }
   const who = reader || "the reader the page itself assumes (decide who that is from the page before judging)";
-  // One job per (criterion, judge, run), in shuffled order so no criterion always goes first.
-  const tasks = shuffle(criteria.flatMap(c => judges.flatMap(j => Array.from({ length: runs }, (_, r) => ({ c, j, r })))));
-  const prompts = new Map(criteria.map(c => [c.id, buildPrompt({ criterion: c, reader: who, page, checks, ex })]));
-  const done = await pool(jobs, tasks.map(t => async () => ({ ...t, v: await judgeOnce(t.j, prompts.get(t.c.id), t.c, ex, timeout) })));
+  // The judges work in a scratch directory holding a copy of the page and the prompts, never in
+  // the repo, so their read-only tools cannot open the reference grades.
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "grade-"));
+  const done = [];
+  try {
+    const copy = path.basename(page);
+    fs.copyFileSync(page, path.join(ws, copy));
+    const promptFiles = new Map(criteria.map(c => {
+      const f = path.join(ws, `prompt-${c.id}.md`);
+      fs.writeFileSync(f, buildPrompt({ criterion: c, reader: who, page: copy, checks, ex }));
+      return [c.id, f];
+    }));
+    // One job per (criterion, judge, run), in shuffled order so no criterion always goes first.
+    const tasks = shuffle(criteria.flatMap(c => judges.flatMap(j => Array.from({ length: runs }, (_, r) => ({ c, j, r })))));
+    done.push(...await pool(jobs, tasks.map(t => async () => ({ ...t, v: await judgeOnce(t.j, promptFiles.get(t.c.id), t.c, ex, timeout, ws) }))));
+  } finally {
+    fs.rmSync(ws, { recursive: true, force: true });
+  }
   const results = criteria.map(c => {
     const calls = done.filter(d => d.c.id === c.id).sort((a, b) => a.j.localeCompare(b.j) || a.r - b.r);
-    return { id: c.id, statement: c.statement, ...combine(calls.map(d => d.v)), calls: calls.map(d => ({ judge: d.j, run: d.r + 1, verdict: d.v.verdict, reason: d.v.reason, cost: d.v.cost ?? 0 })) };
+    return { id: c.id, statement: c.statement, ...combine(calls.map(d => d.v)),
+      calls: calls.map(d => ({ judge: d.j, run: d.r + 1, verdict: d.v.verdict, reason: d.v.reason, cost: d.v.cost ?? 0, ...(d.v.failed ? { failed: true } : {}) })) };
   });
   const met = results.filter(r => r.verdict === "met").length;
   const judged = results.filter(r => r.verdict !== "unknown").length;
-  // Run-to-run stability: the share of criteria on which every run of a judge gave one verdict.
-  const stability = runs > 1 ? Object.fromEntries(judges.map(j => [j,
-    results.filter(r => new Set(r.calls.filter(c => c.judge === j).map(c => c.verdict)).size === 1).length / results.length])) : null;
+  const stability = runs > 1 ? Object.fromEntries(judges.map(j => [j, stableShare(results.map(r => r.calls.filter(c => c.judge === j)))])) : null;
   const order = ex.sections.map(s => s.id);
   const costUsd = Math.round(100 * done.reduce((a, d) => a + (d.v.cost ?? 0), 0)) / 100;
   // The rubric's blob id: compare two scorecards only when it matches.
@@ -341,7 +405,8 @@ export function scorecardMarkdown(card) {
   if (card.stability) L.push(`Same verdict on every run: ${Object.entries(card.stability).map(([j, s]) => `${j} ${Math.round(100 * s)}%`).join(", ")}.`);
   const leap = card.results.filter(r => r.verdict === "not_met" && ["opening-need", "one-idea", "need-before-name"].includes(r.id));
   if (leap.length) {
-    const first = leap.map(r => ({ r, pos: Math.min(Infinity, ...r.evidence.map(e => card.order.indexOf(e.section)).filter(k => k >= 0)) })).sort((a, b) => a.pos - b.pos)[0].r;
+    // Position by the h2 each quote sits in, so a miss cited at a figure or an h3 ranks where it is.
+    const first = leap.map(r => ({ r, pos: Math.min(Infinity, ...r.evidence.map(e => card.order.indexOf(e.h2 ?? e.section)).filter(k => k >= 0)) })).sort((a, b) => a.pos - b.pos)[0].r;
     L.push("", `**Biggest leap** (earliest miss on the need and step criteria): \`${first.id}\` at #${first.evidence[0]?.section ?? "?"}: ${first.gap}`);
   }
   L.push("", "## Script checks", "");
@@ -376,7 +441,7 @@ function parseArgs(argv) {
     else o.page = a;
   }
   if (!o.page) throw new Error("usage: node grade.mjs <page.html> [--judge spec]… [--reader text] [--runs n] [--only ids] [--expect file] [--json] [--out file] [--extract]");
-  if (!(o.runs >= 1) || !(o.jobs >= 1) || !(o.timeout > 0)) throw new Error("--runs, -j and --timeout must be positive numbers");
+  if (!Number.isInteger(o.runs) || o.runs < 1 || !Number.isInteger(o.jobs) || o.jobs < 1 || !(o.timeout > 0)) throw new Error("--runs and -j must be positive whole numbers, and --timeout a positive number");
   if (!o.judges.length) o.judges.push(DEFAULT_JUDGE);
   return o;
 }
