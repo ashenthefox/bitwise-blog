@@ -30,6 +30,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-13: the per-model cases on Haiku and Opus, and a prose base prompt (#152)
 - 2026-11-14: `pedagogical-writing` gets two kinds of analogy, hook uses as promises, and ordered applications (#171)
 - 2026-11-14: `pedagogical-writing` no longer claims to scope a video (#170)
+- 2026-11-16: `advisors` added, a skill that fires only on request (#117)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -902,3 +903,39 @@ the claim that it scopes a video goes.
 The same result as the last full run (#150), with the same miss: #25 names an explainer the empty sandbox lacks. No
 query mentions a video, so the suite shows only that the shorter description loses nothing.
 
+
+## 2026-11-16: `advisors` added, a skill that fires only on request (#117)
+
+Claude Code 2.1.318, agent `claude-sonnet-5-5`, judge `claude-haiku-5-5`, three runs per query and per arm. The skill
+is a port of the consulting layer of the shoulder-advisors repo: it puts a question to a subagent that answers in one
+writer's voice from his posts in the private data, and has a second subagent check the citations. Its description says
+to use it only when the user asks for the advisor by name.
+
+| Run | Result | Cost |
+| --- | --- | --- |
+| Trigger suite, 15 queries | 14 of 15 (train 8/9, held-out 6/6): should-fire 6/7, should-stay-quiet 8/8 | $1.95 |
+| Query #1 after it was replaced (see below) | 3 of 3 | $0.13 |
+| `missing-data`, with / without the skill | 0.89 / 0.00, Δ +0.89; fired 3 of 3 | $0.22 |
+
+- **A typed slash command is not a trigger query.** Query #1 began with `/advisors` and scored 0 of 3. The trace shows
+  why: the first tool call is the `Read` of the profile that the skill's step 1 asks for, with no `Skill` call before
+  it. The harness had expanded the command into the skill's text, so the `tool_used: Skill` grader had nothing to see.
+  The query was replaced by a plain request ("can I get the shoulder advisor's view on this?"), which is a change to the
+  query, not a result for the description. The description was not edited after the first run.
+- **The quiet queries are the point of this suite.** Three of them are the kind of prompt the Python original fired on
+  ("how should I think about it?", "is it reasonable to be annoyed that …"), and one repeats a should-fire query with
+  the request for the advisor removed. All eight stayed quiet, 0 of 3 each, with `pedagogical-writing` loaded beside it.
+- **`missing-data` measures a real gap.** With no private data in the sandbox, the baseline answered in the writer's
+  voice from recall in 3 of 3 runs, which is what the skill exists to prevent. With the skill it stopped and named
+  `npm run advisor -- link` in 3 of 3; one run failed the grader that asks it to say the data is missing (0 of 3
+  judge votes; that transcript was not read).
+- **A consultation cannot be an eval case.** A case that scaffolded the two agent files and the private data into the
+  sandbox scored 0.00 in both arms: the sandbox loads no agent files from the project, so the advisor's agent type is
+  not found (`Available agents: claude, Explore, general-purpose, Plan, statusline-setup`). The skill behaved
+  correctly there (it said the agent was not registered and wrote nothing in his voice), but the case measured the
+  sandbox, so it was deleted. The check was made by hand instead: one consultation in a fresh `claude -p` session in a
+  linked checkout ($0.70). The advisor read the profile, the index and five posts; the response had the
+  `Duncan says` / `Anchored in` / `Confidence` shape; all five cited titles and URLs are in the private index; the
+  mediator flagged six moves. So the skill ships with one output case, not three, and the reason is recorded here.
+- Not measured: the trigger suite on Haiku or Opus, and whether a consultation's citations support the claims they
+  anchor (the mediator's job, not a grader's).
