@@ -32,6 +32,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-14: `pedagogical-writing` no longer claims to scope a video (#170)
 - 2026-11-16: Haiku and a model's drafts: the description gets a sentence of its own for that case (#154)
 - 2026-11-16: `pedagogical-diagrams` after its second source pass (#230)
+- 2026-11-16: `advisors` added, a skill that fires only on request (#117)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -982,3 +983,58 @@ reason: #154 had just lengthened `pedagogical-writing`'s description, which coul
   transcript was read for it.
 - **The neighbour's longer description took nothing.** All ten should-stay-quiet queries stayed at 0 of 3 and all
   fourteen should-fire queries fired, including the boundary queries about step captions.
+
+## 2026-11-16: `advisors` added, a skill that fires only on request (#117)
+
+Claude Code 2.1.318, agent `claude-sonnet-5-5`, judge `claude-haiku-5-5`, three runs per query and per arm. The skill
+is a port of the consulting layer of the shoulder-advisors repo: it puts a question to a subagent that answers in one
+writer's voice from his posts in the private data, and has a second subagent check the citations. Its description says
+to use it only when the user asks for the advisor by name.
+
+| Run | Result | Cost |
+| --- | --- | --- |
+| Trigger suite, 15 queries, first run | 14 of 15 (train 8/9, held-out 6/6): should-fire 6/7, should-stay-quiet 8/8 | $1.95 |
+| Trigger suite after the queries changed (see below) | 15 of 15 (train 9/9, held-out 6/6) | $1.97 |
+| `missing-data`, three graders, with / without the skill | 0.89 / 0.00, then 0.67 / 0.00 with a new prompt; fired 3 of 3 both times | $0.44 |
+
+- **The queries changed twice; the description did not.** First, query #1 (next point). Second, a review found that
+  the should-fire queries all asked about one kind of topic, which hinted at what the writer covers, and that the
+  description quoted the opening of held-out query #10. Four should-fire queries got unrelated topics (a car, a
+  promotion, a rent rise, moving home), #10 was reworded, and the `missing-data` prompt got the rent question. The
+  trigger is the request by name, not the topic, and the second run agrees.
+
+- **A typed slash command is not a trigger query.** Query #1 began with `/advisors` and scored 0 of 3. The trace shows
+  why: the first tool call is the `Read` of the profile that the skill's step 1 asks for, with no `Skill` call before
+  it. The harness had expanded the command into the skill's text, so the `tool_used: Skill` grader had nothing to see.
+  The query was replaced by a plain request ("can I get the shoulder advisor's view on this?"), which is a change to the
+  query, not a result for the description. The description was not edited after the first run.
+- **The quiet queries are the point of this suite.** Three of them are the kind of prompt the Python original fired on
+  ("how should I think about it?", "is it reasonable to be annoyed that …"), one of which repeats a should-fire
+  query with the request for the advisor removed. All eight stayed quiet, 0 of 3 each, with `pedagogical-writing` loaded beside it.
+- **`missing-data` measures a real gap.** With no private data in the sandbox, the baseline answered in the writer's
+  voice from recall in 3 of 3 runs, which is what the skill exists to prevent. With the skill it stopped and named
+  `npm run advisor -- link` in 6 of 6, and never gave his view. A third grader, "says the data is missing", failed
+  1 of 3 runs and then 3 of 3. A transcript shows why: the sandbox denied the `Read` of the missing profile ("don't-ask
+  mode"), so the answer blamed the permission and offered the `link` command as the other possibility. That grader
+  measured the sandbox's permissions, so it was deleted; the case keeps the two that measure the skill.
+- **A consultation cannot be an eval case.** A case that scaffolded the two agent files and the private data into the
+  sandbox scored 0.00 in both arms: the sandbox loads no agent files from the project, so the advisor's agent type is
+  not found (`Available agents: claude, Explore, general-purpose, Plan, statusline-setup`). The skill behaved
+  correctly there (it said the agent was not registered and wrote nothing in his voice), but the case measured the
+  sandbox, so it was deleted. The check was made by hand instead: one consultation in a fresh `claude -p` session in a
+  linked checkout ($0.70). The advisor read the profile, the index and five posts; the response had the
+  `Duncan says` / `Anchored in` / `Confidence` shape; all five cited titles and URLs are in the private index; the
+  mediator flagged six moves. So the skill ships with one output case, not three, and the reason is recorded here.
+- **Reading the posts against that consultation changed both agents.** The mediator's two main flags were right: the
+  advisor had applied a rule written for the speaker to the listener, and had recommended a test that the cited post
+  lists as a warning sign. Both were the advisor's own steps, stated in his voice. The mediator was wrong once, calling
+  a move unsupported that an uncited passage of a cited post supports. So the advisor now checks who a passage is
+  addressed to and what the post warns against, and marks extrapolation in the sentence where it happens; the mediator
+  checks for a passage applied to the wrong party, and searches the cited posts before calling a move unsupported.
+- **The same prompt after that change** ($0.62, one run, so an indication and not a rate). The reversed rule and the
+  test were gone, the same rule was applied to both parties, and the advisor's own steps were marked in the text and
+  listed under the anchors. The mediator found one new wrong-party slip with its new check and one figure glossed as
+  sourced that was the advisor's guess; both were checked against the posts and are right. The advisor still errs, and
+  the mediator still has to run.
+- Not measured: the trigger suite on Haiku or Opus, and how often a consultation's citations support the claims they
+  anchor. One prompt was read against the posts, twice.

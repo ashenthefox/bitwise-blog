@@ -24,6 +24,7 @@ without their key.
 | `voice_model.json`, `stance_model.json` | Numbers only | Public |
 | `leak-hashes.txt` | Keyed hashes (HMAC-SHA256, 64 bits) of the 8-word runs, padded to a power of two: no text, and without the key they confirm no guess | Public |
 | Code, prompts, schemas | No corpus text | Public |
+| The `advisors` skill, the advisor agent, the mediator (`.claude/`) | Process and citation rules only: no description of a voice, no post title, no concept name | Public |
 | `posts/` | Full text | Private |
 | `ATLAS.jsonl` | Verbatim quotes and close paraphrase | Private |
 | `PROFILE.md`, `INDEX.md`, `corpus_meta.yaml` | Characterisation, titles, curation judgments | Private |
@@ -89,7 +90,9 @@ Guards, because a rule that must hold every time belongs in a check:
 <writer>/posts/*.md             the fetched posts
 <writer>/corpus_meta.yaml       per-post judgments: category, atlas, split, provenance
 <writer>/INDEX.md               catalogue of the posts (generated)
-<writer>/PROFILE.md, ATLAS.jsonl, agent.md, voice_negatives.jsonl
+<writer>/PROFILE.md, ATLAS.jsonl, voice_negatives.jsonl
+<writer>/agent.md               the Python original of the advisor agent, with its voice section; not used
+                                (the agent that runs is the tracked .claude/agents/advisor-<writer>.md)
 <writer>/evals/, retrieval/, atlas_build/, contrast/, parity/
 general_prose.jsonl, thoughts/, library/
 ```
@@ -103,6 +106,39 @@ npm run advisor -- link <path-to-clone>
 
 With no clone, `npm run sync-posts` makes `corpus/private` a plain directory. That works, but it belongs to that
 one checkout: it goes when a worktree is removed, and `link` won't replace it while it has anything in it.
+
+## Consulting the advisor
+
+Ask for it by name in a Claude Code session started in this repository: `/advisors <your question>`, "ask Duncan
+what he'd say about …", or "consult my shoulder advisor". The `advisors` skill is written to fire only on request: a reflective
+or writing question that names no advisor is answered normally (#110, D8).
+
+```
+.claude/skills/advisors/                 the skill: checks the data, asks the advisor, has the mediator review it
+.claude/agents/advisor-duncan-sabien.md  the advisor: reads PROFILE.md, INDEX.md and 2–4 posts, answers in voice, cites each claim
+.claude/agents/mediator.md               the reviewer: flags unsupported moves; holds no view of its own
+```
+
+- **It needs no API key.** All three are markdown, run as ordinary subagents on the session's own login. Nothing
+  reads `ANTHROPIC_API_KEY`.
+- **It needs the private data**, linked into this checkout (`npm run advisor -- link <path>`, above). Without it
+  the skill stops and says so. It does not answer from what the model remembers of the writer.
+- **Agents load when a session starts.** After adding or editing an agent file, start a new session.
+- **What the public files may hold (#117).** The agent file holds the process and the rules only: which files to
+  read, the output format, the citation rule. How the writer writes and what he holds stay in the private
+  `PROFILE.md`, which the agent reads on every call. So the tracked files carry no description of his voice, no
+  post title and no concept name of his, not even a paraphrase of one. Any of those would be a characterisation,
+  and `leak-check` could not see it, because it only catches verbatim runs of 8 words. Keep it that way when
+  editing them. `tests/advisor-guards.test.mts` checks the post titles when the private data is linked; the rest
+  is on the editor.
+- **A consultation is never written to a tracked file**, and never published as the writer's words. It is a
+  simulation, shown to the person who asked.
+- **Evals.** The skill's `evals/` need no private data: the trigger queries, and one case that checks the skill
+  stops and names the `link` command when the data is missing. A consultation itself cannot be an eval case:
+  `claude plugin eval` runs in a sandbox that loads no agent files from the project (measured on Claude Code
+  2.1.318: the advisor's agent type is not found there). So check one by hand after changing any of the three
+  files: run a consultation in a linked checkout, and confirm it has the `Duncan says` / `Anchored in` /
+  `Confidence` shape and that every cited title and URL is in the private `INDEX.md`.
 
 ## Commands
 
