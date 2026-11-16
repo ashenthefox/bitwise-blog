@@ -30,6 +30,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-13: the per-model cases on Haiku and Opus, and a prose base prompt (#152)
 - 2026-11-14: `pedagogical-writing` gets two kinds of analogy, hook uses as promises, and ordered applications (#171)
 - 2026-11-14: `pedagogical-writing` no longer claims to scope a video (#170)
+- 2026-11-16: Haiku and a model's drafts: the description gets a sentence of its own for that case (#154)
 - 2026-11-16: `advisors` added, a skill that fires only on request (#117)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
@@ -903,6 +904,53 @@ the claim that it scopes a video goes.
 The same result as the last full run (#150), with the same miss: #25 names an explainer the empty sandbox lacks. No
 query mentions a video, so the suite shows only that the shorter description loses nothing.
 
+
+## 2026-11-16: Haiku and a model's drafts: the description gets a sentence of its own for that case (#154)
+
+Claude Code 2.1.318, three runs per query, judge `claude-haiku-5-5`. #154 asked why Haiku skipped `pedagogical-writing`
+on `prompt-opus-explainers` (the 2026-11-13 entry): the description, or the reading list.
+
+**It was the description.** Six trigger queries about a model that drafts teaching prose were added (#43 to #48, three
+held out) before any edit. With Haiku as the agent, the old description fired on the queries that ask for a prompt and
+missed the ones that describe bad drafts and ask what to change:
+
+| Query (Haiku, old description) | Fired |
+| --- | --- |
+| #39 "write a system prompt for GPT-6.1 Sol so the tutorials it drafts…" | 3 of 3 |
+| #47 held-out "which reasoning effort and which system prompt lines… draft a lesson" | 3 of 3 |
+| #43 "I draft the explainers… with Claude Opus 5.5… every section takes forever to reach its point… what should I change?" | 1 of 3 |
+| #44 "my tutorial drafts come from GPT-6 Astra… bullet fragments… what do I change in the system prompt?" | 1 of 3 |
+| #46 held-out "Sonnet 5.5 writes the first drafts of my how-it-works posts… is that a prompt problem?" | 0 of 3 |
+
+In the misses Haiku answered in one turn with a prompt block of its own and no `Skill` call. The old description named
+the case as one item in a list ("…or a passage of one, or a prompt that makes GPT or Claude write one, or when asked
+why…"). The change gives it a sentence: "Also use when GPT or Claude drafts one, for its prompt and to fix drafts that
+are hard to follow." The description is now 1,022 of 1,024 characters, so the next addition has to remove something.
+
+| Run | Before | After | Cost |
+| --- | --- | --- | --- |
+| Haiku, #43 and #44 (train) | 1 of 3 each | 3 of 3 each, in two runs | $0.38 for the two runs of #39 to #48 |
+| Haiku, #46 (held-out) | 0 of 3 | 0 of 3, then 1 of 3 | |
+| Haiku, the four quiet queries #40, #42, #45, #48 | 0 of 3 each | 0 of 3 each | |
+| Haiku, `prompt-opus-explainers`: with-skill runs that loaded the skill | 4 of 9 (1 of 3 on 2026-11-13, 3 of 6 today) | 10 of 15 (1 of 3, 5 of 6, 4 of 6) | $0.44 |
+| Haiku, `prompt-opus-explainers`: with / without | 0.60 / 0.80 (Δ −0.20) on 2026-11-13 | 0.80 / 0.73 (Δ +0.07, 3 runs); 0.90 / 0.70 (Δ +0.20, 6 runs) | |
+| Sonnet, full trigger suite | 41 of 42 (#170) | 47 of 48 (train 32/32, held-out 15/16) | $12.76 |
+| Haiku, full trigger suite | 28 of 42: should-fire 5/19, quiet 23/23 | 34 of 48: should-fire 9/23, quiet 25/25 | $0.90 |
+
+- **The issue's bar is met on average, not in every sample.** It asked for the skill to load in at least 2 of 3 runs
+  of `prompt-opus-explainers` on Haiku and for a Δ that is not negative. Loading went from 44% to 67% of runs and both
+  Δ are positive, but one three-run sample still loaded it once. Every run that loaded the skill scored 0.80 or more,
+  and the runs that scored 1.00 passed the effort grader, which only `drafting-with-models.md` can supply. So once the
+  skill loads, Haiku does read the reference, and the reading-list line was left alone.
+- **#46 did not move, and was not tuned against.** It is held-out, and it calls the pages "how-it-works posts", which
+  the description's nouns (explainer, tutorial, lesson, technical blog page) do not cover. It fires 3 of 3 on Sonnet.
+- **Sonnet does not regress.** The one miss is #25 again, 0 of 3, the query that names an explainer the empty sandbox
+  lacks. All six new queries behave as labelled on Sonnet. The full Sonnet suite now costs about $13.
+- **Haiku misses most of this skill's ordinary queries, and that is not new.** On the 42 queries both runs share,
+  Haiku passes 28 with the old description and 29 with the new one, and fires on about a quarter of the should-fire
+  queries either way (#4 to #7, #11 and #12 are 0 of 3 in both). This is the gap #86 found for `skill-authoring`, and
+  it is far larger than the case #154 names. Nothing here addresses it: see #233.
+- Not measured: Opus on the new queries.
 
 ## 2026-11-16: `advisors` added, a skill that fires only on request (#117)
 
