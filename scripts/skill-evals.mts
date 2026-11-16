@@ -1,6 +1,7 @@
 // Runs the skill evals (trigger and output-quality) for every skill in .claude/skills, records the
 // pass rates and compares them with the previous record, so a model or Claude Code update that
-// changes how a skill behaves shows up without anyone running the evals by hand (#122, proposal 20).
+// changes how a skill behaves can be found with one command (#122, proposal 20). It runs only when
+// someone starts it: it costs real money, so nothing schedules it.
 //
 //   node scripts/skill-evals.mts [--skills a,b] [--kind trigger|output|both] [--out DIR]
 //        [--previous record.json] [--model ID] [--judge-model ID] [--max-cost-usd N] [--tolerance 0.1]
@@ -12,7 +13,7 @@
 // $GITHUB_STEP_SUMMARY when that is set. When the run covered every skill and both kinds without an error it
 // also writes <out>/baseline.json (the same record): the file the next run should compare with. A subset run
 // or one that errored is a fine record but a bad baseline, so it never writes one.
-// The scheduled workflow is .github/workflows/skill-evals.yml.
+// The workflow that runs it on request is .github/workflows/skill-evals.yml.
 //
 // Exit codes: 0 clean, 1 a regression against the previous record, 2 an error (a case that failed to
 // load, a run that errored, a result that is partial or missing). An error wins over a regression: a

@@ -489,14 +489,16 @@ test("an unknown flag or a stray argument is refused before anything is paid for
 
 // ---- the workflow ----------------------------------------------------------------------------------------
 
-test("the workflow is scheduled monthly, opt-in, read-only and hands its inputs over through env", () => {
+test("the workflow runs only when started by hand, is read-only and hands its inputs over through env", () => {
   const text = fs.readFileSync(path.join(root, ".github", "workflows", "skill-evals.yml"), "utf8");
   const wf = parseYaml(text);
-  assert.match(wf.on.schedule[0].cron, /^\d+ \d+ 1 \* \*$/, "monthly, on the 1st");
-  assert.ok("workflow_dispatch" in wf.on);
+  // It costs tens of dollars a run, so no schedule, push or pull request may start it.
+  assert.deepEqual(Object.keys(wf.on), ["workflow_dispatch"]);
+  for (const input of ["skills", "kind", "model", "max_cost_usd"]) assert.ok(input in wf.on.workflow_dispatch.inputs, input);
   assert.deepEqual(wf.permissions, { contents: "read", actions: "read" });
   const job = wf.jobs.evals;
-  assert.equal(job.if, "vars.SKILL_EVALS_ENABLED == 'true'");
+  // Starting it is the opt-in: a job condition on a repository variable would make "Run workflow" do nothing.
+  assert.equal(job.if, undefined);
   assert.equal(wf.concurrency["cancel-in-progress"], false);
   const steps: { name?: string; uses?: string; run?: string; env?: Record<string, string>; if?: string; with?: Record<string, unknown> }[] = job.steps;
   // No expression is interpolated into a shell script: untrusted text would run as code.
