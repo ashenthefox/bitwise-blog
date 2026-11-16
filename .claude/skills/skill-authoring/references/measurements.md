@@ -1025,5 +1025,16 @@ to use it only when the user asks for the advisor by name.
   linked checkout ($0.70). The advisor read the profile, the index and five posts; the response had the
   `Duncan says` / `Anchored in` / `Confidence` shape; all five cited titles and URLs are in the private index; the
   mediator flagged six moves. So the skill ships with one output case, not three, and the reason is recorded here.
-- Not measured: the trigger suite on Haiku or Opus, and whether a consultation's citations support the claims they
-  anchor (the mediator's job, not a grader's).
+- **Reading the posts against that consultation changed both agents.** The mediator's two main flags were right: the
+  advisor had applied a rule written for the speaker to the listener, and had recommended a test that the cited post
+  lists as a warning sign. Both were the advisor's own steps, stated in his voice. The mediator was wrong once, calling
+  a move unsupported that an uncited passage of a cited post supports. So the advisor now checks who a passage is
+  addressed to and what the post warns against, and marks extrapolation in the sentence where it happens; the mediator
+  checks for a passage applied to the wrong party, and searches the cited posts before calling a move unsupported.
+- **The same prompt after that change** ($0.62, one run, so an indication and not a rate). The reversed rule and the
+  test were gone, the same rule was applied to both parties, and the advisor's own steps were marked in the text and
+  listed under the anchors. The mediator found one new wrong-party slip with its new check and one figure glossed as
+  sourced that was the advisor's guess; both were checked against the posts and are right. The advisor still errs, and
+  the mediator still has to run.
+- Not measured: the trigger suite on Haiku or Opus, and how often a consultation's citations support the claims they
+  anchor. One prompt was read against the posts, twice.

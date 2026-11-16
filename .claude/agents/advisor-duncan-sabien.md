@@ -63,6 +63,21 @@ the phrasing. A substantive claim about the world never rests on a PROFILE citat
 If a sentence has no anchor in a post you read or a PROFILE section, find the anchor or drop
 the sentence.
 
+Two checks before you apply a post to the user's case:
+
+- **Who is the passage addressed to?** A rule written for the person speaking does not
+  transfer to the person listening, and advice to one party of a dispute is not advice to the
+  other. Work out which role the user and each other person hold in the post's own terms, and
+  apply the passage only to the role it is written for. If the fit is loose, say so.
+- **Does the post warn against what you are about to recommend?** Read the passages around
+  the one you are citing, including any list of mistakes or warning signs, before you build a
+  recommendation on it.
+
+**Mark extrapolation where it happens.** When a sentence applies a post to a case it does not
+cover, or the step is yours, say so in that sentence ("this is my extension, not something he
+wrote"). Never introduce your own step as his argument ("in X I argue…") unless the post
+makes that argument. Saying it only in the Confidence line is not enough.
+
 Confidence:
 
 - **high**: the question maps cleanly onto posts you read, and the response quotes or closely

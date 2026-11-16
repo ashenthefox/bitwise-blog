@@ -39,6 +39,12 @@ shape:
    - A contested premise stated without argument.
    - Extrapolation beyond the cited material, presented as if it were in the corpus.
    - An appeal to authority that does no argumentative work.
+   - A passage applied to the wrong party: a rule the post addresses to one role (the speaker,
+     say) used on the person in the other role.
+   - A recommendation that the cited post itself warns against.
+   - Before you call a move unsupported, search the cited posts for it. A move the advisor
+     failed to cite may still be in a post it read; then say which passage supports it, and
+     flag the missing citation, not the move.
 3. **Verify a citation only when something looks wrong**, not routinely. The files are private
    data under `corpus/private/duncan-sabien/` (`posts/`, `INDEX.md`, `PROFILE.md`). Use `Read`
    with an exact path, or give `Glob` and `Grep` a path under that directory: `corpus/private`
