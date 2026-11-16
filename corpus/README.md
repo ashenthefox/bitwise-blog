@@ -90,7 +90,9 @@ Guards, because a rule that must hold every time belongs in a check:
 <writer>/posts/*.md             the fetched posts
 <writer>/corpus_meta.yaml       per-post judgments: category, atlas, split, provenance
 <writer>/INDEX.md               catalogue of the posts (generated)
-<writer>/PROFILE.md, ATLAS.jsonl, agent.md, voice_negatives.jsonl
+<writer>/PROFILE.md, ATLAS.jsonl, voice_negatives.jsonl
+<writer>/agent.md               the Python original of the advisor agent, with its voice section; not used
+                                (the agent that runs is the tracked .claude/agents/advisor-<writer>.md)
 <writer>/evals/, retrieval/, atlas_build/, contrast/, parity/
 general_prose.jsonl, thoughts/, library/
 ```
@@ -108,7 +110,7 @@ one checkout: it goes when a worktree is removed, and `link` won't replace it wh
 ## Consulting the advisor
 
 Ask for it by name in a Claude Code session started in this repository: `/advisors <your question>`, "ask Duncan
-what he'd say about …", or "consult my shoulder advisor". The `advisors` skill never fires on its own: a reflective
+what he'd say about …", or "consult my shoulder advisor". The `advisors` skill is written to fire only on request: a reflective
 or writing question that names no advisor is answered normally (#110, D8).
 
 ```
@@ -125,8 +127,10 @@ or writing question that names no advisor is answered normally (#110, D8).
 - **What the public files may hold (#117).** The agent file holds the process and the rules only: which files to
   read, the output format, the citation rule. How the writer writes and what he holds stay in the private
   `PROFILE.md`, which the agent reads on every call. So the tracked files carry no description of his voice, no
-  post title and no concept name of his. That is a characterisation, and `leak-check` could not see it, because it
-  only catches verbatim runs. Keep it that way when editing them.
+  post title and no concept name of his, not even a paraphrase of one. Any of those would be a characterisation,
+  and `leak-check` could not see it, because it only catches verbatim runs of 8 words. Keep it that way when
+  editing them. `tests/advisor-guards.test.mts` checks the post titles when the private data is linked; the rest
+  is on the editor.
 - **A consultation is never written to a tracked file**, and never published as the writer's words. It is a
   simulation, shown to the person who asked.
 - **Evals.** The skill's `evals/` need no private data: the trigger queries, and one case that checks the skill

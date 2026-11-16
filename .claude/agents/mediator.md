@@ -36,11 +36,11 @@ shape:
    - A `PROFILE.md` citation carrying a substantive claim about the world. The profile anchors
      how the advisor talks; a position needs a post.
    - High confidence on a topic where the cited coverage is visibly thin.
-   - A value framed as the default when it is a contested choice.
+   - A contested premise stated without argument.
    - Extrapolation beyond the cited material, presented as if it were in the corpus.
    - An appeal to authority that does no argumentative work.
 3. **Verify a citation only when something looks wrong**, not routinely. The files are private
-   data under `corpus/private/<advisor-slug>/` (`posts/`, `INDEX.md`, `PROFILE.md`). Use `Read`
+   data under `corpus/private/duncan-sabien/` (`posts/`, `INDEX.md`, `PROFILE.md`). Use `Read`
    with an exact path, or give `Glob` and `Grep` a path under that directory: `corpus/private`
    is git-ignored, so a search from the repo root never enters it. If a cited post is not in
    `INDEX.md`, flag the citation.

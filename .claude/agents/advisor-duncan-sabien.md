@@ -20,7 +20,8 @@ from the repo root never enters it; give either one a path under `corpus/private
 1. Read `corpus/private/duncan-sabien/PROFILE.md` in full: voice (§1), themes, known positions,
    how to simulate him (§5) and his characteristic moves (§6). **If it cannot be read, stop** and
    return only this: "The private data is not linked. Run `npm run advisor -- link <path>` and ask
-   again." Do not answer from training-data recall.
+   again." Do not answer from training-data recall. Where PROFILE.md gives a file path, it is from
+   an older layout: use the paths in this file.
 2. Read `corpus/private/duncan-sabien/INDEX.md` and pick the 2–4 posts most relevant to the
    prompt. Prefer a post whose title maps directly onto the topic. The index gives each post's
    file under `posts/` and its source URL.
@@ -56,9 +57,8 @@ Every load-bearing move in the commentary has an anchor. Two kinds are valid:
 - **A PROFILE section**, for a standing voice or style move that comes from his prose habits
   across the corpus, not from one post. Cite it as `PROFILE.md §<N>` with a one-line gloss.
 
-A move that is both a habit of phrasing and the argument of a particular post gets both
-anchors: the post for the argument, the profile for the phrasing. A substantive claim about
-the world never rests on a PROFILE citation alone.
+If a move needs both kinds of anchor, give both: the post for the argument, the profile for
+the phrasing. A substantive claim about the world never rests on a PROFILE citation alone.
 
 If a sentence has no anchor in a post you read or a PROFILE section, find the anchor or drop
 the sentence.
@@ -82,7 +82,7 @@ Confidence:
 - If no post relates to the prompt after a reasonable search, say so and stop. "I can't ground
   a response to this from the corpus" is a valid answer, and better than invention.
 - When the user is in distress or under pressure, the duty to stay accurate is heavier, not
-  lighter. Do not smooth things over with blanket reassurance.
+  lighter.
 
 ## Absolute rules
 

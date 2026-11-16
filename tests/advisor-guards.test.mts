@@ -80,6 +80,28 @@ test("git ignores corpus/private as a symlink and as a directory, and everything
   assert.deepEqual(addable(), [".gitignore", "corpus/someone/sources.yaml"], "as a directory");
 });
 
+// The advisor agent, the mediator and the advisors skill are public, and a post title or a concept name in
+// them is a characterisation that leak-check cannot see (it needs 8 verbatim words). Titles can be checked,
+// where the private data is linked. A hit names the file and line, never the title.
+test("no tracked file of the consulting layer holds a post title from the private index", (t) => {
+  const tracked = git(ROOT, "ls-files", ".claude/agents", ".claude/skills/advisors").split("\n").filter(Boolean);
+  assert.ok(tracked.includes(".claude/agents/advisor-duncan-sabien.md"), "the check is looking in the right place");
+  const index = path.join(dataDir("duncan-sabien"), "INDEX.md");
+  if (!fs.existsSync(index)) return t.skip("no private data linked: run `npm run advisor -- link <path>`");
+  const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  // One-word titles would match ordinary prose, so only titles of two or more words are looked for.
+  const titles = [...fs.readFileSync(index, "utf8").matchAll(/\| \[(.+?)\]\(posts\//g)].map((m) => words(m[1]!)).filter((s) => s.split(" ").length >= 2);
+  assert.ok(titles.length > 100, "the index was read");
+  const hits: string[] = [];
+  for (const file of tracked) {
+    fs.readFileSync(path.join(ROOT, file), "utf8").split("\n").forEach((line, i) => {
+      const padded = ` ${words(line)} `;
+      if (titles.some((title) => padded.includes(` ${title} `))) hits.push(`${file}:${i + 1}`);
+    });
+  }
+  assert.deepEqual(hits, [], "these lines hold a post title");
+});
+
 // ---- what publishing copies -----------------------------------------------------------
 
 test("the published site holds no corpus path and nothing from the private data", (t) => {

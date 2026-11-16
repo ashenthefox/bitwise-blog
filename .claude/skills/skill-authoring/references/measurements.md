@@ -913,9 +913,15 @@ to use it only when the user asks for the advisor by name.
 
 | Run | Result | Cost |
 | --- | --- | --- |
-| Trigger suite, 15 queries | 14 of 15 (train 8/9, held-out 6/6): should-fire 6/7, should-stay-quiet 8/8 | $1.95 |
-| Query #1 after it was replaced (see below) | 3 of 3 | $0.13 |
-| `missing-data`, with / without the skill | 0.89 / 0.00, Δ +0.89; fired 3 of 3 | $0.22 |
+| Trigger suite, 15 queries, first run | 14 of 15 (train 8/9, held-out 6/6): should-fire 6/7, should-stay-quiet 8/8 | $1.95 |
+| Trigger suite after the queries changed (see below) | 15 of 15 (train 9/9, held-out 6/6) | $1.97 |
+| `missing-data`, three graders, with / without the skill | 0.89 / 0.00, then 0.67 / 0.00 with a new prompt; fired 3 of 3 both times | $0.44 |
+
+- **The queries changed twice; the description did not.** First, query #1 (next point). Second, a review found that
+  the should-fire queries all asked about one kind of topic, which hinted at what the writer covers, and that the
+  description quoted the opening of held-out query #10. Four should-fire queries got unrelated topics (a car, a
+  promotion, a rent rise, moving home), #10 was reworded, and the `missing-data` prompt got the rent question. The
+  trigger is the request by name, not the topic, and the second run agrees.
 
 - **A typed slash command is not a trigger query.** Query #1 began with `/advisors` and scored 0 of 3. The trace shows
   why: the first tool call is the `Read` of the profile that the skill's step 1 asks for, with no `Skill` call before
@@ -923,12 +929,14 @@ to use it only when the user asks for the advisor by name.
   The query was replaced by a plain request ("can I get the shoulder advisor's view on this?"), which is a change to the
   query, not a result for the description. The description was not edited after the first run.
 - **The quiet queries are the point of this suite.** Three of them are the kind of prompt the Python original fired on
-  ("how should I think about it?", "is it reasonable to be annoyed that …"), and one repeats a should-fire query with
-  the request for the advisor removed. All eight stayed quiet, 0 of 3 each, with `pedagogical-writing` loaded beside it.
+  ("how should I think about it?", "is it reasonable to be annoyed that …"), one of which repeats a should-fire
+  query with the request for the advisor removed. All eight stayed quiet, 0 of 3 each, with `pedagogical-writing` loaded beside it.
 - **`missing-data` measures a real gap.** With no private data in the sandbox, the baseline answered in the writer's
   voice from recall in 3 of 3 runs, which is what the skill exists to prevent. With the skill it stopped and named
-  `npm run advisor -- link` in 3 of 3; one run failed the grader that asks it to say the data is missing (0 of 3
-  judge votes; that transcript was not read).
+  `npm run advisor -- link` in 6 of 6, and never gave his view. A third grader, "says the data is missing", failed
+  1 of 3 runs and then 3 of 3. A transcript shows why: the sandbox denied the `Read` of the missing profile ("don't-ask
+  mode"), so the answer blamed the permission and offered the `link` command as the other possibility. That grader
+  measured the sandbox's permissions, so it was deleted; the case keeps the two that measure the skill.
 - **A consultation cannot be an eval case.** A case that scaffolded the two agent files and the private data into the
   sandbox scored 0.00 in both arms: the sandbox loads no agent files from the project, so the advisor's agent type is
   not found (`Available agents: claude, Explore, general-purpose, Plan, statusline-setup`). The skill behaved
