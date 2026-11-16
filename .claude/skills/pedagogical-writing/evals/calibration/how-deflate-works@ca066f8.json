@@ -1,0 +1,53 @@
+{
+  "page": "docs/how-deflate-works.html",
+  "rev": "ca066f8",
+  "blob": "fa55e4ced4e6ac9579d53a1bb73eb47969c2c6fe",
+  "reader": "a programmer new to compression",
+  "graded_by": "Claude Opus 5.5 (claude-opus-5-5) on 2026-11-17, from references/grading.md, before any judge run. Not yet confirmed by the author.",
+  "grades": {
+    "opening-need": {
+      "verdict": "met",
+      "note": "#question: how to make abracadabra smaller, 35 bytes, and a predict on gzip's size"
+    },
+    "one-idea": {
+      "verdict": "not_met",
+      "note": "#dynamic-header brings in counts, run-length symbols and a third Huffman code in 216 words"
+    },
+    "need-before-name": {
+      "verdict": "not_met",
+      "note": "#canonical: 'Sending the tree would cost bits' is asserted, never counted, so canonical codes answer a cost the reader has not seen"
+    },
+    "promises-paid": {
+      "verdict": "met",
+      "note": "'by the end of this page you will have taken it apart bit by bit' is #one-block; 'that ambiguity is exactly what DEFLATE removes next' is #canonical"
+    },
+    "examples-first": {
+      "verdict": "met",
+      "note": "abracadabra's counts and tokens come before each rule"
+    },
+    "figures-earn": {
+      "verdict": "met",
+      "note": "captions say 'Notice' or 'Watch'; #try-it says what to type and what the numbers show"
+    },
+    "reader-checks": {
+      "verdict": "met",
+      "note": "two predicts: gzip's size, and whether a tie changes the total, each with the reasoning"
+    },
+    "sentences-carry": {
+      "verdict": "met",
+      "note": "clear, ordered sentences"
+    },
+    "companion-voice": {
+      "verdict": "not_met",
+      "note": "speaks to the reader only in the opening question; voices no objection in the main text"
+    },
+    "one-concept": {
+      "verdict": "met",
+      "note": "2,474 words on how DEFLATE makes the string smaller; #serial is a short bridge labelled as not needed"
+    },
+    "ending-payoff": {
+      "verdict": "not_met",
+      "note": "the last narrative section, #serial, is about GPUs; no return to abracadabra and no trigger"
+    }
+  }
+}

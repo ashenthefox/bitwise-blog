@@ -15,6 +15,7 @@ seem to disagree.
 - Video educators
 - Programming and functional programming
 - Drafting with another model
+- Grading with model judges
 - Tensions with the 3Blue1Brown rules, and how the skill resolves them
 - Looked at and left out
 
@@ -116,6 +117,23 @@ guides, single-outlet reviews on their own prompt sets (mostly general prose or 
 explanations), and forum reports. None is a controlled test on teaching prose, so the file
 treats each finding as a hypothesis to test on the author's passages. The base prompt in that
 file restates this skill's rules; it adds no new evidence.
+
+## Grading with model judges
+
+What [grading.md](grading.md) takes from each source. Read 2026-11-17. "Read" means the whole
+page as fetched; "partly" means the abstract and the stated share of the full text verbatim,
+with the rest seen only as a model's summary, which nothing here relies on alone. The
+criteria themselves are this skill's audits restated as tests: that is the author's
+synthesis, not something these sources say.
+
+| Source | Read | What it supports | Caveat |
+| --- | --- | --- | --- |
+| Grace, Hadfield, Olivares and De Jonghe, [Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents) (Anthropic, January 2026) | Read | "vague rubrics produce inconsistent judgments"; grade "each dimension with an isolated LLM-as-judge rather than using one to grade all dimensions"; let the judge "return 'Unknown' when it doesn't have enough information"; calibrate "closely … with human experts"; prefer deterministic graders where possible; run several trials | It says *dimension*, not criterion; one judge per criterion is this skill's reading of it |
+| Pombal, Rei and Martins, [Self-Preference Bias in Rubric-Based Evaluation of Large Language Models](https://arxiv.org/abs/2604.06996) (v3) | Partly: abstract, and about a third verbatim (through section 3 and table 1) | On objective rubrics, judges "can be more than 50% more likely" to mark a failed criterion satisfied when the output is their own; "ensembling multiple judges helps mitigate SPB, but without fully eliminating it" | The 50% is a worst case across judges and benchmarks: on IFEval most judges' ratios are near 1, on LiveCodeBench far higher. So a cross-family judge is a hedge, not a measured fix for these pages |
+| Kucia, Chakraborty and Wróblewska, [LLM Essay Scoring Under Holistic and Analytic Rubrics: Prompt Effects and Bias](https://arxiv.org/abs/2604.00259) (ICCS 2026) | Partly: abstract, and about two thirds verbatim (through tables 3 and 4) | Holistic agreement (QWK about 0.6) "does not transfer uniformly" to per-trait scores; for analytic scoring "concise prompts usually yield significantly better agreement"; offsets "can be estimated and corrected using small human-labeled bias-estimation sets" | For *holistic* scoring the detailed prompt did better, so short statements suit this per-criterion rubric, not every grader. Some traits need large sets to estimate their bias; grading.md rewords instead of correcting |
+| Xu, Hirasawa, Kozuno and Ushiku, [Am I More Pointwise or Pairwise? Revealing Position Bias in Rubric-Based LLM-as-a-Judge](https://arxiv.org/abs/2602.02219) (Findings of EMNLP 2026) | Partly: abstract, and about half verbatim (through section 5.5) | Judges favour score options at certain positions, and "the ordering of the criteria itself shifts the resulting scores"; "simple randomization often matches exact balancing" | It recommends randomisation in general; randomising the criterion order is this skill's application. Each judge here sees one criterion, so the order matters only across a run |
+| LangChain, [Grading rubrics](https://docs.langchain.com/oss/python/deepagents/rubric.md) (Deep Agents `RubricMiddleware`) | Read | A checklist rubric; each criterion is `{name, passed: true}` or `{name, passed: false, gap}`, the gap being "actionable feedback"; at most `max_iterations` (default 3) grader passes | One grader reviews the whole rubric; it has no isolated judges and no Unknown verdict |
+| Minko Gechev, [skill grade](https://blog.mgechev.com/2026/03/14/skillgrade/) (March 2026) | Read | Deterministic and LLM-rubric graders "with configurable weights"; `--ci` fails below a pass rate (default 0.8); the example runs 5 trials | It does not say how the weights combine, and 5 trials is the example's value, not a stated default |
 
 ## Tensions with the 3Blue1Brown rules, and how the skill resolves them
 

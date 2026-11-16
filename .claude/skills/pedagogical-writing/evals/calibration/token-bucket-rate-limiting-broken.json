@@ -1,0 +1,72 @@
+{
+  "page": "docs/token-bucket-rate-limiting.html",
+  "blob": "bca4dbe1db264a977fa41ddfaec20a8ee2a79f3c",
+  "reader": "a backend engineer who has never built a rate limiter",
+  "graded_by": "Claude Opus 5.5 (claude-opus-5-5) on 2026-11-17, from references/grading.md, before any judge run. Not yet confirmed by the author.",
+  "edits": [
+    {
+      "breaks": "need-before-name",
+      "from": "<p>A real limiter can't run this machine as it stands.",
+      "to": "When a request arrives, work out what the tap",
+      "replace": "<p>"
+    },
+    {
+      "breaks": "promises-paid",
+      "find": "The distributed version moves the same arithmetic into Redis, so the read-modify-write is atomic.",
+      "replace": "The distributed version moves the same arithmetic into Redis. Why it has to be atomic, and two other ways these ten lines fail in production, are the subject of a later section."
+    },
+    {
+      "breaks": "promises-paid",
+      "from": "<h2 id=\"gotchas\">",
+      "to": "<h2 id=\"back-to-the-clients\">",
+      "replace": ""
+    }
+  ],
+  "grades": {
+    "opening-need": {
+      "verdict": "met",
+      "note": "#the-need: 200 clients, the dashboard's 25 calls and the retry loop's 500 per second, before any mechanism"
+    },
+    "one-idea": {
+      "verdict": "met",
+      "note": "unchanged by the edits"
+    },
+    "need-before-name": {
+      "verdict": "not_met",
+      "note": "#no-timer still asks 'who turns the tap?' but gives lazy refill with the million-timers problem cut"
+    },
+    "promises-paid": {
+      "verdict": "not_met",
+      "note": "#implementation defers atomicity and two production failures to 'a later section'; #gotchas was cut, so nothing pays it"
+    },
+    "examples-first": {
+      "verdict": "met",
+      "note": "b = 25 and r = 10 on the two clients before the refill rule in symbols"
+    },
+    "figures-earn": {
+      "verdict": "not_met",
+      "note": "#simulation says what to press and what to watch, but the coin machine is introduced only by its parts ('a machine you can work'), with no one thing to do and see",
+      "revised": "met before the first judge run; changed after three judge runs gave not_met, because the skill asks the sentence before an interactive to name one manipulation and what the reader will see"
+    },
+    "reader-checks": {
+      "verdict": "met",
+      "note": "#fixed-window predict at the seam crack, with the reasoning and why 10 is the natural wrong answer"
+    },
+    "sentences-carry": {
+      "verdict": "met",
+      "note": "short, ordered sentences; one name per thing (token, b, r)"
+    },
+    "companion-voice": {
+      "verdict": "met",
+      "note": "'Let's see how far the obvious rules get', 'But who turns the tap?', 'Next time you need a limit'"
+    },
+    "one-concept": {
+      "verdict": "met",
+      "note": "1,943 words, one question"
+    },
+    "ending-payoff": {
+      "verdict": "met",
+      "note": "#back-to-the-clients answers the opening question by name and gives the trigger"
+    }
+  }
+}

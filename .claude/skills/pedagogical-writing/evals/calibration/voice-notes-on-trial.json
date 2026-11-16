@@ -1,0 +1,53 @@
+{
+  "page": "docs/voice-notes-on-trial.html",
+  "blob": "4236af4b1e80d4d4deedcb3c1a5866d8eab9dcef",
+  "reader": "a general reader who has never read Duncan Sabien",
+  "graded_by": "Claude Opus 5.5 (claude-opus-5-5) on 2026-11-17, from references/grading.md, before any judge run. Not yet confirmed by the author.",
+  "grades": {
+    "opening-need": {
+      "verdict": "met",
+      "note": "the hero and #the-case put a real dispute and its verdict question first"
+    },
+    "one-idea": {
+      "verdict": "not_met",
+      "note": "#the-fix teaches culture statements, then where a fault lies, then negotiation outcomes and triggers: two ideas the page uses later",
+      "revised": "met before the first judge run; changed on re-reading after the judge's reason, because the section fails the skill's own one-mechanism rule"
+    },
+    "need-before-name": {
+      "verdict": "met",
+      "note": "'culture statement' and 'trigger' are named after the jury method cracks and the fix's two properties are stated"
+    },
+    "promises-paid": {
+      "verdict": "met",
+      "note": "'one row is different, and it matters later' is paid in #what-they-could-say; 'the question we come back to at the end' in #limits"
+    },
+    "examples-first": {
+      "verdict": "met",
+      "note": "the couple's messages come before each essay's idea; the table of signals before the pattern"
+    },
+    "figures-earn": {
+      "verdict": "met",
+      "note": "the zero-point figure's caption says what to notice and what not to read into it"
+    },
+    "reader-checks": {
+      "verdict": "met",
+      "note": "two predicts with reasoning for each wrong option, plus an optional exercise"
+    },
+    "sentences-carry": {
+      "verdict": "met",
+      "note": "clear, ordered sentences"
+    },
+    "companion-voice": {
+      "verdict": "met",
+      "note": "'let's take it seriously before we criticise it'; 'Does that mean nobody can ever be in the wrong?'"
+    },
+    "one-concept": {
+      "verdict": "met",
+      "note": "3,469 words, one question: what replaces a verdict"
+    },
+    "ending-payoff": {
+      "verdict": "met",
+      "note": "#verdict: 'Back to the poll.', answers it, then the cue to take away"
+    }
+  }
+}

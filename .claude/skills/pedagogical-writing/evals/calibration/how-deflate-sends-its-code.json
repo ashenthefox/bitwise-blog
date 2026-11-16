@@ -1,0 +1,53 @@
+{
+  "page": "docs/how-deflate-sends-its-code.html",
+  "blob": "937033e54f318d69ba298af0d6821d4712f34cce",
+  "reader": "a programmer who has read part 1 of the series, How DEFLATE compresses",
+  "graded_by": "Claude Opus 5.5 (claude-opus-5-5) on 2026-11-17, from references/grading.md, before any judge run. Not yet confirmed by the author.",
+  "grades": {
+    "opening-need": {
+      "verdict": "met",
+      "note": "the hero: a fitted code saves bits only if it can be described, and the description costs bits; 854 saved against 352"
+    },
+    "one-idea": {
+      "verdict": "not_met",
+      "note": "#dynamic-runs, 'Runs, and a code for the runs', holds two mechanisms: run symbols and the code-length code",
+      "revised": "met before the first judge run; changed on re-reading after the judge's reason, because the heading fails the skill's title test"
+    },
+    "need-before-name": {
+      "verdict": "met",
+      "note": "the table and the tree are costed in bits before canonical codes are named; each try fixes the last one's biggest waste"
+    },
+    "promises-paid": {
+      "verdict": "met",
+      "note": "'squeezes that list until, for the paragraph, it beats the tree' is paid; 'for now, plain 5-bit' is corrected in step 4; 'how, further on' is #decoding"
+    },
+    "examples-first": {
+      "verdict": "met",
+      "note": "abracadabra's 11 symbols and the 381-byte paragraph carry every step"
+    },
+    "figures-earn": {
+      "verdict": "met",
+      "note": "every caption starts 'Notice that'; the steppers say what each step adds"
+    },
+    "reader-checks": {
+      "verdict": "met",
+      "note": "the #dynamic-header predict asks whether the list beats the tree, and on which block, with reasons for each guess"
+    },
+    "sentences-carry": {
+      "verdict": "met",
+      "note": "long but ordered sentences, one name per thing"
+    },
+    "companion-voice": {
+      "verdict": "met",
+      "note": "'First we fit a code'; 'You might object that we have swapped 11 symbol names for something worse'"
+    },
+    "one-concept": {
+      "verdict": "met",
+      "note": "6,619 words on one question; #dynamic-block and #decoding are labelled as skippable"
+    },
+    "ending-payoff": {
+      "verdict": "met",
+      "note": "#what-it-costs: 'Back to the paragraph from the start.', the answer, and the pattern to reuse"
+    }
+  }
+}

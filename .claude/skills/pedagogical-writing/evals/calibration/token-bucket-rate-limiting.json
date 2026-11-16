@@ -1,0 +1,53 @@
+{
+  "page": "docs/token-bucket-rate-limiting.html",
+  "blob": "2fd36506ea39808c4f472ddfc3dbae13ceaf3fdb",
+  "reader": "a backend engineer who has never built a rate limiter",
+  "graded_by": "Claude Opus 5.5 (claude-opus-5-5) on 2026-11-17, from references/grading.md, before any judge run. Not yet confirmed by the author.",
+  "grades": {
+    "opening-need": {
+      "verdict": "met",
+      "note": "#the-need: 200 clients, the dashboard's 25 calls and the retry loop's 500 per second, before any mechanism"
+    },
+    "one-idea": {
+      "verdict": "met",
+      "note": "each narrative h2 is one try or one step: fixed window, sliding log, the bucket, lazy refill, the decision"
+    },
+    "need-before-name": {
+      "verdict": "met",
+      "note": "'This is a token bucket' comes after both tries crack; lazy refill after the million-timers problem in #no-timer"
+    },
+    "promises-paid": {
+      "verdict": "met",
+      "note": "the hero's production details are #gotchas; the opening's clients come back in #mental-model and #back-to-the-clients"
+    },
+    "examples-first": {
+      "verdict": "met",
+      "note": "b = 25 and r = 10 on the two clients before the refill rule in symbols"
+    },
+    "figures-earn": {
+      "verdict": "not_met",
+      "note": "#simulation says what to press and what to watch, but the coin machine is introduced only by its parts ('a machine you can work'), with no one thing to do and see",
+      "revised": "met before the first judge run; changed after three judge runs gave not_met, because the skill asks the sentence before an interactive to name one manipulation and what the reader will see"
+    },
+    "reader-checks": {
+      "verdict": "met",
+      "note": "#fixed-window predict at the seam crack, with the reasoning and why 10 is the natural wrong answer"
+    },
+    "sentences-carry": {
+      "verdict": "met",
+      "note": "short, ordered sentences; one name per thing (token, b, r)"
+    },
+    "companion-voice": {
+      "verdict": "met",
+      "note": "'Let's see how far the obvious rules get', 'But who turns the tap?', 'Next time you need a limit'"
+    },
+    "one-concept": {
+      "verdict": "met",
+      "note": "1,943 words, one question"
+    },
+    "ending-payoff": {
+      "verdict": "met",
+      "note": "#back-to-the-clients answers the opening question by name and gives the trigger"
+    }
+  }
+}
