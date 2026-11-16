@@ -40,5 +40,11 @@
   {"query": "write a system prompt for GPT-6.1 Sol so the tutorials it drafts for my blog are easier to follow without losing precision", "should_trigger": true},
   {"query": "write a system prompt for a customer support chatbot built on Claude Sonnet 5.5 that answers billing questions", "should_trigger": false},
   {"query": "Opus 5.5 keeps burying the point in the explainer drafts it writes for me. what should I put in my prompt so it leads with it?", "should_trigger": true, "heldout": true},
-  {"query": "which is cheaper per token for bulk summarisation, GPT-6.1 Sol or Claude Sonnet 5.5?", "should_trigger": false, "heldout": true}
+  {"query": "which is cheaper per token for bulk summarisation, GPT-6.1 Sol or Claude Sonnet 5.5?", "should_trigger": false, "heldout": true},
+  {"query": "I draft the explainers for my blog with Claude Opus 5.5 through the API. my editor says every section takes forever to reach its point, and asking it to critique and revise its own draft does not fix it. the system prompt is the suggested one from Anthropic's Opus 5 guide. what should I change?", "should_trigger": true},
+  {"query": "my tutorial drafts come from GPT-6 Astra over the API and they come back as bullet fragments and little tables instead of an explanation you can follow. what do I change in the system prompt?", "should_trigger": true},
+  {"query": "Opus 5.5 keeps returning truncated JSON from my invoice extraction prompt over the API. what should I change in the system prompt?", "should_trigger": false},
+  {"query": "Sonnet 5.5 writes the first drafts of my how-it-works posts through the API. the drafts skip why you would want the thing and go straight to the mechanism. is that a prompt problem, and what would you add to the system prompt?", "should_trigger": true, "heldout": true},
+  {"query": "which reasoning effort and which system prompt lines should I use when I have Opus 5.5 draft a lesson on B-trees for people new to databases?", "should_trigger": true, "heldout": true},
+  {"query": "my Opus 5.5 API calls that draft release notes keep stopping at max_tokens. what should I change in the request?", "should_trigger": false, "heldout": true}
 ]
