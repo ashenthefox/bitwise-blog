@@ -1,0 +1,54 @@
+{
+  "page": "docs/token-bucket-rate-limiting.html",
+  "rev": "974536b",
+  "pageBlob": "85a67d33f3324939331856cbb8228b879b9d1a28",
+  "blob": "85a67d33f3324939331856cbb8228b879b9d1a28",
+  "reader": "a backend engineer who has never built a rate limiter",
+  "graded_by": "Claude Opus 5.5 (claude-opus-5-5) on 2026-11-17, from references/grading.md, before any judge run. Not yet confirmed by the author.",
+  "grades": {
+    "opening-need": {
+      "verdict": "not_met",
+      "note": "#mental-model opens on the bucket picture; nothing before it says what goes wrong without one"
+    },
+    "one-idea": {
+      "verdict": "met",
+      "note": "each section is one thing: the model, the decision, the simulation, parameters, code, comparison, gotchas"
+    },
+    "need-before-name": {
+      "verdict": "not_met",
+      "note": "tokens, b and r are named in the TL;DR and #mental-model, and lazy refill in #how-it-works, with no problem shown first"
+    },
+    "promises-paid": {
+      "verdict": "met",
+      "note": "the hero's production details are #gotchas; the TL;DR's 'never need a timer' is the lazy refill"
+    },
+    "examples-first": {
+      "verdict": "not_met",
+      "note": "#how-it-works gives the refill rule in symbols; the first numbers are in the predict fold"
+    },
+    "figures-earn": {
+      "verdict": "met",
+      "note": "#simulation says what to set and press and what to watch; the mechanism caption says what to notice"
+    },
+    "reader-checks": {
+      "verdict": "met",
+      "note": "the predict asks what happens to a 15-request burst then 1 per second, and explains the reasoning"
+    },
+    "sentences-carry": {
+      "verdict": "met",
+      "note": "clear, ordered sentences"
+    },
+    "companion-voice": {
+      "verdict": "not_met",
+      "note": "addresses the reader only in the TL;DR and a fold; voices no objection in the main text"
+    },
+    "one-concept": {
+      "verdict": "met",
+      "note": "690 words, one idea"
+    },
+    "ending-payoff": {
+      "verdict": "not_met",
+      "note": "ends on #gotchas and further reading; no return to an opening question"
+    }
+  }
+}

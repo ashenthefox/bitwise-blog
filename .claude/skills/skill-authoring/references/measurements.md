@@ -34,6 +34,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-16: `pedagogical-diagrams` after its second source pass (#230)
 - 2026-11-16: `advisors` added, a skill that fires only on request (#117)
 - 2026-11-16: `pedagogical-writing` tells Haiku to load it before answering (#233)
+- 2026-11-17: `pedagogical-writing` grades pages, and the grader's calibration (#242)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -1076,3 +1077,93 @@ $34 for the four Sonnet suites.
   made no `Skill` call when they missed; `advisors` 15 of 15 with A. These were run with A, not B.
 - **`skill-authoring` on Haiku is below its #86 record with nothing changed**: 13 of 19 should-fire on `main` today
   against 15 to 17 then.
+
+## 2026-11-17: `pedagogical-writing` grades pages, and the grader's calibration (#242)
+
+Claude Code 2.1.318. The grader is `pedagogical-writing/scripts/grade.mjs`: one fresh `claude -p` judge per
+criterion of `references/grading.md`, judge `claude-sonnet-5-5`, read-only tools, the page as a prose extract, each
+verdict checked (a real section, a quote found word for word in it, a gap for a miss). The calibration is
+`scripts/calibrate.mjs` over `evals/calibration/*.json`: five published versions of four pages (token bucket now
+and at `974536b`, its first version; voice notes; how a DEFLATE block sends its code; how DEFLATE works at
+`ca066f8`, its first version) and a broken copy of the token bucket page, 11 criteria each.
+
+**The reference grades are not a person's.** Claude Opus 5.5 wrote them from the rubric before any judge ran. Three
+were changed after a judge run, each recorded in its fixture's `revised` field: `one-idea` on voice notes and on the
+DEFLATE page (both met → not met: one section teaches two mechanisms, and "Runs, and a code for the runs" fails the
+skill's own title test), and `figures-earn` on the token bucket (met → not met: the coin machine is introduced by
+its parts, with no one thing to do and see). Every change went the same way, towards the judge and away from a
+lenient reading of a Claude-drafted page, which is what the self-preference result predicts of a Claude reference
+grader. Agreement here measures consistency with a careful reading, not with human judgment, until the author
+confirms or corrects the references.
+
+| Run | Rubric and references | Agreement | On the references' misses | Same verdict, 3 runs | Broken copy fails exactly its criteria | Cost |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 (1 run) | first draft | 60/66 (91%) | 9/11 | — | 0/1 | $6.81 |
+| 2 | broken copy made crisper; `need-before-name` and `figures-earn` reworded; two references revised | 189/198 (95%) | 37/39 | 62/66 (94%) | 1/3 | $9.06 |
+| 3 | `one-idea` exempts edge-case lists; `need-before-name` checks every fix; the third reference revised; the broken-copy test compares with the reference, so a miss the page already had counts neither way | 186/198 (94%) | 39/45 (87%) | 63/66 (95%) | 3/3 | $9.58 |
+| **4 (kept)** | the same rubric and references; the grader fixed after code review, chiefly so judges run in a scratch directory holding only the page | **180/198 (91%)** | **34/45 (76%)** | **62/66 (94%)** | **3/3** | $5.80 |
+
+**Why run 4, not run 3, is the result.** Runs 1 to 3 started each judge in the repo with read and search tools, so
+a judge could have opened `evals/calibration/`, which holds the reference verdicts. Nothing shows that one did
+(the traces were not kept), but the numbers cannot rule it out. Run 4 runs each judge in a scratch directory with
+only a copy of the page. It is also cheaper because the judges no longer load the repo's `CLAUDE.md`. Its misses
+column fell from 87% to 76%: on how DEFLATE works at `ca066f8`, `companion-voice` went from 3/3 not met to 3/3 met,
+and `one-idea` stayed at 0/3. Either the earlier judges were reading the references, or `CLAUDE.md`'s house style
+made them stricter; these runs cannot tell the two apart. The extract fix in the same change altered one code line
+on the token bucket pages and no prose on any calibration page.
+
+Targets (#242): agreement ≥ 80%, same verdict on ≥ 90% of criteria over three runs, the broken copy fails exactly
+the broken criteria. All three hold on run 4. Scored against the references as first written, run 4 agrees
+on 177/198 (89%) and on 27/33 misses, and the broken copy fails exactly on 1/3 runs, the others on the coin
+machine (below). A judge that always says met would agree on 51/66 (77%) of the final references and 55/66 (83%)
+of the first ones, so the 80% target alone proves little here; the misses column is the one to read, and at 76%
+it says the grader is softer than these references on about a quarter of real misses.
+
+- **The broken copy works only once each edit breaks one thing.** In run 1, cutting the need from `#no-timer`
+  also cut the page's one voiced objection ("But who turns the tap?"), so `companion-voice` failed too, rightly;
+  and removing `#gotchas` left a promise the Redis tab could be said to pay. The kept copy keeps the question,
+  cuts only the cost of a million timers, and adds a deferral to "a later section" that was removed.
+- **Where judges and references still part, and why.** Token bucket `need-before-name`: 3/3 not met in run 3
+  and 2/3 in run 4, because "list every fix, small ones included" (added after run 2 to catch lazy refill) also
+  catches the one-line cost-weighting note in `#choosing-parameters`; how a DEFLATE block sends its code fails it
+  3/3 in run 4 the same way. The DEFLATE page at `ca066f8`, `one-idea`: 2/3 not met in run 2, 0/3 in runs 3 and
+  4, after the edge-case exemption. Token bucket `figures-earn` on the coin machine: 3/3 not met in run 2, 3/3 met
+  in runs 3 and 4, and 3/3 then 2/3 not met on the broken copy, though the figure is the same.
+  So "same verdict every run" (95%) measures repeat runs of one prompt; a small change to the rubric or to an
+  unrelated part of the page can still flip a borderline criterion. These are the criteria to reword next,
+  against references a person has checked.
+- **Validation earns its place.** In run 2 one judge cited "Anything over the cap spills." under `#mental-model`;
+  it is in `#how-it-works`, so the verdict was voided to unknown rather than counted.
+- **Cost:** about $0.03 a judge call in run 4 ($5.80 for 198 calls), so about $0.30 per page for 11 criteria and
+  one run; $0.05 a call in run 3 and $0.10 in run 1, when the judges also loaded the repo's context (Sonnet, prose
+  extracts of 15–42 KB).
+
+**Claude Code and pi on one page.** The Claude Code scorecard for `docs/token-bucket-rate-limiting.html` is run 4's
+(`--runs 3`, reader "a backend engineer who has never built a rate limiter", rubric `b32d9785e9`, $0.85): 10 of 10
+judged met, 1 unknown, which is `need-before-name`, where the runs split 1 met and 2 not met on the cost-weighting
+note, as above. In pi 0.84.4 the same command with
+`--judge pi:zai/glm-5.3` and with `--judge pi:anthropic/claude-sonnet-5` gave 0 of 0 judged: every criterion unknown,
+"judge failed (exit 1): 429 … Insufficient balance" and "401 … invalid x-api-key". The grader handled it as
+designed (no verdict from a failed judge), but no pi model could run on this machine, so a pi scorecard is still
+owed. pi's discovery was checked separately: it loads all five skills and no `evals/` directory
+([sources](sources.md)).
+
+**Trigger evals** (Sonnet, three runs; the description gained "grading" and "grade or score this page"): 57 of 58
+pass. The ten new queries all behave as labelled, 3/3 each: "grade … give me the scorecard", "score this explainer",
+"which of these posts needs work first" and three more fire; "grade this ADR", "score this chart", "grade my PR's
+test coverage" and an accessibility score stay quiet (4 of the 10 held out). The one miss is #25 again. The first
+run stopped at its $10.81 cost ceiling after 46 queries; the last 12 were re-run with `--only` ($3.42).
+
+**Output evals** (the rubric path, no `Bash`: agent `claude-sonnet-5-5`, judge `claude-haiku-5-5`, three runs per arm,
+$3.40):
+
+| Case | With | Without | Δ |
+| --- | --- | --- | --- |
+| `grade-token-bucket-page` (the page as published) | 1.00 | 0.17 | +0.83 |
+| `grade-broken-page` (the calibration's broken copy) | 1.00 | 0.33 | +0.67 |
+
+Without the skill, Sonnet grades with criteria of its own, gives no count of criteria met, and cites little by
+section. On the broken copy it finds the unpaid deferral in all three runs but never the lazy-refill step that lost
+its need. With the skill, every run gives a per-criterion scorecard with quotes and `#id`s, says it was graded by
+hand in one context and so is the weakest form of the grade, and fails both broken criteria with a gap. One
+with-skill run of the broken copy reported 8 of 11 met: the two broken criteria and one more.
