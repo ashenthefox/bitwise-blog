@@ -34,12 +34,12 @@ detail.
    coherence principle).
    → [form-and-content.md](references/form-and-content.md)
 3. **Let the subject of the current point dominate, and context recede.** Use the smallest
-   difference the eye reliably sees; spend one emphasis per frame (Mayer's signalling principle;
-   Tversky et al.'s apprehension principle).
+   difference the eye reliably sees; spend one emphasis per frame, since signalling works "used
+   sparingly" (Mayer's signalling principle; Tversky et al.'s apprehension principle).
    → [form-and-content.md](references/form-and-content.md)
 4. **Make position carry meaning.** Things used together go together; corresponding things are
-   aligned; the layout stays fixed across the page's figures; a quantity drawn as length is
-   drawn to scale (Larkin & Simon).
+   aligned; more goes up and time runs in reading order; the layout stays fixed across the
+   page's figures; a quantity drawn as length is drawn to scale (Larkin & Simon; Tversky 2011).
    → [form-and-content.md](references/form-and-content.md)
 5. **Split a process into frames.** One frame per step with none missing, an explicit order, the
    new thing visible, the join not hidden, one viewpoint, one meaning per arrow (Heiser et al.
@@ -47,8 +47,9 @@ detail.
    `<bh-sequence>`.
    → [process-diagrams.md](references/process-diagrams.md)
 6. **For a mechanism prefer steps to animation, and draw the motion and cause** instead of
-   leaving the reader to infer them: mental animation is piecemeal and limited (Hegarty); where
-   animation beat a still, it usually carried more information or interactivity (Tversky et al.).
+   leaving the reader to infer them: mental animation is piecemeal and limited (Hegarty). A few
+   frames taught as much as an animation, and both beat one still (Hegarty's 2003 report). No
+   study read here shows frames doing better, so the preference rests on cost and on control.
    → [process-diagrams.md](references/process-diagrams.md)
 7. **Put words in the figure, or leave them out.** If the diagram cannot be read without the
    text, integrate the text into it; if it can, cut the text that only restates it (Kalyuga et al.
@@ -56,12 +57,15 @@ detail.
    → [text-and-labels.md](references/text-and-labels.md)
 8. **Keep one colour vocabulary and one meaning per arrow style**, said once.
    → [text-and-labels.md](references/text-and-labels.md)
-9. **With several pictures of one idea, say what each is for and make the correspondence
-   visible** (shared colour, alignment, `data-ref`). This one is the skill's own synthesis; the
-   DeFT paper is a pointer only.
+9. **With several pictures of one idea, use the fewest that do the job, say what each is for,
+   and make the correspondence visible** (shared labels and colour, alignment, `data-ref`) when
+   one picture explains the other or the reader must combine them (Ainsworth 2006, who offers
+   these as heuristics). "Say what each is for" is the skill's wording.
    → [form-and-content.md](references/form-and-content.md)
-10. **Write the first figures of a topic for novices (parts and steps) and later ones compact.**
-    The evidence is one study, reported secondhand.
+10. **Write the first figures of a topic for novices: parts and steps together, in two or more
+    frames.** In three experiments this helped low-knowledge readers solve problems and made no
+    difference to high-knowledge ones (Mayer & Gallini 1990). Making later figures compact is
+    the skill's own inference: no study read here tests it.
     → [text-and-labels.md](references/text-and-labels.md)
 
 ## In this repo
@@ -110,8 +114,10 @@ understanding, give each finding a concrete change, and say what already works.
 
 - The research is mostly short lessons with novices on one mechanism (a flush cistern, car
   brakes, a TV stand, soldering). Treat each rule as a default to test on the page, not a law.
-- Mayer's effect sizes come largely from his own lab and are probably high
-  (`pedagogical-writing`'s sources note an independent pooled g = 0.37).
+- Mayer's effect sizes are probably high (`pedagogical-writing`'s sources note an independent
+  pooled g = 0.37). For coherence, 19 of the 23 tests have Mayer as an author; for signalling,
+  7 of 28. Both are measured on transfer tests, with low-experience readers where a study split
+  them.
 - A rule marked as the skill's synthesis has no direct study behind it.
 
 ## Reference files
