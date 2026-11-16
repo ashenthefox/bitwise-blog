@@ -58,6 +58,30 @@ explicitly over one that leaves the reader to infer it.
   interactivity", so the comparison was not equal. Animations fail the **Apprehension
   Principle** when they are "too complex or too fast to be accurately perceived", and many
   continuous events are conceived of as discrete steps, which a stepper shows directly.
+  Tversky (2011) puts it as "step-by-step presentation is more congruent to the way the mind
+  understands and represents continuous organized action than continuous presentation".
+- **What the comparison actually shows.** Not that frames beat animation. In Hegarty's 2003
+  report, readers who studied three diagrams of a mechanism's phases understood it as well as
+  readers of the full animation of about 140 frames, and both groups beat readers of a single
+  diagram; "learning from static diagrams and text was equivalent to learning from animated
+  diagrams and commentaries, when these materials contained the same information". The
+  preference for a stepper is therefore the skill's own, and its reason is cost: animations
+  "will remain more time-consuming and expensive to produce than their static predecessors"
+  (Lowe 2004).
+- **Reader control is not a reason.** The same report found "no advantage of interactive over
+  non-interactive computer presentations", and Lowe reports that novices given a controllable
+  animation "rarely chose to pause on the frames that were of most relevance". Lacking
+  background knowledge, they chose by "perceptual characteristics rather than thematic
+  relevance". So the author picks the frames; do not leave the reader to find them.
+- **Frames shown together keep the earlier states in view.** In an animation "successive
+  frames overwrite their predecessors so they are no longer available" (Lowe 2004). A stepper
+  that shows one step at a time overwrites them too, so use frames side by side
+  (`<bh-versions>`, or small multiples) when the reader must compare states.
+- **A picture of either kind is not enough alone.** The same report found that comprehension
+  "from static and animated diagrams was quite limited, and often resulted in misconceptions
+  about how the systems worked", and that it improved with a verbal description of the
+  process and with questions that made readers predict the machine's behaviour. Pair a
+  stepper with captions that say why, and with a `details.predict`.
 - **Why not leave it to the reader.** Hegarty found that mental animation runs in a
   "limited-capacity spatial working memory system" and is piecemeal: people "do not mentally
   animate the motion of all components of a mechanical system in parallel". A still showing

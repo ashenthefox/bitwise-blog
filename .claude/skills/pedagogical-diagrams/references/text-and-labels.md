@@ -106,17 +106,30 @@ This complements saying what the figure does not show.
 
 ## Novices and experts
 
-What helps a newcomer can hurt someone who already knows the idea. The evidence here is one
-study reported secondhand: Mayer & Gallini (1990), as Jian & Wu (2016) report it, found that
-readers with low mechanical knowledge who saw car-brake diagrams with both **parts and steps**
-beat the other groups on retention and transfer, and that the difference was not seen for
-high-knowledge readers (see [sources.md](sources.md): the original abstract was not
-retrievable).
+What a newcomer needs, someone who already knows the idea can do without. Mayer & Gallini
+(1990) ran three experiments (brakes, pumps and generators; 96, 96 and 108 students). Readers
+saw the text alone, or with illustrations labelling the **parts**, the **steps** (not in the
+third experiment), or both in "a series of two (or more) frames" showing the device's states. Only **parts and steps**
+together beat the text alone, and "these results were obtained mainly for the low
+prior-knowledge (rather than the high prior-knowledge) students". For low-knowledge readers
+problem solving rose in all three experiments (43% against 24%, 47% against 28%, 56% against
+29%); for high-knowledge readers it did not differ significantly in any. Verbatim retention
+did not improve for the low-knowledge readers, the only group tested on it.
 
-- **First figures of a topic: parts and steps.** Label the parts, number the steps, draw the
-  motion.
+Four limits. The low-knowledge comparisons rest on groups of 12 to 17 students. Prior
+knowledge was the student's own report of experience, not a test. The
+split is clean only for problem solving: on recall of the explanation, the high-knowledge
+groups also differed in two of the three experiments. And the paper shows that these readers did not
+need the illustrations, not that the illustrations hurt them.
+
+- **First figures of a topic: parts and steps, in more than one frame.** Label the parts,
+  number the steps, draw the motion. Parts alone (three experiments) or steps alone (two) did not beat the text alone.
 - **Later figures in a series: compact.** Once the parts are known, drop the labels the reader
-  can supply and let a figure show only what is new.
+  can supply and let a figure show only what is new. This is the skill's own inference: no
+  study read here tests it, and Hegarty's 2003 report found no sign that one format suited
+  readers with more knowledge and another those with less. Mayer & Fiorella (2014) even
+  caution the other way about detail: "more experienced learners may require a greater
+  amount of detail".
 - **Give experts a way past it**: a caption that says what to skip, and a first frame that
   already shows the finished state.
 - **Do not rely on prior knowledge the target reader lacks** to read a diagram. Heiser & Tversky
