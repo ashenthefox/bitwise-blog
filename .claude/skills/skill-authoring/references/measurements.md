@@ -33,6 +33,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-16: Haiku and a model's drafts: the description gets a sentence of its own for that case (#154)
 - 2026-11-16: `pedagogical-diagrams` after its second source pass (#230)
 - 2026-11-16: `advisors` added, a skill that fires only on request (#117)
+- 2026-11-16: `pedagogical-writing` tells Haiku to load it before answering (#233)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -1038,3 +1039,40 @@ to use it only when the user asks for the advisor by name.
   the mediator still has to run.
 - Not measured: the trigger suite on Haiku or Opus, and how often a consultation's citations support the claims they
   anchor. One prompt was read against the posts, twice.
+
+## 2026-11-16: `pedagogical-writing` tells Haiku to load it before answering (#233)
+
+Claude Code 2.1.318, three runs per query. #154's full Haiku run had shown the skill loading on 9 of its 23
+should-fire queries. The change is the one #86 found for `skill-authoring`: an instruction in the description to load
+the skill before answering. The description had 2 characters to spare, so the "Covers …" topic list went to make room
+(the #86 record says a longer topic list did not help triggering). It is now 950 characters.
+
+| Description | Haiku: passed | Haiku: should-fire | Haiku: quiet | Sonnet | Sonnet, `pedagogical-diagrams` suite |
+| --- | --- | --- | --- | --- | --- |
+| On `main` (after #154) | 34 of 48 | 9 of 23 | 25 of 25 | 47 of 48 | 24 of 24 |
+| A: "…Load it before answering or reading any file. The rules are in the skill, so answering from memory misses them." | 44, then 42 | 19, then 17 | 25 of 25, both | 48 of 48 | **23 of 24** |
+| **B (kept): "…Load it before answering. The rules are in the skill, so answering from memory misses them."** | 39, then 39 | 14, then 14 | 25 of 25, both | 47 of 48 | 24 of 24 |
+
+Held-out on Haiku: 12 of 16 on `main`, 16 and 15 with A, 14 and 14 with B. Cost: about $3 for the Haiku runs and
+$34 for the four Sonnet suites.
+
+- **A is better for Haiku and was not kept, because it changed a neighbour.** With A, Sonnet loaded
+  `pedagogical-diagrams` on that skill's own held-out quiet query #23 ("convert the mermaid flowchart in the rate
+  limiting ADR into inline SVG…") in 5 of 6 runs; on `main` and with B it is 0 of 3. The trace shows Sonnet searching
+  for the ADR, not finding it, and loading the diagram skill before searching again. Why an instruction in one
+  skill's description makes Sonnet load a different skill was not established: it is one query, and the reading that
+  "or reading any file" makes a file hunt the cue to load something is a guess. `skill-authoring`'s description
+  carries the same phrase, and has since #86.
+- **B meets #233's bar.** At least half of the should-fire queries pass on Haiku (14 of 23), every quiet query stays
+  quiet, and Sonnet does not regress: its one miss is #25 again. A took Sonnet to 48 of 48, #25 included.
+- **`prompt-opus-explainers` on Haiku now loads the skill every time**: 6 of 6 with A and 6 of 6 with B (10 of 15
+  after #154), at 0.90 / 0.67 and 0.87 / 0.73 with and without the skill.
+- **What still misses on Haiku with B**: #4, #6, #11, #12 and #35 at 0 of 3 in both runs, and #5, #10, #25 and #38 in
+  one or both. In the kept traces of the A run, most misses are Haiku searching the empty sandbox for the page the
+  query names until the turn cap, with no `Skill` call; #6 and #35 name no missing file and are answered in one turn.
+  So part of what remains measures the sandbox.
+- **The neighbours on Haiku did not move.** `pedagogical-diagrams` passes 17 of 24 on `main` and 18 with A;
+  `skill-authoring` 28 of 34 on `main` and 25 with A, where the three extra misses passed 2 of 3 each on a re-run and
+  made no `Skill` call when they missed; `advisors` 15 of 15 with A. These were run with A, not B.
+- **`skill-authoring` on Haiku is below its #86 record with nothing changed**: 13 of 19 should-fire on `main` today
+  against 15 to 17 then.
