@@ -1101,7 +1101,8 @@ confirms or corrects the references.
 | 1 (1 run) | first draft | 60/66 (91%) | 9/11 | — | 0/1 | $6.81 |
 | 2 | broken copy made crisper; `need-before-name` and `figures-earn` reworded; two references revised | 189/198 (95%) | 37/39 | 62/66 (94%) | 1/3 | $9.06 |
 | 3 | `one-idea` exempts edge-case lists; `need-before-name` checks every fix; the third reference revised; the broken-copy test compares with the reference, so a miss the page already had counts neither way | 186/198 (94%) | 39/45 (87%) | 63/66 (95%) | 3/3 | $9.58 |
-| **4 (kept)** | the same rubric and references; the grader fixed after code review, chiefly so judges run in a scratch directory holding only the page | **180/198 (91%)** | **34/45 (76%)** | **62/66 (94%)** | **3/3** | $5.80 |
+| 4 | the same rubric and references; the grader fixed after code review, chiefly so judges run in a scratch directory holding only the page | 180/198 (91%) | 34/45 (76%) | 62/66 (94%) | 3/3 | $5.80 |
+| **5 (kept)** | the same rubric and references; after the post-merge review of #243, judges see every page as `page.html` | **188/198 (95%)** | **39/45 (87%)** | **61/66 (92%)** | **3/3** | $5.68 |
 
 **Why run 4, not run 3, is the result.** Runs 1 to 3 started each judge in the repo with read and search tools, so
 a judge could have opened `evals/calibration/`, which holds the reference verdicts. Nothing shows that one did
@@ -1112,12 +1113,30 @@ and `one-idea` stayed at 0/3. Either the earlier judges were reading the referen
 made them stricter; these runs cannot tell the two apart. The extract fix in the same change altered one code line
 on the token bucket pages and no prose on any calibration page.
 
+**Why run 5 replaces run 4.** In runs 1 to 4 the calibration wrote each page under its reference's name, and the
+prompt and the scratch copy carried that name, so judges were told they were reading
+`token-bucket-rate-limiting-broken.html`, or a page at `@974536b` or `@ca066f8`. Run 5 names every copy
+`page.html`. The broken copy still fails exactly its broken criteria on 3 of 3 runs, so that result did not rest on
+the name. Two verdicts moved the way a name that primes a judge would predict: `figures-earn` on the broken copy
+went from 2/3 not met to 3/3 met (the figure is the same as on the unbroken page, where it is 2/3 not met), and it is
+now the only criterion the broken copy's judges and reference part on. Against that, `companion-voice` on how
+DEFLATE works at `ca066f8` went back from 3/3 met to 2/3 not met, and the misses column as a whole rose from 76% to
+87%, the opposite of what losing a hint should do. One run of each cannot separate the name from run-to-run noise
+on borderline criteria: the same five criteria named below are the ones that moved. Read run 4's fall to 76% the
+same way, as within that noise, not as evidence about `CLAUDE.md` or the references. The other fixes in that
+change (reply decoding, timeouts, custom judge paths) do not alter what a judge sees.
+
 Targets (#242): agreement ≥ 80%, same verdict on ≥ 90% of criteria over three runs, the broken copy fails exactly
-the broken criteria. All three hold on run 4. Scored against the references as first written, run 4 agrees
+the broken criteria. All three hold on run 5, the stability target narrowly (61/66; 59 would miss it). The split verdicts in run 5: `need-before-name` on the token bucket and on how a DEFLATE block sends its code
+(each 2/3 not met against a reference of met), `figures-earn` on the token bucket (2/3 not met), and `one-idea`
+and `companion-voice` on how DEFLATE works at `ca066f8` (each 2/3 not met). All three held on run 4 too.
+
+Scored against the references as first written, run 4 agrees
 on 177/198 (89%) and on 27/33 misses, and the broken copy fails exactly on 1/3 runs, the others on the coin
 machine (below). A judge that always says met would agree on 51/66 (77%) of the final references and 55/66 (83%)
-of the first ones, so the 80% target alone proves little here; the misses column is the one to read, and at 76%
-it says the grader is softer than these references on about a quarter of real misses.
+of the first ones, so the 80% target alone proves little here; the misses column is the one to read. It was 76% in run 4 and
+87% in run 5 with nothing changed that should move it, so read it as "between three quarters and nine tenths",
+not as either figure.
 
 - **The broken copy works only once each edit breaks one thing.** In run 1, cutting the need from `#no-timer`
   also cut the page's one voiced objection ("But who turns the tap?"), so `companion-voice` failed too, rightly;
