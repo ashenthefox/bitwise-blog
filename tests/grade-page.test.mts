@@ -6,7 +6,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { pageStats, scriptChecks } from "../.claude/skills/pedagogical-writing/scripts/page-stats.mjs";
-import { blobId, buildPrompt, decodeOnce, extract, parseReply, quoteInSection, readCriteria, scorecardMarkdown, splitArgs, stable, validate, withoutExamples } from "../.claude/skills/pedagogical-writing/scripts/grade.mjs";
+import { absolutePaths, blobId, buildPrompt, decodeOnce, extract, parseReply, quoteInSection, readCriteria, scorecardMarkdown, splitArgs, stable, validate, withoutExamples } from "../.claude/skills/pedagogical-writing/scripts/grade.mjs";
 import { applyEdit, materialize, readRefs, score } from "../.claude/skills/pedagogical-writing/scripts/calibrate.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -42,18 +42,27 @@ function tmp(): string { return fs.mkdtempSync(path.join(TMP, "t-")); }
 
 // A stand-in judge: reads the prompt on stdin, takes the criterion id from it, and answers from
 // FAKE_PLAN[id] (or FAKE_PLAN["*"]): { reply } printed as is, { json } printed as JSON, or { exit }.
-// It exits 7 unless it is running beside a copy of the page, away from the repo, with the same
-// prompt in GRADE_PROMPT_FILE.
+// { split } prints JSON in two chunks that cut a multi-byte character in half; { hang } ignores
+// SIGTERM and never answers. It exits 7 unless it is running beside a copy of the page called
+// page.html, away from the repo, with the same prompt in GRADE_PROMPT_FILE.
 const FAKE_JUDGE = `
 const fs = require("fs"), path = require("path");
 const prompt = fs.readFileSync(0, "utf8");
 const id = /## Criterion \`([a-z0-9-]+)\`/.exec(prompt)[1];
 const page = /^Page: ([^.\\s]+\\.html)\\./m.exec(prompt)[1];
-if (!fs.existsSync(page) || fs.existsSync("evals") || fs.existsSync(".claude") || fs.readFileSync(process.env.GRADE_PROMPT_FILE, "utf8") !== prompt) process.exit(7);
+if (page !== "page.html" || !fs.existsSync(page) || fs.existsSync("evals") || fs.existsSync(".claude") || fs.readFileSync(process.env.GRADE_PROMPT_FILE, "utf8") !== prompt) process.exit(7);
 const plan = JSON.parse(process.env.FAKE_PLAN);
 const p = plan[id] ?? plan["*"];
 if (p.exit) { process.stderr.write("boom\\n"); process.exit(p.exit); }
+if (p.hang) { process.on("SIGTERM", () => {}); setInterval(() => {}, 1000); return; }
 const fill = s => s.replaceAll("$ID", id);
+if (p.split) {
+  const b = Buffer.from(fill(JSON.stringify(p.split)));
+  const k = b.indexOf(0xe2) + 1;
+  process.stdout.write(b.subarray(0, k));
+  setTimeout(() => process.stdout.write(b.subarray(k)), 150);
+  return;
+}
 if (p.reply !== undefined) process.stdout.write(fill(p.reply));
 else process.stdout.write(fill(JSON.stringify(p.json)));
 `;
@@ -148,6 +157,7 @@ test("validate turns anything unchecked into unknown", () => {
   assert.match(v({ verdict: "not_met", evidence: [{ section: "the-need", quote: "Suppose" }] }).reason, /without a gap/);
   assert.match(v({ criterion: "one-idea", verdict: "met", evidence: [{ section: "the-need", quote: "Suppose" }] }).reason, /not "opening-need"/);
   assert.equal(v({ verdict: "unknown", evidence: [] }).verdict, "unknown");
+  assert.deepEqual(v({ verdict: "unknown", evidence: [null, "no quote"] }).evidence, [], "an unknown verdict's evidence is unchecked, so it is dropped");
 });
 
 test("parseReply finds the verdict object in a chatty or fenced reply; splitArgs honours quotes", () => {
@@ -248,6 +258,7 @@ test("calibration references are well formed, and edits must match exactly once"
   assert.equal(applyEdit("a [cut] b", { from: "[", to: "b", replace: "" }), "a b");
   assert.throws(() => applyEdit("a b", { find: "z", replace: "x", breaks: "one-idea" }), /one-idea: find not found/);
   assert.throws(() => applyEdit("b b", { find: "b", replace: "x" }), /more than once/);
+  assert.equal(applyEdit("a b c", { find: " b" }), "a c", "a find with no replace deletes the text");
 
   // The broken copy rebuilds from the working tree, and its edits change the page.
   const out = tmp();
@@ -316,6 +327,63 @@ test("stability leaves out judges that never ran", () => {
   const ok = (verdict: string) => ({ verdict }), failed = { verdict: "unknown", failed: true };
   assert.deepEqual(stable([[failed, failed, failed], [failed, failed, failed]]), { same: 0, of: 0 }, "a judge that never ran is not stable");
   assert.deepEqual(stable([[ok("met"), ok("met"), failed], [ok("met"), ok("not_met"), ok("met")], [ok("met"), failed, failed]]), { same: 1, of: 2 });
+});
+
+test("the judge sees page.html, whatever the page's file is called", () => {
+  // The fake judge exits 7 unless the prompt names page.html; a name like this one would tell it what to find.
+  const f = path.join(tmp(), "token-bucket-broken@974536b.html");
+  fs.writeFileSync(f, page());
+  const { card } = grade(f, { "*": { json: MET } }, "--only", "opening-need");
+  assert.equal(card.results[0].verdict, "met", card.results[0].reason);
+  assert.equal(card.page, f, "the scorecard keeps the real path");
+});
+
+test("a relative path in a custom judge command is resolved from the caller's directory", () => {
+  const dir = tmp();
+  fs.writeFileSync(path.join(dir, "judge.cjs"), FAKE_JUDGE);
+  assert.deepEqual(absolutePaths(["node", "./judge.cjs", "--flag", "missing.txt"], dir), ["node", path.join(dir, "judge.cjs"), "--flag", "missing.txt"]);
+  assert.deepEqual(absolutePaths(["./judge.cjs"], dir), [path.join(dir, "judge.cjs")]);
+  const json = path.join(dir, "card.json");
+  const r = spawnSync(process.execPath, [GRADE, writePage(), "--judge", "node ./judge.cjs", "--only", "opening-need", "--out", json],
+    { encoding: "utf8", cwd: dir, env: { ...process.env, FAKE_PLAN: JSON.stringify({ "*": { json: MET } }) }, timeout: 60_000 });
+  assert.equal(r.status, 0, r.stderr);
+  const res = JSON.parse(fs.readFileSync(json, "utf8")).results[0];
+  assert.equal(res.verdict, "met", res.reason);
+});
+
+test("a multi-byte character split across two chunks of the judge's reply stays whole", () => {
+  const src = page().replace("Suppose 200 clients share", "Suppose 200 clients — all of them — share");
+  assert.notEqual(src, page(), "the page has the dash");
+  const reply = { ...MET, evidence: [{ section: "the-need", quote: "200 clients — all of them — share a backend" }] };
+  const { card } = grade(writePage(src), { "*": { split: reply } }, "--only", "opening-need");
+  assert.equal(card.results[0].verdict, "met", card.results[0].reason);
+});
+
+test("a judge that ignores SIGTERM is killed, and the grader still exits", () => {
+  // grade() asserts exit 0 within its own 60 s limit: before the SIGKILL, the live child kept the process open.
+  const { card } = grade(writePage(), { "*": { hang: true } }, "--only", "opening-need", "--timeout", "1");
+  assert.equal(card.results[0].verdict, "unknown");
+  assert.match(card.results[0].reason, /judge failed \(timed out after 1 s\)/);
+});
+
+test("--json with --expect prints one JSON document, with the agreement inside it", () => {
+  const dir = tmp();
+  const ref = path.join(dir, "ref.json");
+  fs.writeFileSync(ref, JSON.stringify({ grades: { "opening-need": { verdict: "met" }, "one-idea": { verdict: "not_met" } } }));
+  const { out } = grade(writePage(), { "*": { json: MET } }, "--only", "opening-need,one-idea", "--json", "--expect", ref);
+  const card = JSON.parse(out);
+  assert.equal(card.agreement.agree, 1);
+  assert.equal(card.agreement.of, 2);
+  assert.equal(card.agreement.pageChanged, false);
+  const text = grade(writePage(), { "*": { json: MET } }, "--only", "opening-need,one-idea", "--expect", ref).out;
+  assert.match(text, /## Agreement with[\s\S]*DISAGREE `one-idea`: got met, reference not_met[\s\S]*1 of 2 criteria agree \(50%\)/);
+});
+
+test("stability that could not be measured reads n/a, not 0%", () => {
+  const card = { page: "p", judges: ["j"], runs: 3, date: "d", met: 0, judged: 0, total: 0, rubric: "0123456789ab", order: [], checks: [], results: [], stability: { j: null, k: 1 } };
+  const md = scorecardMarkdown(card);
+  assert.match(md, /j n\/a \(fewer than two calls ran\), k 100%/);
+  assert.doesNotMatch(md, /j 0%/);
 });
 
 test("a pinned reference falls back to the working tree only if the page is unchanged", () => {

@@ -32,7 +32,8 @@ export function readRefs(dir = REFS) {
 // The page's text as the reference graded it: the file at `rev`, then the edits. Every reference
 // pins `rev`, so later edits to the live page cannot break the edits' anchors or move the grade.
 // Without the history (a shallow clone), the working-tree file stands in only if its blob id is
-// still `pageBlob`, the page as it was at `rev`.
+// still `pageBlob`, the page as it was at `rev`. That holds only until the page's next edit, so
+// CI fetches the full history for the tests (fetch-depth: 0 in .github/workflows/ci.yml).
 export function materialize(ref, repo = process.cwd()) {
   let src;
   try {
@@ -47,7 +48,8 @@ export function materialize(ref, repo = process.cwd()) {
   return src;
 }
 
-// An edit is { find, replace } or { from, to, replace } (cut from `from` up to, not including, `to`).
+// An edit is { find, replace } or { from, to, replace } (cut from `from` up to, not including, `to`);
+// without `replace`, the matched text is deleted.
 // Either anchor must occur exactly once, so an edit that silently matches nothing cannot pass.
 export function applyEdit(src, e) {
   const once = (needle, what) => {
@@ -56,7 +58,7 @@ export function applyEdit(src, e) {
     if (src.indexOf(needle, k + 1) >= 0) throw new Error(`edit for ${e.breaks ?? "?"}: ${what} occurs more than once: ${needle.slice(0, 60)}`);
     return k;
   };
-  if (e.find !== undefined) { const k = once(e.find, "find"); return src.slice(0, k) + e.replace + src.slice(k + e.find.length); }
+  if (e.find !== undefined) { const k = once(e.find, "find"); return src.slice(0, k) + (e.replace ?? "") + src.slice(k + e.find.length); }
   const a = once(e.from, "from"), b = src.indexOf(e.to, a);
   if (b < 0) throw new Error(`edit for ${e.breaks ?? "?"}: "to" not found after "from": ${e.to.slice(0, 60)}`);
   return src.slice(0, a) + (e.replace ?? "") + src.slice(b);
@@ -148,7 +150,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(proces
   console.log(`\n## In all (judges ${o.judges.join(", ")}, ${o.runs} run${o.runs > 1 ? "s" : ""})\n`);
   console.log(`agreement ${pct(sum("all"))} (target 80%); cost US$${summary.reduce((a, x) => a + (x.costUsd || 0), 0).toFixed(2)}`);
   console.log(`agreement on the reference's misses ${pct(sum("misses"))}`);
-  if (o.runs > 1) console.log(`same verdict on every run: ${stable.same}/${stable.of} (${Math.round(100 * stable.same / stable.of)}%, target 90%)`);
+  if (o.runs > 1) console.log(`same verdict on every run: ${stable.same}/${stable.of} (${stable.of ? `${Math.round(100 * stable.same / stable.of)}%` : "n/a: no criterion had two calls that ran"}, target 90%)`);
   if (exact.length) console.log(`broken copies fail exactly the broken criteria on ${exact.filter(Boolean).length}/${exact.length} runs (target: all)`);
   if (o.json) fs.writeFileSync(o.json, JSON.stringify({ judges: o.judges, runs: o.runs, date: localDate(), summary }, null, 2) + "\n");
 }

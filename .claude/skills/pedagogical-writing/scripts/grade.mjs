@@ -11,12 +11,13 @@
 //                      gets the prompt on stdin (its path is in GRADE_PROMPT_FILE too). Repeat
 //                      it for several judges; a disagreement between them is unknown.
 //                      Default: claude:claude-sonnet-5-5. Judges run in a scratch directory
-//                      that holds only a copy of the page, never in the repo.
+//                      that holds only a copy of the page (as page.html), never in the repo.
+//                      A relative path in a custom command is resolved from where you run this.
 //   --reader <text>    the target reader (default: the reader the page assumes)
 //   --runs <n>         run each judge n times; runs that disagree make the verdict unknown
 //   --only <ids>       comma-separated criterion ids
 //   --expect <file>    reference grades (evals/calibration/*.json): print agreement with them
-//   --json             print the scorecard as JSON
+//   --json             print the scorecard as JSON (with --expect, agreement is its "agreement" field)
 //   --out <file>       also write the JSON scorecard to a file
 //   --extract          print the prose extract the judges see, and exit (no judge runs)
 //   -j <n>             judges run in parallel (default 4)
@@ -161,7 +162,19 @@ export function judgeCommand(spec) {
     return { argv: ["pi", "-p", "--no-approve", "--no-session", "--no-skills", "--no-extensions", "--no-context-files", "--no-prompt-templates",
       "--tools", "read,grep,find,ls", "--model", spec.slice(3)], input: "file" };
   }
-  return { argv: splitArgs(spec), input: "stdin" };
+  return { argv: absolutePaths(splitArgs(spec)), input: "stdin" };
+}
+
+// A custom judge starts in the scratch directory, so a relative path in its command would not be
+// found there. The command (when it is a path, not a name looked up on PATH) and any argument
+// that names an existing file are made absolute from the caller's directory.
+export function absolutePaths(argv, from = process.cwd()) {
+  return argv.map((a, k) => {
+    if (path.isAbsolute(a) || a.startsWith("-")) return a;
+    if (k === 0 && !a.includes("/") && !a.includes(path.sep)) return a;
+    const abs = path.resolve(from, a);
+    return fs.existsSync(abs) ? abs : a;
+  });
 }
 
 // A command line split into words, honouring '…' and "…" quotes (no other shell syntax).
@@ -236,7 +249,8 @@ export function validate(reply, criterion, ex) {
   if (reply.criterion && reply.criterion !== criterion.id) return bad(`reply is for "${reply.criterion}", not "${criterion.id}"`);
   const evidence = Array.isArray(reply.evidence) ? reply.evidence : [];
   const clean = { verdict: reply.verdict, evidence, gap: String(reply.gap ?? "").trim(), reason: String(reply.reason ?? "").trim() };
-  if (reply.verdict === "unknown") return clean;
+  // An unknown verdict's evidence is never checked, so none of it reaches the scorecard.
+  if (reply.verdict === "unknown") return { ...clean, evidence: [] };
   if (!evidence.length) return bad(`a ${reply.verdict} verdict without evidence`);
   for (const e of evidence) {
     const sec = sectionName(String(e?.section ?? "").replace(/^#/, ""));
@@ -254,13 +268,27 @@ export function validate(reply, criterion, ex) {
 
 // Runs one judge in `cwd`, a scratch directory that holds only the page and the prompt files,
 // so its read-only tools cannot reach the repo (or the reference grades in evals/calibration/).
+// A judge that passes its timeout gets SIGTERM, then SIGKILL after KILL_GRACE_MS, and its pipes
+// are closed at once, so neither it nor a child of its own holding them can keep this process alive.
+const KILL_GRACE_MS = 2000;
 export function runJudge(cmd, promptFile, timeoutS, cwd) {
   return new Promise(resolve => {
     let out = "", err = "", done = false;
     const extra = cmd.input === "file" ? [`@${promptFile}`, "Follow the instructions in the attached file. Reply with only the JSON object it asks for."] : [];
     const child = spawn(cmd.argv[0], [...cmd.argv.slice(1), ...extra], { cwd, stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, GRADE_PROMPT_FILE: promptFile } });
-    const timer = setTimeout(() => { if (!done) { child.kill("SIGTERM"); finish(null, `timed out after ${timeoutS} s`); } }, timeoutS * 1000);
+    const timer = setTimeout(() => {
+      if (done) return;
+      child.kill("SIGTERM");
+      const hard = setTimeout(() => child.kill("SIGKILL"), KILL_GRACE_MS);
+      child.on("exit", () => clearTimeout(hard));
+      child.stdout.destroy();
+      child.stderr.destroy();
+      finish(null, `timed out after ${timeoutS} s`);
+    }, timeoutS * 1000);
     const finish = (code, why) => { if (done) return; done = true; clearTimeout(timer); resolve({ code, out, err, why }); };
+    // Decoded as one stream each: a multi-byte character split across two chunks stays whole.
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
     child.stdout.on("data", d => (out += d));
     child.stderr.on("data", d => (err += d));
     child.stdin.on("error", () => {}); // a judge that exits without reading stdin is reported by its exit code
@@ -352,11 +380,12 @@ export async function grade({ page, judges = [DEFAULT_JUDGE], reader, runs = 1, 
   }
   const who = reader || "the reader the page itself assumes (decide who that is from the page before judging)";
   // The judges work in a scratch directory holding a copy of the page and the prompts, never in
-  // the repo, so their read-only tools cannot open the reference grades.
+  // the repo, so their read-only tools cannot open the reference grades. The copy is always
+  // page.html: a file name such as "…-broken.html" or "…@974536b.html" would tell a judge what to find.
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), "grade-"));
   const done = [];
   try {
-    const copy = path.basename(page);
+    const copy = "page.html";
     fs.copyFileSync(page, path.join(ws, copy));
     const promptFiles = new Map(criteria.map(c => {
       const f = path.join(ws, `prompt-${c.id}.md`);
@@ -402,7 +431,7 @@ export function scorecardMarkdown(card) {
   L.push(`# Scorecard: ${card.page}`, "");
   L.push(`**${card.met} of ${card.judged} criteria met** (${card.total - card.judged} unknown). Judges: ${card.judges.join(", ")}; ${card.runs} run${card.runs > 1 ? "s" : ""} each; ${card.date}${card.costUsd ? `; US$${card.costUsd.toFixed(2)}` : ""}; rubric ${card.rubric.slice(0, 10)}.`);
   if (card.reader) L.push(`Target reader: ${card.reader}.`);
-  if (card.stability) L.push(`Same verdict on every run: ${Object.entries(card.stability).map(([j, s]) => `${j} ${Math.round(100 * s)}%`).join(", ")}.`);
+  if (card.stability) L.push(`Same verdict on every run: ${Object.entries(card.stability).map(([j, s]) => `${j} ${s === null ? "n/a (fewer than two calls ran)" : `${Math.round(100 * s)}%`}`).join(", ")}.`);
   const leap = card.results.filter(r => r.verdict === "not_met" && ["opening-need", "one-idea", "need-before-name"].includes(r.id));
   if (leap.length) {
     // Position by the h2 each quote sits in, so a miss cited at a figure or an h3 ranks where it is.
@@ -452,13 +481,17 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(proces
   if (o.extractOnly) { process.stdout.write(extract(fs.readFileSync(o.page, "utf8")).text); process.exit(0); }
   let card;
   try { card = await grade(o); } catch (e) { console.error(e.message); process.exit(2); }
-  if (o.out) fs.writeFileSync(o.out, JSON.stringify(card, null, 2) + "\n");
-  console.log(o.json ? JSON.stringify(card, null, 2) : scorecardMarkdown(card));
+  // With --expect, the agreement is part of the JSON scorecard, so --json prints one JSON document.
   if (o.expect) {
     const ref = JSON.parse(fs.readFileSync(o.expect, "utf8"));
-    const cmp = compare(card, ref);
+    card.agreement = { reference: o.expect, pageChanged: Boolean(ref.blob && ref.blob !== card.blob), referenceBlob: ref.blob ?? null, ...compare(card, ref) };
+  }
+  if (o.out) fs.writeFileSync(o.out, JSON.stringify(card, null, 2) + "\n");
+  console.log(o.json ? JSON.stringify(card, null, 2) : scorecardMarkdown(card));
+  if (card.agreement && !o.json) {
+    const cmp = card.agreement;
     console.log(`\n## Agreement with ${o.expect}\n`);
-    if (ref.blob && ref.blob !== card.blob) console.log(`The page has changed since it was graded (blob ${card.blob.slice(0, 10)}, reference ${ref.blob.slice(0, 10)}): re-grade it by hand before trusting this.\n`);
+    if (cmp.pageChanged) console.log(`The page has changed since it was graded (blob ${card.blob.slice(0, 10)}, reference ${cmp.referenceBlob.slice(0, 10)}): re-grade it by hand before trusting this.\n`);
     for (const r of cmp.rows) console.log(`- ${r.ok ? "agree   " : "DISAGREE"} \`${r.id}\`: got ${r.got}, reference ${r.want}`);
     console.log(`\n${cmp.agree} of ${cmp.of} criteria agree (${Math.round(100 * cmp.agree / Math.max(cmp.of, 1))}%).`);
   }
