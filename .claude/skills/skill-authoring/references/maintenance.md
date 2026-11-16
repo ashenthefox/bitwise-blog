@@ -7,7 +7,7 @@ instead of waiting for someone to notice.
 ## Contents
 
 - Re-run on every change
-- Scheduled run
+- The full run
 - Read transcripts after real use
 - Claude stops following a skill
 - Context cost
@@ -23,21 +23,35 @@ instead of waiting for someone to notice.
   skills closest to it, since a new description can take their prompts.
 - A new model: re-run both suites on it. A rule written for a weaker model may now be dead
   weight, and a case that scored `Δ ≈ 0` may now be one the skill no longer needs. The
-  [scheduled run](#scheduled-run) does this when the model or Claude Code changes under a skill
-  that nobody edited, but the pinned models only change when you change them.
+  [full run](#the-full-run) is the way to check every skill after the model or Claude Code
+  changed under skills that nobody edited. Start it yourself: nothing runs it for you.
 - Record the date, models, command and scores in the PR or the commit. A score without those
   cannot be compared next time.
 - To show that an edit helped, and not only that the skill helps, compare against the
   previous version of the skill, not just the no-skill baseline
   ([evals](evals.md#comparing-with-the-previous-version)).
 
-## Scheduled run
+## The full run
 
 A model or Claude Code update can change how a skill triggers with no change in the repo, and
-the evals above only run when someone edits a skill. `.github/workflows/skill-evals.yml` runs
-both kinds for every skill with evals on the 1st of each month (and from the Actions tab), through
-`npm run skill-evals` (`scripts/skill-evals.mts`), which calls `run-trigger-evals.mjs --json` and
+the evals above only run when someone edits a skill. `npm run skill-evals`
+(`scripts/skill-evals.mts`) runs both kinds for every skill with evals and compares the pass
+rates with the last full run. It calls `run-trigger-evals.mjs --json` and
 `claude plugin eval --json` and reads what they write.
+
+**It runs only when you start it.** It used to be a monthly workflow. It is not now, for two
+reasons: a full run costs US$40 to $60, and the scores move between runs of an unchanged skill
+by more than the tolerance (the four `pedagogical-diagrams` cases averaged 0.89, 0.75 and 0.66
+on three days with no change; #237), so a schedule would pay that every month to fail on noise.
+Run it after a model or Claude Code update, or when a skill seems to have stopped loading.
+
+- **On your machine:** `npm run skill-evals -- --skills <name> --kind trigger --out <dir>
+  --max-cost-usd 15`, on your own login. Leave out `--skills` for every skill, and add
+  `--previous <record.json>` to compare with an earlier record.
+- **On GitHub:** the Actions tab → Skill evals → Run workflow, or
+  `gh workflow run skill-evals.yml -f skills=<name> -f kind=trigger -f max_cost_usd=15`. It
+  needs the secret `ANTHROPIC_API_KEY` (the workflow's header lists the set-up) and finds the
+  previous full run's record by itself. Only people with write access can start it.
 
 - **What it records.** `record.json` (format `bh-skill-evals/1`) holds the date, commit, Claude
   Code version, agent and judge models, cost, and per skill the trigger pass counts and per-query
@@ -48,7 +62,7 @@ both kinds for every skill with evals on the 1st of each month (and from the Act
 - **`baseline.json` is `record.json` of a run that can be compared with.** The script writes it only
   for a run of every skill and both kinds with no error. A run of one skill (a dispatch with
   `skills` set) or one that errored is a record but not a baseline: it would hide every other
-  skill's drop for a month, or lower the bar.
+  skill's drop until the next full run, or lower the bar.
 - **What fails the run.** A skill whose trigger pass rate, or mean output score with the skill,
   fell by more than 0.10 against the baseline (exit 1); a run that measured nothing, such as a case
   that failed to load, a `scaffold failed` row, a partial result or a spent cost ceiling, or trigger
@@ -58,21 +72,19 @@ both kinds for every skill with evals on the 1st of each month (and from the Act
   are listed in the summary and never fail the run.
 - **A regression alerts once.** The run that regressed is complete, so it is the next baseline and
   the new level stops failing. Read the trend in the summaries, because a slow decline of less than
-  0.10 a month never fails.
-- **GitHub switches scheduled workflows off** in a public repository after 60 days without
-  repository activity, without a message. If the blog goes quiet, re-enable it in the Actions tab.
+  0.10 a run never fails.
+- **The artifact lasts 90 days.** A full run on GitHub more than 90 days after the last one finds no
+  baseline and only records a new one. Keep `baseline.json` yourself if you run it less often.
 - **Reading a drop.** The summary names both runs' versions and models. If only Claude Code changed,
   suspect its skill listing or system prompt; if only the model changed, run the trigger evals
   on the new model by hand with `--keep` and read the traces. The 0.10 tolerance is a starting
-  value (`DEFAULT_TOLERANCE`); tune it from a few months of records.
-- **Cost.** About US$0.27 per trigger query (about US$33 for the 122 queries in all four skills)
-  plus a few US dollars per output suite, so roughly US$40 to $60 a run, stopped at a hard ceiling
-  (default US$75). `--kind trigger` is the cheap half. It is off until the repository variable
-  `SKILL_EVALS_ENABLED` is `true` and the secret `ANTHROPIC_API_KEY` is set; the workflow header
-  lists the setup.
-- **Locally,** `npm run skill-evals -- --skills <name> --kind trigger --out <dir>` runs the same
-  thing; add `--previous <record.json>` to compare. It spends real money, so give it
-  `--max-cost-usd`.
+  value (`DEFAULT_TOLERANCE`), and #237 suggests it is too tight for the output cases.
+- **Cost.** About US$0.27 per trigger query with Sonnet (about US$40 for the 147 queries in the
+  five skills; `pedagogical-writing`'s 48 alone are about US$13) plus a few US dollars per output
+  suite, so roughly US$40 to $60 for everything, stopped at a hard ceiling (default US$75). The
+  trigger evals are most of that. A trigger suite on Haiku costs about a twentieth as much and
+  answers a different question: whether the smallest model loads the skill. Always give a run of
+  your own `--max-cost-usd`.
 
 ## Read transcripts after real use
 

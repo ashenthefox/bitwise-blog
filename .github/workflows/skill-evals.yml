@@ -1,34 +1,35 @@
 name: Skill evals
 
-# Runs every skill's trigger and output evals once a month and records the pass rates, so a model or
-# Claude Code update that changes how a skill behaves is noticed even though nothing in the repo
-# changed. A run fails (and GitHub emails you) when a skill's pass rate falls by more than the
-# tolerance against the previous run's record, or when a run errored and measured nothing. See
-# "Scheduled run" in .claude/skills/skill-authoring/references/maintenance.md.
+# Runs the skills' trigger and output evals when someone asks for it, and records the pass rates, so a
+# model or Claude Code update that changes how a skill behaves can be checked for even though nothing
+# in the repo changed. A run fails when a skill's pass rate falls by more than the tolerance against
+# the previous full run's record, or when a run errored and measured nothing. See "The full run" in
+# .claude/skills/skill-authoring/references/maintenance.md.
 #
-# It costs real money (roughly US$40 to $60 a run; the run stops at a hard ceiling, US$75 by
-# default; run with kind "trigger" for about US$33), so it is off until you opt in:
+# It never runs on its own. It costs real money (roughly US$40 to $60 for every skill and both
+# kinds; about US$40 for kind "trigger" alone; one skill is US$2 to $20), and the scores move between
+# runs of an unchanged skill, so a schedule would spend that every month and fail on noise. Start it
+# from the Actions tab (Run workflow), or:
+#   gh workflow run skill-evals.yml -f skills=pedagogical-diagrams -f kind=trigger -f max_cost_usd=10
+#
+# Set-up, once:
 #   1. Settings → Secrets and variables → Actions → Secrets → New repository secret:
-#      ANTHROPIC_API_KEY = <an Anthropic API key>
-#   2. Settings → Secrets and variables → Actions → Variables → New variable:
-#      SKILL_EVALS_ENABLED = true
-#   3. Optional variables: SKILL_EVALS_MODEL and SKILL_EVALS_JUDGE_MODEL (default
+#      ANTHROPIC_API_KEY = <an Anthropic API key>. Without it the run stops at its second step.
+#   2. Optional variables: SKILL_EVALS_MODEL and SKILL_EVALS_JUDGE_MODEL (default
 #      claude-sonnet-5-5 and claude-haiku-5-5), SKILL_EVALS_MAX_COST_USD (default 75).
-#   4. Run it once from the Actions tab (Run workflow) to record the baseline.
+#   3. Run it once for every skill and both kinds to record the baseline later runs compare with.
 #
-# GitHub switches a scheduled workflow off in a public repository after 60 days without repository
-# activity, and says nothing when it does: if the blog goes quiet, re-enable it from the Actions tab.
+# Only people with write access to the repository can start it. `npm run skill-evals` is the same run
+# on your own machine and your own login, with no secret.
 on:
-  schedule:
-    - cron: "17 6 1 * *"
   workflow_dispatch:
     inputs:
       skills:
-        description: "Skills to run, comma-separated (empty: every skill with evals)"
+        description: "Skills to run, comma-separated. Empty runs every skill, about US$40 to $60 for both kinds"
         required: false
         default: ""
       kind:
-        description: "Which evals to run"
+        description: "Which evals to run. trigger is most of the cost of a full run; output is a few dollars a skill"
         required: false
         type: choice
         options: [both, trigger, output]
@@ -53,7 +54,6 @@ concurrency:
 
 jobs:
   evals:
-    if: vars.SKILL_EVALS_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:

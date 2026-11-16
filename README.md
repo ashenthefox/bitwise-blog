@@ -138,12 +138,12 @@ The authoring and publishing commands (`index`, `check`, `bundle`, `seal`, …) 
   The custom domain is a Pages setting (Settings → Pages → Custom domain, plus DNS), not a file in
   the repo. Pages also work under a project sub-path such as `/bitwise-blog/`; a fork sets
   `homepage` in `package.json` (or `BH_SITE_URL`) to wherever it is served from.
-- **Skill evals** (`.github/workflows/skill-evals.yml`) runs every skill's trigger and output evals on
-  the 1st of each month, records the pass rates and fails when a skill's rate falls against the
-  previous run, so a model or Claude Code update that changes a skill is noticed. It calls the
-  Anthropic API (roughly US$40 to $60 a run), so it stays off until you opt in: add the secret
-  `ANTHROPIC_API_KEY` and the repository variable `SKILL_EVALS_ENABLED=true`. The same run is
-  `npm run skill-evals`; see "Scheduled run" in
+- **Skill evals** (`.github/workflows/skill-evals.yml`) runs the skills' trigger and output evals when
+  you start it from the Actions tab, records the pass rates and fails when a skill's rate falls
+  against the previous full run, so a model or Claude Code update that changes a skill can be checked
+  for. It never runs on its own: it calls the Anthropic API (roughly US$40 to $60 for every skill),
+  and it needs the secret `ANTHROPIC_API_KEY`. The same run on your own machine is
+  `npm run skill-evals`; see "The full run" in
   `.claude/skills/skill-authoring/references/maintenance.md`.
 - **External links** (`.github/workflows/links.yml`) requests every external link of the published pages each
   Monday and keeps one issue, labelled `link-check`, listing the broken and permanently moved ones (closed when a
