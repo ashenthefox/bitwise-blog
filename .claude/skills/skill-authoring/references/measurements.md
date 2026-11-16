@@ -31,6 +31,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-14: `pedagogical-writing` gets two kinds of analogy, hook uses as promises, and ordered applications (#171)
 - 2026-11-14: `pedagogical-writing` no longer claims to scope a video (#170)
 - 2026-11-16: Haiku and a model's drafts: the description gets a sentence of its own for that case (#154)
+- 2026-11-16: `pedagogical-diagrams` after its second source pass (#230)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -950,3 +951,34 @@ are hard to follow." The description is now 1,022 of 1,024 characters, so the ne
   queries either way (#4 to #7, #11 and #12 are 0 of 3 in both). This is the gap #86 found for `skill-authoring`, and
   it is far larger than the case #154 names. Nothing here addresses it: see #233.
 - Not measured: Opus on the new queries.
+
+## 2026-11-16: `pedagogical-diagrams` after its second source pass (#230)
+
+Claude Code 2.1.318, agent `claude-sonnet-5-5`, judge `claude-haiku-5-5`, three runs per arm and per query. The pass
+read five texts the first one could not reach and narrowed rules 6, 9 and 10 to what they support (the detail is in
+that skill's `references/sources.md`). The description did not change, so the trigger suite was run for a different
+reason: #154 had just lengthened `pedagogical-writing`'s description, which could have taken diagram queries.
+
+| Run | Result | Cost |
+| --- | --- | --- |
+| Trigger suite, 24 queries | 24 of 24 (train 15/15, held-out 9/9), as on 2026-11-10 | $4.37 |
+| Output cases on `main`, the same day | mean 0.66 with the skill, 0.53 without (Δ +0.13) | $3.28 |
+| Output cases, first commit of the pass | mean 0.74 with, 0.53 without (Δ +0.21) | $2.73 |
+| Output cases, final text | mean 0.76 with, 0.53 without (Δ +0.22) | $3.22 |
+
+| Case, with / without | `main` | First commit | Final text |
+| --- | --- | --- | --- |
+| `design-lz77-figure` | 0.61 / 0.11 | 0.72 / 0.22 | 0.61 / 0.28 |
+| `fix-confusing-figure` | 0.56 / 0.67 | 0.61 / 0.56 | 0.67 / 0.61 |
+| `review-deflate-figures` | 0.81 / 0.67 | 0.76 / 0.76 | 0.81 / 0.71 |
+| `review-stepper-boundary` | 0.67 / 0.67 | 0.87 / 0.60 | 0.93 / 0.53 |
+
+- **No regression, and no claim of a gain.** The changed skill scores at or above `main` on every case, but three
+  runs move a case by a third, and the three with-skill means (0.66, 0.74, 0.76) are within that. No grader asks about
+  the narrowed rules, so these cases could not show what the pass changed. They show it broke nothing.
+- **Today's numbers are below the first measurement and equal to the scheduled one.** On 2026-11-10 the four cases
+  averaged 0.89 with the skill; the scheduled run on 2026-11-12 gave 0.75, and `main` gives 0.66 today with no change
+  to the skill in between. `design-lz77-figure` went from 0.94 to 0.61. That drift is not explained here, and no
+  transcript was read for it.
+- **The neighbour's longer description took nothing.** All ten should-stay-quiet queries stayed at 0 of 3 and all
+  fourteen should-fire queries fired, including the boundary queries about step captions.
