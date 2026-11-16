@@ -29,7 +29,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-13: `pedagogical-writing` gets guidance for drafting with GPT and Claude models (#150)
 - 2026-11-13: the per-model cases on Haiku and Opus, and a prose base prompt (#152)
 - 2026-11-14: `pedagogical-writing` gets two kinds of analogy, hook uses as promises, and ordered applications (#171)
-- 2026-11-14: `pedagogical-writing` no longer claims to scope a video
+- 2026-11-14: `pedagogical-writing` no longer claims to scope a video (#170)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -887,10 +887,10 @@ Total cost about $14.70.
 - **"Analogy before the mechanism" is still below the baseline** (4 of 6 against 6 of 6 over the both-arm and suite
   runs, 3 of 3 on the final text): the gap from the old skill (3 of 6) is narrowed, not closed.
 
-## 2026-11-14: `pedagogical-writing` no longer claims to scope a video
+## 2026-11-14: `pedagogical-writing` no longer claims to scope a video (#170)
 
 Claude Code 2.1.318, agent `claude-sonnet-5-5`, three runs per query. The description's "scoping a page, a series, or a
-video" became "scoping a page or a series" (973 characters). Every concrete rule in the skill is for a web page (folds,
+video" became "scoping a page or a series" (972 characters). Every concrete rule in the skill is for a web page (folds,
 `details.predict`, sidenotes, `data-ref`), and none says how a script differs (no scroll-back, a spoken pause for a
 prediction, no fold for an aside), so the claim was not served. 3Blue1Brown videos stay the skill's main source; only
 the claim that it scopes a video goes.
