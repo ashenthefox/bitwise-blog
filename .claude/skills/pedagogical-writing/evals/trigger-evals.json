@@ -46,5 +46,15 @@
   {"query": "Opus 5.5 keeps returning truncated JSON from my invoice extraction prompt over the API. what should I change in the system prompt?", "should_trigger": false},
   {"query": "Sonnet 5.5 writes the first drafts of my how-it-works posts through the API. the drafts skip why you would want the thing and go straight to the mechanism. is that a prompt problem, and what would you add to the system prompt?", "should_trigger": true, "heldout": true},
   {"query": "which reasoning effort and which system prompt lines should I use when I have Opus 5.5 draft a lesson on B-trees for people new to databases?", "should_trigger": true, "heldout": true},
-  {"query": "my Opus 5.5 API calls that draft release notes keep stopping at max_tokens. what should I change in the request?", "should_trigger": false, "heldout": true}
+  {"query": "my Opus 5.5 API calls that draft release notes keep stopping at max_tokens. what should I change in the request?", "should_trigger": false, "heldout": true},
+  {"query": "grade docs/token-bucket-rate-limiting.html as a lesson and give me the scorecard, criterion by criterion", "should_trigger": true},
+  {"query": "score this explainer for me. is the bloom filter page better at teaching than it was last month?", "should_trigger": true},
+  {"query": "which of these posts needs work first: the three deflate pages or the token bucket one? rank them by how well they teach", "should_trigger": true, "heldout": true},
+  {"query": "did my last rewrite of the voice notes post actually make it teach better? grade the old and new versions", "should_trigger": true},
+  {"query": "give the huffman tutorial a pass/fail mark on each teaching criterion so I can compare it with the others", "should_trigger": true, "heldout": true},
+  {"query": "how good is this lesson on raft at actually teaching? I want a score I can compare across pages, not a list of fixes", "should_trigger": true},
+  {"query": "grade this ADR: is docs/adr-002-rate-limit-at-the-edge.html a well-formed decision record?", "should_trigger": false},
+  {"query": "score this chart: is the block-sizes bar chart in the deflate page readable in dark mode?", "should_trigger": false, "heldout": true},
+  {"query": "grade my PR's test coverage. which files need tests first?", "should_trigger": false, "heldout": true},
+  {"query": "score docs/token-bucket-rate-limiting.html for accessibility: how many axe violations does it have?", "should_trigger": false}
 ]
