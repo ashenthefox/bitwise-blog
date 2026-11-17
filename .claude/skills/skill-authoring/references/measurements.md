@@ -1324,6 +1324,12 @@ without the skill where it passed 14, which is +0.11.
   pair would. A mean over 66 verdicts has a standard error near 0.04 even with a perfect judge.
 - **Only this suite was measured.** The other skills' output suites have Haiku-judged records. Their next run is
   judged by Sonnet and will read higher for that reason alone: it starts a new series.
+- **The other output suites' cost with the Sonnet judge is an estimate.** `pedagogical-writing` (13 cases, 61 `llm`
+  graders) should cost $17 to $18, so the step ceiling went from $15 to $30 and the run's from $75 to $100.
+- **`review-stepper-boundary` 02 no longer asks that the markings stay the same on every frame**, and
+  `design-lz77-figure` 03 no longer asks that everything in the figure serves the point. No grader took those
+  conditions over: each would need its own grader and a measurement. The wording of the first was touched once more
+  after the runs here (a sentence that wrongly said another grader covers it).
 - **Why the built-in Haiku judge behaves as it does is unknown.** Its prompt is not published and it records no
   reasoning. A per-grader judge model is not available either: `model:` in a grader's frontmatter is rejected.
 - **A day effect cannot be excluded for 2026-11-16.** Every run here was made within one hour.

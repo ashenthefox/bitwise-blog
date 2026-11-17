@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Usage: node rejudge.mjs <result.json>... --judge-model ID [--votes N] [-j N] [--rubrics <evals dir>] [--case GLOB] [--grader GLOB] [--out FILE]
-//        node rejudge.mjs --trim <result.json> --out FILE
+//        node rejudge.mjs --trim <result.json> --out FILE [--commit SHA]
 //
 // Judges answers that `claude plugin eval --json` already saved, again, with a judge model of your
 // choice. `claude plugin eval` has no such option (2.1.318), so two runs with two judges differ in
@@ -17,6 +17,8 @@
 // --case, --grader  judge only the cases and graders whose names match (`*` and `?` are wildcards).
 // --trim           write a baseline: the record without what cannot be compared later (traces,
 //                  costs, timings), small enough to commit. A baseline is also a valid input.
+//                  It is stamped with --commit, the commit the run was made on (default: HEAD now,
+//                  which is wrong if the skill or its graders were committed since the run).
 //
 // THE JUDGE PROMPT HERE IS NOT THE ONE BUILT INTO `claude plugin eval`, which is not published. So
 // first re-judge with the model the record was judged with: the agreement it prints says how far
@@ -60,13 +62,14 @@ export function majority(votes) {
  */
 export function trim(result, extra = {}) {
   if (result.format === BASELINE_FORMAT) return result;
-  const cases = (result.cases ?? []).map(c => ({
+  const cases = (result.cases ?? []).map(c => ({ c, llm: new Set((c.graders ?? []).filter(g => g.type === "llm").map(g => g.name)) })).map(({ c, llm }) => ({
     name: c.name ?? path.basename(c.dir ?? ""),
     graders: (c.graders ?? []).map(g => ({ name: g.name, type: g.type, ...(g.type === "llm" ? { criteria: g.config?.criteria ?? g.graderMarkdown ?? "" } : {}) })),
     arms: Object.fromEntries(Object.entries(c.arms ?? {}).map(([arm, runs]) => [arm, runs.map(r => ({
       score: r.score ?? null,
       ...(r.error ? { error: String(r.error) } : {}),
-      answer: (r.graders ?? []).map(g => g.evidence).find(e => typeof e === "string") ?? null,
+      // Only an llm grader's evidence is the answer: another type could record a matched excerpt there.
+      answer: (r.graders ?? []).filter(g => llm.has(g.name)).map(g => g.evidence).find(e => typeof e === "string") ?? null,
       graders: (r.graders ?? []).map(g => ({
         name: g.name, passed: g.passed ?? null, scored: g.scored !== false,
         ...(Array.isArray(g.judgeVotes) ? { votes: g.judgeVotes } : {}),
@@ -105,8 +108,8 @@ export function pairs(baseline, source = "") {
 export function summarise(items) {
   const rows = new Map();
   for (const it of items) {
-    const key = `${it.case}\t${it.arm}\t${it.grader}`;
-    const row = rows.get(key) ?? { case: it.case, arm: it.arm, grader: it.grader, n: 0, recorded: 0, now: 0, agree: 0, undecided: 0, split: 0 };
+    const key = `${it.source}\t${it.case}\t${it.arm}\t${it.grader}`;
+    const row = rows.get(key) ?? { source: it.source, case: it.case, arm: it.arm, grader: it.grader, n: 0, recorded: 0, now: 0, agree: 0, undecided: 0, split: 0 };
     row.n++;
     if (it.recorded === true) row.recorded++;
     if (it.passed === true) row.now++;
@@ -127,10 +130,13 @@ export function rubricBody(markdown) {
   return markdown.replace(/^---\n[\s\S]*?\n---\n?/, "").trim();
 }
 
+/** A vote that has not come back in this long is abandoned (and retried once), so one stalled call cannot hang a paid run. */
+const VOTE_TIMEOUT_MS = 180_000;
+
 function vote(model, prompt) {
   return new Promise(resolve => {
     const child = spawn("claude", ["-p", "--model", model, "--system-prompt", SYSTEM, "--tools", "", "--disable-slash-commands",
-      "--no-session-persistence", "--setting-sources", "", "--output-format", "json"], { stdio: ["pipe", "pipe", "pipe"] });
+      "--no-session-persistence", "--setting-sources", "", "--output-format", "json"], { stdio: ["pipe", "pipe", "pipe"], timeout: VOTE_TIMEOUT_MS });
     let out = "", err = "";
     child.stdout.on("data", d => { out += d; });
     child.stderr.on("data", d => { err += d; });
@@ -143,6 +149,7 @@ function vote(model, prompt) {
         resolve({ verdict: null, reason: `unreadable reply: ${(err || out).trim().slice(0, 200)}`, cost: 0 });
       }
     });
+    child.stdin.on("error", () => { /* claude exited before reading: `close` reports the vote as undecided */ });
     child.stdin.end(prompt);
   });
 }
@@ -159,8 +166,8 @@ async function pool(tasks, width) {
 async function main() {
   const argv = process.argv.slice(2);
   const usage = "usage: node rejudge.mjs <result.json>... --judge-model ID [--votes N] [-j N] [--rubrics <evals dir>] [--case GLOB] [--grader GLOB] [--out FILE]\n" +
-    "       node rejudge.mjs --trim <result.json> --out FILE";
-  const valued = ["--judge-model", "--votes", "-j", "--rubrics", "--case", "--grader", "--out"];
+    "       node rejudge.mjs --trim <result.json> --out FILE [--commit SHA]";
+  const valued = ["--judge-model", "--votes", "-j", "--rubrics", "--case", "--grader", "--out", "--commit"];
   const opt = {}, files = [];
   for (let i = 0; i < argv.length; i++) {
     if (valued.includes(argv[i])) {
@@ -175,8 +182,8 @@ async function main() {
 
   if (opt.trim) {
     if (files.length !== 1 || !opt["--out"]) { console.error(`--trim takes one result and --out\n${usage}`); process.exit(2); }
-    let commit = null;
-    try { commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch { /* not in a repo */ }
+    let commit = opt["--commit"] ?? null;
+    if (!commit) try { commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch { /* not in a repo */ }
     const baseline = trim(read(files[0]), { commit });
     fs.writeFileSync(opt["--out"], JSON.stringify(baseline, null, 1) + "\n");
     const runs = baseline.cases.flatMap(c => Object.values(c.arms).flat());
@@ -198,6 +205,18 @@ async function main() {
       it.criteria = rubricBody(fs.readFileSync(file, "utf8"));
     }
   }
+  // What the totals below leave out is said, so a smaller n is not read as the whole run.
+  for (const f of files) {
+    const b = trim(read(f));
+    const lost = b.cases.filter(c => !only || only.test(c.name)).flatMap(c => Object.values(c.arms).flat()).filter(r => typeof r.answer !== "string").length;
+    if (lost) console.error(`note: ${f}: ${lost} run(s) have no saved answer (errored, or no llm grader) and are left out; their graders failed in the record`);
+    if (opt["--rubrics"]) for (const c of b.cases.filter(c => !only || only.test(c.name))) {
+      const dir = path.join(opt["--rubrics"], c.name, "graders");
+      const known = new Set(c.graders.map(g => g.name));
+      const added = fs.existsSync(dir) ? fs.readdirSync(dir).filter(n => n.endsWith(".md")).map(n => n.slice(0, -3)).filter(n => !known.has(n)) : [];
+      if (added.length) console.error(`note: ${c.name}: not in the record, so not judged: ${added.join(", ")} (a new or renamed grader needs a new run)`);
+    }
+  }
   if (!items.length) { console.error("no answer with an llm grader in the input: was it written with --json?"); process.exit(2); }
 
   let cost = 0;
@@ -213,13 +232,19 @@ async function main() {
   });
 
   const rows = summarise(items);
-  const w = Math.max(...rows.map(r => `${r.case} ${r.grader}`.length));
+  const label = r => `${files.length > 1 ? `${r.source} ` : ""}${r.case} ${r.grader}`;
+  const w = Math.max(...rows.map(r => label(r).length));
   console.log(`judge ${model}, ${votes} votes each${opt["--rubrics"] ? `, rubrics from ${opt["--rubrics"]}` : ", rubrics as recorded"}\n`);
   console.log(`${"case and grader".padEnd(w)}  arm      recorded  now    same verdict  split votes`);
   for (const r of rows) {
-    console.log(`${`${r.case} ${r.grader}`.padEnd(w)}  ${r.arm.padEnd(7)}  ${`${r.recorded}/${r.n}`.padEnd(8)}  ${`${r.now}/${r.n}`.padEnd(5)}  ${`${r.agree}/${r.n}`.padEnd(12)}  ${r.split}/${r.n}${r.undecided ? `  (${r.undecided} undecided)` : ""}`);
+    console.log(`${label(r).padEnd(w)}  ${r.arm.padEnd(7)}  ${`${r.recorded}/${r.n}`.padEnd(8)}  ${`${r.now}/${r.n}`.padEnd(5)}  ${`${r.agree}/${r.n}`.padEnd(12)}  ${r.split}/${r.n}${r.undecided ? `  (${r.undecided} undecided)` : ""}`);
   }
-  const sum = k => rows.reduce((a, r) => a + r[k], 0);
+  const sum = (k, from = rows) => from.reduce((a, r) => a + r[k], 0);
+  if (files.length > 1) console.log("");
+  if (files.length > 1) for (const f of files) {
+    const mine = rows.filter(r => r.source === f);
+    console.log(`${f}: ${sum("recorded", mine)}/${sum("n", mine)} passed in the record, ${sum("now", mine)}/${sum("n", mine)} pass now`);
+  }
   console.log(`\n${sum("n")} answer and grader pairs: ${sum("recorded")} passed in the record, ${sum("now")} pass now, ` +
     `${sum("agree")} got the same verdict (${(100 * sum("agree") / sum("n")).toFixed(0)}%), ${sum("split")} had split votes` +
     `${sum("undecided") ? `, ${sum("undecided")} undecided` : ""}. Cost US$${cost.toFixed(2)}.`);

@@ -304,14 +304,16 @@ compare a later run with answer by answer (that is why the first `pedagogical-di
 could not be explained; #237). After a run that is worth comparing with, commit a trimmed copy:
 
 ```bash
-node <skill-dir>/scripts/rejudge.mjs --trim run.json --out .claude/skills/<name>/evals/baselines/<date>.json
+node <skill-dir>/scripts/rejudge.mjs --trim run.json --commit <sha> \
+  --out .claude/skills/<name>/evals/baselines/<date>.json
 ```
 
 It holds the answers, each grader's rubric, verdict and votes, the models, the Claude Code version
-and the commit it was trimmed at (trim it at the commit the run was made on); it drops traces,
-costs and timings. `claude plugin eval` ignores the directory (it has no `prompt.md`), and
+and `--commit`, the commit the run was made on (the default is `HEAD` when you trim, which is wrong
+if the skill or its graders were committed since); it drops traces, costs and timings. `claude plugin eval` ignores the directory (it has no `prompt.md`), and
 `rejudge.mjs` reads a baseline as it reads a run. When a score moves with no change to the skill,
-re-judge the baseline and the new run with one judge: if they then agree, the judge moved, and if
+re-judge the baseline and the new run with one judge (given two files, the script totals each
+apart): if they then agree, the judge moved, and if
 they do not, read the two sets of answers. The answers are model output and are published with the
 repo, so do not keep a baseline of a case whose fixture is not public.
 
@@ -344,7 +346,7 @@ repo, so do not keep a baseline of a case whose fixture is not public.
 
 `npm run skill-evals` runs both kinds for every skill and records the pass rates. Nothing
 schedules it: start it yourself, locally or from the Actions tab (the Skill evals workflow), because
-a full run costs US$40 to $60. Both tools above write machine-readable results for it:
+a full run costs US$55 to $80. Both tools above write machine-readable results for it:
 `run-trigger-evals.mjs --json <file>` and `claude plugin eval --json <file>`. How to start it,
 what the record holds, what fails a run and what it costs are in
 [maintenance.md](maintenance.md#the-full-run).

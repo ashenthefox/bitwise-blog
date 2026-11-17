@@ -39,15 +39,16 @@ export const DEFAULT_JUDGE_MODEL = "claude-sonnet-5-5";
  */
 export const DEFAULT_TOLERANCE = 0.1;
 /** Hard ceiling on the cost of one whole run, in US dollars. */
-export const DEFAULT_MAX_COST_USD = 75;
+export const DEFAULT_MAX_COST_USD = 100;
 /**
  * Ceilings for one step. Measured on 2026-11-12: a trigger suite costs about $0.27 a query ($7 for anatomy's 26,
  * so about $10 for the largest suite, pedagogical-writing's 38), and an output suite a few dollars with the Haiku
- * judge, about $6 for four cases with the Sonnet judge (`measurements.md`).
+ * judge, about $6 for four cases with the Sonnet judge (`measurements.md`). The largest output suite
+ * (pedagogical-writing: 13 cases, 61 llm graders) is estimated at $17 to $18 with the Sonnet judge, not measured.
  * A suite that hits its ceiling is cut short, so these leave room above the measured cost.
  */
 const TRIGGER_STEP_CAP_USD = 20;
-const OUTPUT_STEP_CAP_USD = 15;
+const OUTPUT_STEP_CAP_USD = 30;
 /** The one retry of the queries that errored (an API error or a timeout): a handful of queries, not a suite. */
 const TRIGGER_RETRY_CAP_USD = 5;
 /** Below this much budget left a step is not started. */
@@ -245,7 +246,10 @@ export function compare(prev: EvalRecord, cur: EvalRecord, tolerance: number): C
         if (w && w !== q.status) changes.push(`${name}: trigger query "${q.query.slice(0, 70)}" ${w} → ${q.status} (expected to ${q.shouldTrigger ? "fire" : "stay quiet"})`);
       }
     }
-    if (now.output && before.output) {
+    // An output score is a judge's verdicts: the same answers scored 0.03 to 0.07 higher with Sonnet than with Haiku
+    // (#237). Across a judge change a fall or a rise says nothing, so the output scores are not compared.
+    if (now.output && before.output && prev.models.judge !== cur.models.judge) changes.push(`${name}: output scores not compared, the judge model changed`);
+    else if (now.output && before.output) {
       if (fell(before.output.meanWith, now.output.meanWith)) regressions.push(`${name}: mean output score with the skill fell from ${before.output.meanWith!.toFixed(2)} to ${now.output.meanWith!.toFixed(2)}`);
       const was = new Map(before.output.cases.map(c => [c.name, c.withSkill]));
       for (const c of now.output.cases) {
