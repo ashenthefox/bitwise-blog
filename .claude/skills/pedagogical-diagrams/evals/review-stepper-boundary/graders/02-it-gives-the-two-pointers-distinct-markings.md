@@ -2,5 +2,6 @@
 type: llm
 ---
 
-PASS if this holds of the answer: It gives the two pointers distinct markings with labels next to them, and says to use them the same way on every frame.
-FAIL if it does not hold, or the answer is too vague to tell.
+PASS if the answer does both of these: it gives the head pointer and the tail pointer different markings (colour, shape or position), and it says to label each pointer in the figure itself.
+FAIL if it does only one of the two, or names the same-colour problem without a fix.
+Whether the markings stay the same on every frame is another grader's question. Do not fail the answer for it.

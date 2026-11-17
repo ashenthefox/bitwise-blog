@@ -2,5 +2,6 @@
 type: llm
 ---
 
-PASS if this holds of the answer: For the paragraph that repeats each box, it gives the condition that decides between cutting and integrating: text that only restates a figure that can be read alone should be cut; text the figure cannot be read without should go into the figure. It then applies that condition.
-FAIL if it does not hold, or the answer is too vague to tell.
+This is about the paragraph under the figure that repeats what every box does.
+PASS if the answer does both of these: (a) it says to cut or replace that paragraph, on the ground that it only restates what the figure or its labels already show; and (b) it says where the words belong instead: what the prose should carry (the why, the conditions, the numbers), or which words move into the figure as labels.
+FAIL if it keeps the paragraph, cuts it without giving that ground, or says nothing about what the words should do instead.
