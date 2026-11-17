@@ -1,0 +1,1005 @@
+{
+ "format": "bh-eval-baseline/1",
+ "startedAt": "2026-11-17T23:07:29.502Z",
+ "claudeVersion": "2.1.318",
+ "models": {
+  "agent": "claude-sonnet-5-5",
+  "judge": "claude-sonnet-5-5"
+ },
+ "ablation": "none",
+ "commit": "42b46dfaa904d5c82fd5e10a764f3a0be1b7a0cc",
+ "cases": [
+  {
+   "name": "design-lz77-figure",
+   "graders": [
+    {
+     "name": "01-uses-the-stepper-component",
+     "type": "regex"
+    },
+    {
+     "name": "02-points-from-prose-to-parts-with-data-ref",
+     "type": "regex"
+    },
+    {
+     "name": "03-before-listing-what-is-in-the-figure-it-stat",
+     "type": "llm",
+     "criteria": "PASS if, before it lists what is in the figure, the answer states the point the figure makes: a claim the reader should come away with, in one to three sentences, set apart as the point (for example under \"The point\"). A second sentence that restates or completes the first still counts.\nFAIL if no statement of the point comes before the contents, or if what is given is a topic (\"a figure about LZ77 copies\") and not a claim.\nJudge only that statement and where it stands. Do not fail the answer for what it goes on to include, such as page checks or markup notes."
+    },
+    {
+     "name": "04-it-says-in-the-caption-or-alongside-it-what",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: It says in the caption, or alongside it, what the figure simplifies or does not show (for example that only the decoder side is drawn, or that the real stream is Huffman-coded), so the reader knows what not to read into it.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "05-it-names-a-specific-way-a-newcomer-could-mis",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: It names a specific way a newcomer could misread the figure (what they would take an arrow, a colour or a position to mean) and how the design prevents that.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "06-it-checks-the-design-by-covering-the-prose-a",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: It checks the design by covering the prose and asking whether the figure and caption alone give the point, or an equivalent check that a reader can state the point from the picture.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "skill-fired",
+     "type": "tool_used"
+    }
+   ],
+   "arms": {
+    "with": [
+     {
+      "score": 1,
+      "answer": "# Figure: \"back 12, copy 23\" as three stacked rows of 12 bytes\n\n**The one point:** a copy writes one byte at a time, each from 12 bytes behind where it is writing. After 12 bytes, that source is bytes the copy itself just wrote. So 23 can be larger than 12.\n\n**Reader:** novice to LZ77, so this is a first figure for the topic. It should have labelled parts, numbered steps and the motion drawn, across several frames.\n\n## Form\n\nThe idea is a stream laid out in memory, so I'd draw a strip of cells at one cell per byte. The strip is wrapped every 12 bytes into three rows:\n\n- **Row 1:** positions 1–12, the 12 bytes already written.\n- **Row 2:** positions 13–24, the first 12 bytes of the copy.\n- **Row 3:** positions 25–35, the last 11 bytes of the copy. There are only 11 cells, so the row is visibly short.\n\nWrapping at the distance turns \"12 back\" into \"the cell directly above\". The rule becomes a vertical line the eye follows, and the overlap becomes the picture. Row 3 reads from row 2, which was filled by the same copy.\n\nA single 35-cell line would be about 10px per cell at 375px, too small to read. It also would not show the distance.\n\nWrapping is the one liberty the figure takes, so the caption must name it. The layout is fixed in every frame, wrapped from frame 1. Switching from a line to rows mid-figure would change the viewpoint.\n\n**Instance:** 12 distinct letters, A–L, so each copied byte can be traced to its source. Avoid a phrase with spaces and repeated letters, such as \"to be or not\". Spaces need a glyph, and repeated letters make the arrows ambiguous.\n\n## What is in it\n\n- 35 cells, with the not-yet-written ones drawn as empty outlines. That makes \"23 bytes still to write\" visible.\n- Position numbers only at the start of each row (1, 13, 25). Numbering every cell is noise.\n- The token as text above the strip: \"back 12, copy 23\".\n- **Two fills, one meaning each:** bytes that existed before the token, and bytes written by the copy. In frame 4 the source cell has the copy fill, and that is what shows the overlap.\n- **One arrow style,** meaning \"this byte was read to write that one\". It is short and vertical, so it never covers the join.\n- A mark on the next cell to be written.\n\n## What I leave out\n\n- Bits, Huffman codes and the length and distance code tables.\n- How the encoder finds the match, and the window size.\n- How row 1 got there. The caption just says \"already written\".\n- The comparison with a block copy. That goes in the prose, because \"you can't copy what isn't there yet\" is the objection to answer.\n- Distance 1, the run-length special case. Put it in a sidenote.\n\n## Stepping\n\nUse `<bh-stepper>` over one persistent figure, with one change per step:\n\n1. **Before.** Row 1 is full and 23 empty cells follow. The token is shown and the mark sits on cell 13. Nothing is copied yet.\n2. **One byte.** Cell 13 is filled from cell 1, with one arrow. Caption: \"To write a byte, look 12 back and copy what is there.\"\n3. **The rest of row 2.** Cells 14–24 are filled. The arrows are drawn faint, as a trace, so earlier steps stay in view. Every source here is an old byte, so nothing is odd yet. 12 of 23 are done.\n4. **The overlap.** Cell 25 is filled. Only this arrow is emphasised. Its source, cell 13, has the copy fill, because it was written two steps ago. This is the one emphasis in the frame, and the one hard step.\n5. **Finish.** Cells 26–35 are filled, each from the cell above, so row 3 repeats row 2. 23 bytes came from 12 bytes of history. This frame doubles as the finished state for experts. The caption can link to it with `#figure-id-step-5`.\n\nI'd put a `details.predict` before step 4: \"Row 2 is full. What is byte 25?\" The reader can answer from the rule in step 2, and that is how they find the overlap themselves.\n\nProse points at parts with `data-ref`:\n\n- \"the byte 12 back\" points to the arrow.\n- \"the byte the copy just wrote\" points to cell 13.\n\nThe prose also carries what the picture holds badly. The decoder writes left to right, one byte at a time, which is why the source byte already exists by the time it is needed.\n\n## Caption\n\n> A copy token \"back 12, copy 23\" writes each new byte by reading the byte 12 behind it. An arrow runs from the byte read to the byte written. The strip is cut every 12 bytes, so the byte 12 back is always the one directly above. Notice that row 3 reads from row 2, which this same copy wrote: that is how 23 can be longer than 12. One cell is one byte, drawn to scale. The letters are arbitrary, and how the first 12 bytes were produced or how the token is stored is left out.\n\nIt says what to notice, what the arrow means, and what was simplified. The wrapping and the arbitrary letters are named as liberties.\n\n## Checks before it ships\n\n- Cover the prose and read only the picture and caption. The point should come out as \"later bytes are copied from earlier copied bytes\".\n- Use the repo's theme classes, then run `npm run check`.\n- Look at it in light and dark at 375px. Twelve columns at about 26px should still fit a letter.\n\nI haven't built any of this, so none of the checks above has been run.",
+      "graders": [
+       {
+        "name": "01-uses-the-stepper-component",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "02-points-from-prose-to-parts-with-data-ref",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "03-before-listing-what-is-in-the-figure-it-stat",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-it-says-in-the-caption-or-alongside-it-what",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-it-names-a-specific-way-a-newcomer-could-mis",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "06-it-checks-the-design-by-covering-the-prose-a",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "# Figure design: the overlapping LZ77 copy\n\n**The one point.** A copy reads bytes from 12 back while it writes, so once it has written 12 bytes, it reads the ones it just wrote. That is why a copy of 23 can be longer than a distance of 12. The reader has not met LZ77, so this is a first figure for them and should label parts and steps across several frames.\n\n## Form\n\nA strip of byte cells, as in a memory layout, wrapped into rows of 12 cells. Back 12 then means \"the cell directly above\". The reader sees the distance as a position and doesn't have to count it. A single 35-cell row would be unreadable at 375px and would make the 12 a count.\n\nThe instance is real. The history is `the cat sat␣`, which is 12 bytes, with `␣` drawn visibly for the space. Copying 23 gives `the cat sat the cat sa`.\n\n| Row | Positions | Contents |\n|---|---|---|\n| 1 | 0–11 | history: `the cat sat␣` |\n| 2 | 12–23 | `the cat sat␣` |\n| 3 | 24–34 | `the cat sa` |\n\nRows 2 and 3 together hold the 23 copied bytes, which start at position 12.\n\n## What is in it\n\n- The cells, with each byte as a character and the row-start index at the left of each row.\n- A **read marker**, an arrow from the source cell up to the write position. It is one arrow style and always means \"read from\".\n- A **write position**, shown by a cell outline.\n- The token `back 12, copy 23` at the top, with \"back 12\" as a bracket spanning row 1 and \"copy 23\" as a bracket over the copied cells.\n- Two cell colours with fixed meanings:\n  - history, which was already there;\n  - written by this copy.\n\n  Cells not yet written are empty outlines.\n\n## What is left out\n\n- Huffman coding and the bit encoding of the token.\n- How the encoder finds matches.\n- Window size.\n- Literals and other tokens.\n- Any \"overlap\" jargon inside the figure.\n\nThe caption says these are left out.\n\n## Stepping\n\nUse `<bh-stepper>` over one persistent figure. The layout is identical in every frame, and each step makes one change. Earlier cells stay visible, so the trace of earlier states is kept.\n\n1. **The token and the history.** Row 1 is filled. The token is shown with its \"back 12\" bracket on row 1, and the write position sits at the start of row 2. The read arrow points from the first cell of row 1 to the first cell of row 2, so the reader can see where it will read from.\n2. **Bytes 1–12.** Row 2 fills with `the cat sat␣`, and every source byte is in the history colour. This looks like an ordinary copy, which is the baseline. The read marker sits one row up throughout.\n3. **Byte 13, the hard part.** Only this step is emphasised. Its source is position 12, the first cell of row 2, which this copy wrote one step ago. That source cell is the only thing marked, and the rest is dimmed. The read arrow's tail now lies on a \"written by this copy\" cell. Do not cover the join with a label. Put the label beside it: \"this byte was written 12 steps ago, by this same copy.\"\n4. **Bytes 14–23.** Row 3 fills. The read arrow keeps its 12-cell gap and follows the write position. All 23 are filled, and the copy ends partway through a repeat (`sa`). Say that out loud in the step text.\n\nAdd a `details.predict` before step 3: \"Position 12 hasn't been written yet when the copy starts. What do you think byte 13 is?\" Whether to include it is a prose-and-pacing decision for `pedagogical-writing`.\n\nThe prose points at parts with `data-ref`: \"back 12\" at the bracket, the arrow and the byte-13 source cell, including the edges.\n\n## Caption\n\n> Decoding the token *back 12, copy 23*. Rows are 12 bytes wide, so \"12 back\" is always the cell directly above. Notice that from the 13th byte on, the cell being read was written by this same copy. The result is the 12 bytes repeated, ending part-way. The figure shows one token only. The compressed bit encoding, and how the compressor finds matches, are left out. The arrow means \"read from\".\n\nIf the repeated-pattern idea needs a hook, the prose can add that a distance of 1 with a length of 23 produces 23 copies of the same byte. The figure doesn't need to show it.\n\n## Checks before drawing\n\nUse the house colour classes and give the figure a permanent kebab-case id, for example `lz77-overlapping-copy`. It also needs an `aria-label` and a `figcaption`, and `npm run check` must report 0 errors. Then cover the prose and read only the figure and caption: if the byte-13 step doesn't carry the point, change the figure before touching the prose. Look at it in light and dark and at 375px, since 12 cells across should be about 28px each.",
+      "graders": [
+       {
+        "name": "01-uses-the-stepper-component",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "02-points-from-prose-to-parts-with-data-ref",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "03-before-listing-what-is-in-the-figure-it-stat",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-it-says-in-the-caption-or-alongside-it-what",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-it-names-a-specific-way-a-newcomer-could-mis",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         false
+        ]
+       },
+       {
+        "name": "06-it-checks-the-design-by-covering-the-prose-a",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 0.8571428571428571,
+      "answer": "# Figure design: an overlapping LZ77 copy\n\n**The point:** a copy can read bytes that the same copy wrote a moment earlier, so a copy longer than its distance just repeats the pattern.\n\n**The reader:** has not met LZ77, so this is the first figure of the topic. It needs labelled parts and numbered steps across several frames.\n\n## Form\n\nThe form is a **strip of byte cells**, one cell per byte, because the idea is about positions in one buffer. I'd avoid the usual \"source above, destination below\" two-buffer picture. It suggests the copy reads from one place and writes to another, which hides the overlap.\n\nThe strip is **wrapped into rows of 12 bytes**. \"Back 12\" then means the cell directly above, in the same column. The overlap shows up as a row copied from the row above it, and that row is itself the copy's own output.\n\nThe instance is real text. The history is `to be or not` (12 bytes, spaces drawn as a dim `␣`). The token is **back 12, copy 23**.\n\n| Row | Content | Source of each byte |\n|---|---|---|\n| 1 | `to be or not` | History, already output |\n| 2 | copy bytes 1–12, `to be or not` | Row 1 |\n| 3 | copy bytes 13–23, `to be or no` (11 cells) | Row 2, written by this copy |\n\n## What is in it\n\n- The three rows, with direct labels beside them: \"already output\" and \"written by this copy\". There is no legend.\n- A write-position marker on the next empty cell.\n- The token `back 12, copy 23` at the top, with a counter beside it (\"copied 13 of 23\").\n- One arrow style, meaning \"this byte is read from here and written there\". It runs from the source cell to the new cell.\n- Two cell tones: history, and written by this copy. This is the only colour distinction, and it is what makes the overlap visible.\n\n## What I'd leave out\n\n- Huffman codes, length and distance code tables, and the token's bits.\n- Hex values.\n- The 32 KB window. Call row 1 \"the last 12 bytes output\".\n- How the compressor found the match.\n- Any \"decoder\" box.\n\nThe caption says all of this is omitted.\n\n## Stepping\n\nUse one `<bh-stepper>` over one persistent figure, with one change per step. Earlier arrows dim rather than vanish, so the trace stays visible.\n\n1. **Before the copy.** Row 1 is filled, the marker is after it, and the token is shown. Nothing is highlighted except the parts: token, history and write position.\n2. **Byte 1.** An arrow goes from row 1 column 1 to row 2 column 1, and `t` appears. Label the arrow \"12 back\".\n3. **Byte 2.** The same move one cell to the right. The read position and the write position both advance, so the gap stays 12.\n4. **Bytes 3–12 in one step.** The text says \"the same move, ten more times\". Row 2 fills, and every byte so far was read from history.\n5. **Byte 13, the hard part.** The arrow now starts in row 2 column 1, a cell tinted as \"written by this copy\". It was filled in step 2 and did not exist when the token was read. This is the only emphasised thing in the frame, and it is where the reader would otherwise stall.\n6. **Bytes 14–23.** Row 3 fills with the same move. The counter reads 23 of 23, and the whole output is visibly the 12 bytes repeated.\n\nI'd put a `details.predict` just before step 5: \"What is copy byte 13, and where does it come from?\" The reader has to see that it is the copy's own first byte.\n\nThe prose explains why the copy goes byte by byte. A 23-byte block can't be lifted in one go because most of it isn't written yet. The figure shows the effect, and the prose gives the reason.\n\n## Prose hooks\n\nUse `data-ref` on the figure id (for example `lz77-overlap-copy`) for these parts:\n\n- `history`\n- `copy-row-1`\n- `copy-row-2`\n- the cell and arrow for byte 13\n\nFor the byte-13 sentence, include the edge: the arrow plus both of its cells.\n\n## Caption\n\n> A copy token, \"back 12, copy 23\", written out byte by byte. Each arrow means \"read this byte, write it here\". Notice that from byte 13 on, the bytes being read were written by the copy itself, so the output repeats the 12-byte history. The bytes are wrapped every 12 so that \"back 12\" is always straight up; in real data this is one long line. How tokens are encoded and how matches are found are left out.\n\n## Rejected alternatives\n\n- **Animation:** no better than frames, and the reader can't stop on byte 13.\n- **`<bh-versions>`:** this is a process, not a before-and-after.\n- **Single still:** it asks the reader to animate 23 moves mentally.\n- **Optional addition:** a small final frame beside the stepper showing a short copy (say, back 12, copy 5) never reaches the overlap. It would be useful only if the prose needs that contrast.\n\nI haven't drawn or committed anything yet. Next would be the SVG with the repo's theme classes, then `npm run check`.",
+      "graders": [
+       {
+        "name": "01-uses-the-stepper-component",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "02-points-from-prose-to-parts-with-data-ref",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "03-before-listing-what-is-in-the-figure-it-stat",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-it-says-in-the-caption-or-alongside-it-what",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-it-names-a-specific-way-a-newcomer-could-mis",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "06-it-checks-the-design-by-covering-the-prose-a",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "name": "fix-confusing-figure",
+   "graders": [
+    {
+     "name": "01-it-names-the-figure-s-one-point-a-cache-hit",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: It names the figure's one point (a cache hit skips the services) and cuts specific elements that do not serve it, such as the logger, the queue or the extra gateways, rather than only reorganising them.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "02-it-gives-each-arrow-style-one-meaning-separa",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: It gives each arrow style one meaning, separating the two uses of the solid arrow.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "03-it-moves-labels-into-the-figure-beside-their",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: It moves labels into the figure beside their parts and drops the corner legend, rather than keeping a legend.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "04-for-the-paragraph-that-repeats-each-box-it-g",
+     "type": "llm",
+     "criteria": "This is about the paragraph under the figure that repeats what every box does.\nPASS if the answer does both of these: (a) it says to cut or replace that paragraph, on the ground that it only restates what the figure or its labels already show; and (b) it says where the words belong instead: what the prose should carry (the why, the conditions, the numbers), or which words move into the figure as labels.\nFAIL if it keeps the paragraph, cuts it without giving that ground, or says nothing about what the words should do instead."
+    },
+    {
+     "name": "05-it-shows-the-hit-path-and-the-miss-path-side",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: It shows the hit path and the miss path side by side or as two frames in one layout, so the difference between them is what the reader sees.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "06-it-says-what-the-redrawn-figure-no-longer-sh",
+     "type": "llm",
+     "criteria": "PASS if the answer tells the author to say to readers, in the caption or beside the figure, what the redrawn figure leaves out or collapses (for example that logging is omitted, or that three gateways are drawn as one).\nFAIL if it only lists what to cut, as advice to the author, and never says the figure or its caption should tell readers about the simplification."
+    },
+    {
+     "name": "skill-fired",
+     "type": "tool_used"
+    }
+   ],
+   "arms": {
+    "with": [
+     {
+      "score": 1,
+      "answer": "Your figure is a picture of the system. It should be a picture of the one point: **on a cache hit the request never reaches the services.** The 14 boxes, five colours and legend all compete with that.\n\n**1. Pick the form from the idea.** The idea is two paths through the same layout, one that goes all the way and one that stops early. So draw two frames, \"cache miss\" and \"cache hit\", with identical box positions. The reader compares them by looking, not by searching. In this repo that means `<bh-versions>`, or a figure plus `<bh-stepper>` if you want to walk through the miss first.\n\n**2. Cut to what serves the point.** Keep a client, a gateway, a cache, a services group and a database, in a row, left to right.\n- Collapse the three gateways, two caches and three services into one box each. Label the services box \"services (×3)\" if the count matters.\n- Drop the logger and the queue. Neither affects whether the services get skipped. If logging matters, give it one sentence in the prose.\n- Drop the load balancer unless a reader needs it to follow the next section.\n- Keep the services box visible in the hit frame, and mute it. The skipped box is the point, so it has to be on the page.\n\n**3. Let the path dominate.**\n- Use one emphasis colour for the path the request takes in each frame. Everything it doesn't touch stays in the neutral colour.\n- Delete the five-colour scheme and the legend.\n- Label the boxes directly, and label the arrows where they are drawn (\"miss\", \"hit, returns data\").\n\n**4. Give each arrow style one meaning.**\n- A solid arrow means the request moves forward. Draw the response as a separate, visibly different style (for example a lighter return arrow), or number the steps 1 to 4.\n- If the logger stays, don't use dashed arrows for it. Leave it out of the figure instead.\n\n**5. Cut the paragraph under the figure.** The one-sentence-per-box tour repeats what the labels already say. Replace it with what a picture can't carry: why the cache can answer without the services, when it can't (a miss or an expired entry), and any real numbers, such as latency with and without the hit.\n\n**6. Write the caption as the point.** For example: \"On a hit, the cache answers directly and the services are never called. On a miss, the request continues to the services and the result is stored.\" Add what was simplified: \"Gateways, replicas and logging are omitted.\"\n\n**Check before you finish.** Cover the prose and read only the picture and caption. If the takeaway is \"a hit skips the services\", it works. Then run `npm run check` and look at it at 375px, since two frames side by side may need to stack on mobile.\n\nThis is a default to test on your page, not a rule. If readers need the full topology elsewhere, put it in a separate, earlier figure and say what that one is for.",
+      "graders": [
+       {
+        "name": "01-it-names-the-figure-s-one-point-a-cache-hit",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-it-gives-each-arrow-style-one-meaning-separa",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-it-moves-labels-into-the-figure-beside-their",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-for-the-paragraph-that-repeats-each-box-it-g",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-it-shows-the-hit-path-and-the-miss-path-side",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "06-it-says-what-the-redrawn-figure-no-longer-sh",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "**Redraw it as two short paths, not one 14-box map.** Your point is that a cache hit skips the services, and the current figure hides that. Nothing in it shows the shortcut.\n\n**1. Write the point first and cut to it.**\n\"On a cache hit, the request returns before reaching the services.\"\n\nKeep only the boxes that carry that:\n- client\n- load balancer\n- cache\n- services (one box, labelled \"services ×3\")\n- database\n\nFold the rest into one-word annotations or drop them:\n- The three gateways and the second cache are the same kind of thing as the ones you keep. Draw one and write \"×3\" or \"×2\".\n- The queue and the logger are real, but they don't serve this point. Mention them in the prose, or in a later figure if they matter elsewhere.\n\nThat takes the figure from 14 boxes to about 5.\n\n**2. Use a form with the same shape as the idea.**\nThe idea is two routes through one system that diverge at the cache. Draw a left-to-right row, client → load balancer → cache. Then fork:\n- **Hit:** a short arrow straight back to the client.\n- **Miss:** a longer arrow down through the services and database, and back.\n\nMake the hit path visibly shorter, because the shorter path is the point. If the figure helps novices learn the parts, use two frames in the same layout, \"cache miss\" and \"cache hit\". Keep positions fixed so the reader sees what drops out. Alternatively, use a `<bh-stepper>`, one change per step.\n\n**3. Give each arrow style one meaning.**\n- **Solid, forward:** the request.\n- **Return path:** a different style, or draw it as a separate step. This fixes the current clash where solid means both \"calls\" and \"sends back\".\n- **Dashed \"logs to\":** delete it from this figure. With the logger gone, it needs no legend entry.\n\n**4. Use one emphasis colour.**\nFive colours with a legend makes the reader decode instead of look. Draw everything in neutral and use a single accent colour for the hit path, or for the services being skipped (greyed out or dashed outline). Then you can remove the legend, and one line in the caption covers any arrow convention you still need.\n\n**5. Put labels in the figure and cut the paragraph.**\nThe one-sentence-per-box paragraph repeats what the figure should already say. Label the boxes directly (\"Cache\", \"Services\"). Replace the paragraph with the part the figure can't show: why a hit is faster, and what makes a miss happen. Use `data-ref` spans so the prose points at parts of the figure.\n\n**6. Write the caption as the takeaway.**\nFor example: \"A cache hit returns from the cache; the services and database are never called.\" Add what not to read into it, such as \"Gateways omitted.\"\n\n**Check afterwards.** Cover the prose and read only the figure and caption. If you still take away \"hit skips services\", it works. Then run `npm run check` and look at it at 375px.\n\nI haven't opened the figure's source, so this is based on your description. If you'd like me to make the change, point me at the file.",
+      "graders": [
+       {
+        "name": "01-it-names-the-figure-s-one-point-a-cache-hit",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-it-gives-each-arrow-style-one-meaning-separa",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-it-moves-labels-into-the-figure-beside-their",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-for-the-paragraph-that-repeats-each-box-it-g",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-it-shows-the-hit-path-and-the-miss-path-side",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "06-it-says-what-the-redrawn-figure-no-longer-sh",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 0.8571428571428571,
+      "answer": "Draw the one comparison the section is about: the same request on a cache miss and on a cache hit. Cut everything else.\n\n**1. State the point and let it choose the form.**\nThe point is that a cache hit never reaches the services. That is a path with a branch, so draw a row: client → load balancer → gateway → cache → services. Show it twice with the layout held fixed:\n- **Miss:** the request goes through the cache to the services and comes back.\n- **Hit:** the request turns around at the cache. The services stay in place but are greyed out, so the reader sees what was skipped.\n\nIn this repo, use `<bh-versions>` for the before and after, or `<bh-stepper>` if you want three steps (request arrives, cache checked, then hit or miss). Keep every box in the same position across frames so the eye finds the difference by looking.\n\n**2. Cut boxes that don't serve the point.**\nStart from about 6 boxes, not 14:\n- Collapse the three gateways into one \"gateway\" box, and the three services into one box or a small stack.\n- Use one cache unless the two differ in a way that matters to the hit/skip story.\n- Drop the queue, database and logger, or reduce them to a single faded \"other backends\" box. Logging doesn't affect the path.\n- If a reader needs those parts later, give them their own figure.\n\n**3. Give each arrow one meaning.**\nShow only the request path. Draw the return as the same line reversed, or as a differently shaped arrow that you name once in the caption. Don't use solid arrows for both \"calls\" and \"sends back\". With the logger gone, the dashed style disappears too.\n\n**4. Use one emphasis and one colour vocabulary.**\nReplace the five colours and the legend with two states:\n- **Active path:** one accent colour.\n- **Skipped or inactive:** muted grey.\n\nLabel boxes directly, with no legend. If the figure needs a legend, it is still doing too much.\n\n**5. Put the words in the figure and trim the prose.**\nDelete the sentence-per-box paragraph. Anything the picture shows, such as box names and order, should be labelled in the figure. Short annotations on the diagram do this well, for example \"hit: return here\" and \"services never called\". The prose then carries what the picture can't:\n- why the cache can answer;\n- when it misses (expiry, first request);\n- how much latency the skip saves.\n\nUse `data-ref` spans so phrases in the paragraph point at the cache and services boxes.\n\n**6. Write a caption that states the point.**\nFor example: \"On a hit the request turns around at the cache; the services are never called.\" Add one line on what was simplified, such as \"one gateway and one cache shown; queue, database and logging omitted.\"\n\n**7. Test it.**\nCover the prose and read only the picture and caption. If you don't come away with \"a hit skips the services\", revise it. Then check it in the browser in light and dark, at 375px.\n\nIf your readers are new to routing, keep a few more boxes and two or three frames. You can make the later figures more compact.",
+      "graders": [
+       {
+        "name": "01-it-names-the-figure-s-one-point-a-cache-hit",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-it-gives-each-arrow-style-one-meaning-separa",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "03-it-moves-labels-into-the-figure-beside-their",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-for-the-paragraph-that-repeats-each-box-it-g",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-it-shows-the-hit-path-and-the-miss-path-side",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "06-it-says-what-the-redrawn-figure-no-longer-sh",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "name": "review-deflate-figures",
+   "graders": [
+    {
+     "name": "01-the-first-finding-is-about-one-specific-figu",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: The first finding is about one specific figure, named by its id or its caption, not a general remark about the figures.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "02-no-finding-is-only-about-drawing-geometry-su",
+     "type": "llm",
+     "criteria": "PASS if every finding says what a reader would take, miss or misread from a figure. A finding may cite coordinates, sizes or alignment as evidence for that. A remark that something should be checked in a browser or at phone width, which the review does not call a problem, is not a finding.\nFAIL if the whole complaint of some finding is drawing geometry (arrow tips, label overlap, viewBox padding, the size of an element) and it gives no consequence for the reader."
+    },
+    {
+     "name": "03-at-least-one-finding-compares-what-a-picture",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: At least one finding compares what a picture alone conveys with what its caption or the page says it shows, and finds a gap (the point is stated in words but not drawn).\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "04-at-least-one-finding-is-about-position-size",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: At least one finding is about position, size or scale: whether marks that correspond are aligned, or whether a drawn size misleads about a quantity.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "05-each-finding-gives-a-concrete-change-small-e",
+     "type": "llm",
+     "criteria": "Count the findings that come with a concrete change: one that says what to add, move, cut or reword, and where, so the author could make it without further design work.\nPASS if the first finding has such a change and at least two other findings do.\nFAIL if the first finding has none, or fewer than three findings in all have one. \"Improve this\", \"consider revising\" and \"check it in the browser\" are not concrete changes.\nDo not fail the answer because some other finding or aside has no change."
+    },
+    {
+     "name": "06-the-review-names-at-least-one-figure-or-choi",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: The review names at least one figure or choice that already works, so that a later edit keeps it.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "07-it-does-not-claim-to-have-seen-how-a-figure",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: It does not claim to have seen how a figure renders, or to have run anything, when it only read the HTML source.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "skill-fired",
+     "type": "tool_used"
+    }
+   ],
+   "arms": {
+    "with": [
+     {
+      "score": 1,
+      "answer": "I read the SVG source and captions for `overview`, `window`, `huffman-tree`, `join` and `bit-output`. I haven't rendered the page or run `npm run check`, and I haven't reviewed `example-tree`, `tree-cost`, `canonical-codes`, `decode-table`, `send-steps`, `header-steps` or `block-sizes`. Everything below is a hypothesis about a newcomer, not a verdict.\n\n## Most likely to lose a newcomer: `join`\n\nThe figure illustrates more than it teaches. A reader gets three rows (tokens, symbols, bits) and about 40 boxes. The captions and stepper then carry the whole idea.\n\n- **The point is only in the prose.** The idea is that Huffman coding never sees the tokens, only symbols from two alphabets. Nothing in the picture says this. The only cue is \"square: literal/length; rounded: distance\", and that sits in the caption, not in a legend. Colour doesn't help either: `c1` marks both the length and the distance symbols, so the two alphabets look like one.\n- **The saving is invisible.** Literal `a` goes from `01100001` to `10010001`, which is the same 8 bits. A newcomer who looks at the bits row sees no compression happening. The reason is on a different page section: the fixed code is introduced after this figure, and the page says it is \"taking them for granted\". The figure uses a code the reader hasn't met.\n- **New numbers arrive unexplained.** `258`, `d5` and `270` all appear, with extra bits and a 3-bit header. The reader has no way to tell which of these they need to understand.\n- **The legibility risk is high.** The viewBox is 1168 wide. At 375px the labels shrink to roughly a third of their size, and the binary strings will be unreadable. Check this one first.\n\nConcrete changes:\n1. Split it in two. Draw tokens → symbols with the two alphabets in two colours and a legend. Make the bits row a second frame or figure after the fixed code is introduced.\n2. Make the middle row visibly dominant, as the caption already says it should be. Fade the other two rows.\n3. Add the 8-bit raw byte next to the first literal's code, so the reader sees there's no saving there and that LZ77 supplies it.\n4. Show only one back-reference in full. Bring in the second after the first is understood.\n\n## Others, by impact\n\n- **`window` doesn't show its own point.** The caption says to watch the copy that \"reads bytes that the copy itself is still writing\". But the arc only points back to byte 0, and step 6 highlights `c0`–`c11`. The 23-byte copy never reaches into its own output in this figure. `bit-output` shows that later, so the hard idea first appears in a picture that can't show it. Draw the source span growing into the destination, or move the overlap point to `bit-output` and keep this figure to the simple copy. The window zone also spans all 35 bytes, so it reads as \"everything\" until the cursor moves (the cursor is hidden at rest).\n- **`bit-output` is correct but late.** The overlap becomes clear here, with the striped cells and the \"copied from / written to\" brackets. It sits after a long bit-level walkthrough, though. Move it up next to `window`.\n\n## What already works\n\n- **`overview`**: it makes one point (two independent savings), it uses a real instance, and its four colours are defined once. Keep it.\n- **`huffman-tree`**: the tree has the shape of the idea and the stepper adds one change per frame. Its leaves and weights are real values, and its captions say what to notice. Keep it.\n- **`bit-output`**: the stripe and bracket encoding make the overlap visible without any prose.\n\nI'm fairly confident in the `join` and `window` findings, because both come from reading the SVG. How legible `join` is at 375px is a guess until you open it in a browser.",
+      "graders": [
+       {
+        "name": "01-the-first-finding-is-about-one-specific-figu",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-no-finding-is-only-about-drawing-geometry-su",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-at-least-one-finding-compares-what-a-picture",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-at-least-one-finding-is-about-position-size",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-each-finding-gives-a-concrete-change-small-e",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "06-the-review-names-at-least-one-figure-or-choi",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "07-it-does-not-claim-to-have-seen-how-a-figure",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "I read the five figures that carry the page's main argument: `overview`, `window`, `huffman-tree`, `join` and `decode-table`, plus the `send-steps` stepper text. I did not read `bit-output`, `example-tree`, `tree-cost`, `canonical-codes`, `header-steps` or `block-sizes`. I didn't run `npm run check` or render anything. Anything about phone width below comes from the `viewBox` sizes, not from looking at it.\n\nOverall, most of these figures teach. The weak spots are at the two places where the idea is hardest.\n\n## 1. `window` (LZ77): the hard part is described but not drawn\n\n**Fails:** the point, and the form.\n\nThe caption says \"Watch the second copy… it reads bytes that the copy itself is still writing.\" Covering the prose, the picture shows one arc from byte 12 back to byte 0, labelled \"12 back\". A reader would take away \"this copy points at byte 0\". They would not see that it is 23 bytes long, or that its source runs into its own output. The arc marks where the copy starts and nothing else. The reader has to infer the overlap from the numbers 23 and 12 and from step 5–6 prose.\n\nThe colouring makes this worse. Cells are coloured by the token that outputs them, so 27 of 35 cells are the back-reference colour. Bytes 12–22 play two roles, source and destination, and one cell can't show both. The overlap is exactly that double role.\n\nA newcomer who stops understanding here will probably stay lost. Overlap is what makes LZ77 encode runs, and the `aaaaaaaa` example after the stepper only repeats the claim.\n\n**Change:**\n- Replace the single arc with two brackets. One spans the source (bytes 0–22) and one spans the destination (bytes 12–34), so the overlap is the visible intersection.\n- In step 6, stripe the overlapping bytes. The later `bit-output` figure already uses \"striped bytes are read by the copy that wrote them\", so this reuses a convention the page has. Introducing it here also fixes a reading-order problem: the idea appears first where it's hardest.\n- Optionally add one frame that shows the copy byte by byte for the first 3 or 4 bytes. That is the \"by the time it needs byte 13, it has already written it\" claim, which at the moment has no frame.\n\n**Check:** 35 cells at 20 units in an 800-unit viewBox render at about 9px per cell at 375px wide. I haven't seen it, but the letters are probably unreadable.\n\n## 2. `join` (tokens → symbols → bits): the mapping is a lookup the reader can't do\n\n**Fails:** the cut, and the misreading.\n\nThe middle row shows 258 for length 4, 270 for length 23, `d5` for distance 7 and `d6` for distance 12. No rule is visible. The reader has to accept them as arbitrary, since the range table is a section later. The 97/98/114 on the literal symbols are ASCII codes, but the figure doesn't say so. The bottom row is eight-bit strings, which are noise at this point. Only their count and the `extra` cells matter.\n\n**Change:**\n- Put the range in the figure. Under 258 write \"len 4\", and under 270 write \"len 23–26 + 2 bits\". The latter is already half there in the step text.\n- Dim the literal bit strings and keep only the lengths and extra bits prominent.\n\n**What works:** the \"Huffman only sees the middle row\" caption is the right point. The square and rounded shapes for the two alphabets are a good encoding.\n\n## 3. `decode-table`: four ideas in one 1142×488 canvas\n\n**Fails:** the hierarchy, and probably legibility at phone width.\n\nThe figure holds the length list, the codes, the 16-entry table and the sliding data window. It works as a stepper because each step highlights one column. Step 1 asks the reader to find 9 of 271 lengths among folded ranges, which is a lot to search.\n\nAt 375px the scale is about 0.33. I'd guess the monospace labels become unreadable, but I haven't checked.\n\n**Change:** consider splitting it into two figures, \"lengths → codes → table\" and \"table at work on the data\". The second would then repeat the table beside the sliding window.\n\n## 4. `overview`: a small contradiction\n\nThe arrow label says \"Huffman codes turn tokens into bits\". The page later says, correctly, that Huffman never sees tokens, only the symbols they map to. This is harmless for a first pass, but \"…turn tokens' symbols into bits\" or a caption note would avoid the reader having to unlearn it.\n\n## Possible inconsistency to check\n\n`window` says the second copy is 23 bytes, while the `bit-output` caption says zlib's copy \"runs for 22\". I haven't read that section. If these are different tokenisations of the same input, a sentence saying so would stop readers wondering which is right.\n\n## What already works (keep it)\n\n- **Colour vocabulary** (`c2` literal, `c1` back-reference, `c6` Huffman, `c5` bits). It is stated once in `overview` and held through the figures I read.\n- **`huffman-tree`:** one SVG that the stepper builds up, one change per step, real counts, and the tie case handled in the `predict` box. This is the model for the others.\n- **Real instances throughout,** not toy numbers: the same 35 bytes, 103 bits and 15-byte stream appear in every figure.\n- **Captions** say what to notice, and `data-ref` links connect the prose to parts of the figures.\n\n## Confidence\n\nFinding 1 is the strongest. The caption promises something the picture doesn't show, which doesn't depend on who the reader is. Findings 2 and 3 are hypotheses about a newcomer's reading. The phone-width concerns need a look at 375px before acting.",
+      "graders": [
+       {
+        "name": "01-the-first-finding-is-about-one-specific-figu",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-no-finding-is-only-about-drawing-geometry-su",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         false,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-at-least-one-finding-compares-what-a-picture",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-at-least-one-finding-is-about-position-size",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-each-finding-gives-a-concrete-change-small-e",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "06-the-review-names-at-least-one-figure-or-choi",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "07-it-does-not-claim-to-have-seen-how-a-figure",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "**Short answer:** from the four figures I read, the first two (`overview`, `bit-output`) mostly teach. `window` and `join` lean toward illustration at the points where a newcomer most needs them. I read the markup only. I haven't rendered the page or run `npm run check`, and I haven't seen the stepper CSS. I read `overview`, `window`, `join` and `bit-output` closely. I didn't review `huffman-tree`, `example-tree`, `tree-cost`, `canonical-codes`, `decode-table`, `send-steps`, `header-steps` or `block-sizes`. Treat the findings below as hypotheses about a newcomer reader.\n\n## 1. `window`: the overlapping copy is only told, not shown (most likely to lose a newcomer)\n\nThis is the reader's first LZ77 figure, and the point it needs is the one in its caption: a copy that starts 12 back and runs 23 long reads its own output.\n\n- **The figure never draws the overlap.** The 35 cells are coloured by token type, so every copied cell is `c1`. That is a literal/copy split, not a source/destination one. `arc2` ends at one point near byte 1. The 12-byte source span and the 23-byte destination span are not bracketed, and no cell is marked as read after being written. A newcomer sees \"a long arc\" and has to take the overlap on trust.\n- **The step that explains it highlights the wrong row.** Step 7 says \"by the time it needs byte 13 of the copy, it has already written it\". Its highlight is `t0…t9`, the token row. The bytes it describes are in the cell row.\n- **The cells have no index numbers.** The prose says \"byte 13\" and \"byte 25\", and the reader has to count cells to find them. \"Byte 13 of the copy\" is also ambiguous between output byte 13 and the copy's 13th byte.\n- **The better figure comes too late.** `bit-output`, 340 lines further on and after the Huffman material, has the right device: `src` and `dst` brackets, striped self-read cells and a replay button. The page's other overlap explanation is the `aaaaaaaa` sentence after the figure, which is prose with no picture.\n\n**Change:**\n- Add a faint index tick every 5 cells.\n- In steps 6–7, bracket the source and destination spans as `bit-output` does, and stripe the cells that were written by the copy itself.\n- Move the highlight in step 7 from the tokens to those cells.\n- Consider a three-cell `a` + `(7,1)` frame before the 35-byte case, so a newcomer meets self-reference in its smallest form.\n\n**Lower confidence:** the markup draws `win-zone` (\"window: bytes already seen\") across all 35 cells. If the stepper doesn't shrink it to follow the cursor, it contradicts its own label for the first six steps. Check this in the browser.\n\n## 2. `join`: too many new ideas in one frame, and one label in the wrong place\n\nIt introduces two alphabets, extra bits, the header and end-of-block in a single three-row figure.\n\n- **The `header` label is on the wrong row.** It sits in the *symbols* row at (103, 86), but it describes `b0`, the `110` box in the *bits* row.\n- **The extra bits (`b10`, `b13`, `b15`) are only described in the caption.** There is no in-figure label or legend entry, so the reader has to infer why `0`, `00` and `11` are unfilled boxes. The caption itself says to read the figure through the text.\n- **Length and distance symbols are told apart by shape only** (square vs rounded). The shape key lives only in the caption.\n- **Legibility:** at a 1168-unit viewBox the labels will likely be tiny at 375px. Check this in the browser.\n\n**Change:**\n- Move `header` down to `b0`.\n- Label the extra-bit boxes \"extra\" in the figure.\n- Put the square/rounded key in the legend.\n- Consider showing one back-reference first (`(4,7)` → `258`, `d5`, extra) before the full row.\n\n## What already works\n\n- **`overview`:** the caption states the point (two independent savings), the four colours are defined once in a legend, and the bits box is drawn the same width as the input. A newcomer should leave with the right idea.\n- **`bit-output`:** this is the strongest figure. The two brackets, the striping and the caption's \"a copy always reads to the left of where it writes\" teach the mechanism.\n- **Steppers:** the `window` steps split literals, match and overlap into separate frames, and `join` gives one idea per step.\n\nWant me to read the remaining figures, starting with `huffman-tree` and `decode-table`? I can also draft the `window` changes.",
+      "graders": [
+       {
+        "name": "01-the-first-finding-is-about-one-specific-figu",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-no-finding-is-only-about-drawing-geometry-su",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-at-least-one-finding-compares-what-a-picture",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-at-least-one-finding-is-about-position-size",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-each-finding-gives-a-concrete-change-small-e",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "06-the-review-names-at-least-one-figure-or-choi",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "07-it-does-not-claim-to-have-seen-how-a-figure",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "name": "review-stepper-boundary",
+   "graders": [
+    {
+     "name": "01-it-diagnoses-the-layout-change-between-steps",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: It diagnoses the layout change between steps as the main problem, or ranks it first or second, and says to keep one layout across every frame.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "02-it-gives-the-two-pointers-distinct-markings",
+     "type": "llm",
+     "criteria": "PASS if the answer does both of these: it gives the head pointer and the tail pointer different markings (colour, shape or position), and it says to label each pointer in the figure itself.\nFAIL if it does only one of the two, or names the same-colour problem without a fix.\nWhether the markings stay the same on every frame is another grader's question. Do not fail the answer for it."
+    },
+    {
+     "name": "03-it-says-the-step-text-narrates-motion-instea",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: It says the step text narrates motion instead of meaning, and rewrites at least one step so it states what the step means and why.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "04-it-says-each-step-should-change-one-thing-an",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: It says each step should change one thing and show what changed (a mark on the changed part, or a trace of the earlier position), not only state the result in words.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "05-it-ranks-the-problems-and-says-which-is-most",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: It ranks the problems and says which is most likely to lose the reader, with a reason.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "skill-fired",
+     "type": "tool_used"
+    }
+   ],
+   "arms": {
+    "with": [
+     {
+      "score": 0.8333333333333334,
+      "answer": "Three things are wrong, and they compound. Each one makes the reader redo work the figure should have done for them.\n\n## What's wrong\n\n**1. The layout changes in steps 4 to 6 (the worst problem).**\nA stepper only works if the reader can compare frame N with frame N-1 and see what changed. When the slots are re-arranged, every slot has to be re-identified, so the reader has to find the buffer again instead of seeing the change. \"Easier to fit\" is a cost to you, and the readers pay for it. This is the likely cause of \"I lose track\". It breaks the rule that position carries meaning and stays fixed across frames, and the rule that one frame should change one thing.\n\n**2. Both pointers are the same colour.**\nHead and tail are the two things the reader must follow, and they are the ones that move. Identical colour means the reader has to read the labels each time to tell them apart. It also leaves the figure with no signal for what changed in this step.\n\n**3. The step text only describes the figure in relative terms.**\n\"The head pointer moves right\", \"the tail stays\" and \"the count goes up by one\" give no values or slot numbers, and they say nothing about why. The reader can't check them against the picture, and they can't tell whether the move wrapped around. Text that restates what the figure should show is wasted, and text that is too vague to verify is worse.\n\n## What I'd change\n\n- **Fix the layout.** Draw the eight slots in the same place, size and order in every step. If the wider layout in steps 4 to 6 doesn't fit, change the whole figure to the layout that does fit, so that all six frames share it. A ring-buffer figure with a wrap-around is a good case for a circular layout, but whichever you choose, use it throughout.\n- **Give each pointer its own colour, and keep it for the whole page.** Use one colour for head and another for tail, with the label next to the arrow in the same colour. Don't rely on colour alone, because the label also needs to be there for colour-blind readers. Count is a number, so show it as a number in a fixed spot rather than in a third colour.\n- **Emphasise only what changed.** In each step, give the moving pointer and the slot it touches the strong treatment, and let everything else stay neutral. That makes one emphasis per frame.\n- **Use concrete values in the step text.** For example: \"Write `D` into slot 6. Head goes from 6 to 7. Tail stays at 2. Count goes from 4 to 5.\" Put short labels like `head 6→7` in the figure as well. Leave the explanation of why for the prose around it.\n- **Make the wrap-around step explicit.** If one of the six steps wraps from slot 7 back to slot 0, that is the hard part of a ring buffer. It needs its own frame and a visible arrow showing the jump, not just \"moves right\".\n- **Keep the effect of each operation visible.** Show filled and empty slots differently, and keep the count consistent with the number of filled slots. That way the reader can verify the count by looking.\n- **Caption the figure with what to notice.** For example: \"Slots never move; only head, tail and count change.\" Add one line saying what the arrows mean.\n\nIf you share the page's HTML or SVG, I can make these changes. Then I'd run `npm run check` and look at the result at 375px in both light and dark.",
+      "graders": [
+       {
+        "name": "01-it-diagnoses-the-layout-change-between-steps",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-it-gives-the-two-pointers-distinct-markings",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-it-says-the-step-text-narrates-motion-instea",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "04-it-says-each-step-should-change-one-thing-an",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-it-ranks-the-problems-and-says-which-is-most",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 0.8333333333333334,
+      "answer": "I haven't seen the page, so this is a diagnosis from your description. Treat it as a hypothesis to check against the real figure.\n\n## What's wrong, most damaging first\n\n**1. The layout changes in steps 4–6 (the main cause).**\nSteps 1–3 teach readers where each slot is. Then the slots move, and readers have to find the head, the tail and the occupied cells all over again. The pointers are the thing that moves in this figure, and you can only see a move against a fixed background. You moved the background, so the reader can no longer tell whether the pointer moved or the slots did. The wrap-around is the hardest part of a ring buffer, and it falls in exactly those late steps.\n\n**2. Both pointers are the same colour.**\nHead and tail do different jobs, and the reader has to tell them apart in every frame. With one colour, they are told apart only by their labels. Near the wrap, or when they sit on adjacent or the same slot (empty and full both look like this), the labels crowd each other and the colours give no help. The two cases need to look different, and the same colour makes them look alike.\n\n**3. The step text describes the change instead of showing it.**\n\"The head pointer moves right\", \"the tail stays\" and \"the count goes up by one\" are all accurate. But the reader has to hold the previous frame in memory and compare it with the new one to see what happened. Nothing in the figure marks what changed, so the reader has to find it.\n\n**4. Eight slots plus three state variables, all at the same visual weight.**\nEach step changes one or two of these, and the other six or seven things act as noise. The count is also far from the slots it summarises.\n\n## What I'd change\n\n1. **Keep one fixed layout for all six steps.** Slots in the same positions, the same order, the same baseline.\n   - If you want it to fit, change the size or the page width, not the arrangement.\n   - If the wrap really needs a ring shape, use the ring for all six steps, not only the last three.\n2. **Give head and tail two colours, and use them everywhere.**\n   - Use the same two colours for the pointer, its label, and any prose that mentions it.\n   - Add a shape or label difference too, so colour isn't the only cue. In the prose, use `<span data-ref=\"…\">` to link the words to the parts.\n3. **Mark what changed in each step.**\n   - Highlight the one thing that is new, and keep the rest quiet. In the repo, that is the `data-change` mark.\n   - Leave a faint ghost of the old pointer position, so the move is visible without comparing frames.\n   - Show the move itself with a short arrow, and keep that arrow style for motion only.\n4. **Put the count next to the slots, and tie it to them.** A filled slot could be shaded and the count shown as a plain tally beside it, so \"goes up by one\" can be checked by eye.\n5. **Rewrite the step text for why, not what.** The picture shows the move, so the text should give the reason: \"a write fills the slot at head, then head advances\". Mention the wrap-around explicitly where it happens, for example \"head passes slot 7 and returns to slot 0\".\n6. **Check the early frames.** The stepper must have no missing step. Where a step does two things (write and advance, say), split it into two steps, so every step has exactly one visible change.\n\n## Checking it\n\nCover the text and read only the figure and its caption, and see whether you can tell what each step did. Then look at it at 375px wide, because crowded labels and similar colours show up there first.\n\nIf you point me at the page's HTML file, I can review the actual figure and make the changes. I'd also run `npm run check` first, since it catches the drawing errors a review like this doesn't.",
+      "graders": [
+       {
+        "name": "01-it-diagnoses-the-layout-change-between-steps",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-it-gives-the-two-pointers-distinct-markings",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         true
+        ]
+       },
+       {
+        "name": "03-it-says-the-step-text-narrates-motion-instea",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         false,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-it-says-each-step-should-change-one-thing-an",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-it-ranks-the-problems-and-says-which-is-most",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "Three problems, one per thing you described, and they compound each other.\n\n## What's wrong\n\n**1. The layout changes between steps 4 and 6 (the worst one).**\nIn a stepper, the reader finds the change by comparing frame to frame. If the slots are in a different arrangement, every slot becomes a new object. They have to re-find slot 0, re-find the head, and re-count, so they can't see the change and \"lose track\". Position should carry meaning, and the layout should stay fixed across frames. \"Easier to fit\" is a cost to you, and the reader pays it.\n\n**2. The pointers share a colour.**\nHead and tail are the two things the reader has to follow, and the page's whole point is how they chase each other. Identical colour means identical-looking marks. The reader has to read the label each time, and when the pointers sit on adjacent slots or the same slot (empty or full buffer), they can't be told apart at a glance.\n\n**3. The step text only describes motion in words.**\n\"The head pointer moves right\", \"the tail stays\" and \"the count goes up\" are all relative, and the reader has to hold the previous state in their head to apply them. They also never say why: nothing connects the count change to the operation (push or pop) that caused it. And \"right\" is ambiguous once the buffer wraps around. The wrap is the hard part of a ring buffer, and it's the step where \"moves right\" is false.\n\n## What I'd change\n\n- **Fix one layout for all six steps.** Eight slots in one row, or a true ring, in the same position, same size and same order. If a row doesn't fit, shrink the slots or stack the figure above the text. Don't rearrange the slots.\n- **Give head and tail two distinct colours**, and use them everywhere: the pointer marks, the figure labels, and the words \"head\" and \"tail\" in the step text. Don't use colour for anything else in the figure. Use one more cue besides colour (marker shape, or labels above and below the strip), so it survives colour blindness and the same-slot case.\n- **Draw the change, not just the result.** In each step, highlight only what's new (the slot just written or freed, the pointer that moved), and leave everything else muted. Show the pointer's old position faintly, with a short arrow to the new one, so the motion is in the figure.\n- **Show the count in the figure, beside the slots, in the same place every frame.** Then \"count goes up\" isn't something the text has to say.\n- **Make the step text name the operation and the state.** For example: \"Push 'D'. Head moves from slot 6 to slot 7. Count: 3 → 4.\" Give concrete values.\n- **Make the wrap its own frame, if it isn't one already.** Say that head goes from slot 7 back to slot 0 and why (index mod 8). Draw the pointer leaving the right end and re-entering at the left.\n- **Use `data-ref` links** from the step text to the head, tail and count in the figure, so a reader can see which mark a sentence refers to.\n- **Check the result by covering the step text.** If you can still tell from the figure alone what changed at each step, it works.\n\nI haven't seen your page's actual files, so this comes from your description. If you point me at the page, I can look at the real SVG and stepper and give specific edits.",
+      "graders": [
+       {
+        "name": "01-it-diagnoses-the-layout-change-between-steps",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-it-gives-the-two-pointers-distinct-markings",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-it-says-the-step-text-narrates-motion-instea",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-it-says-each-step-should-change-one-thing-an",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-it-ranks-the-problems-and-says-which-is-most",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}

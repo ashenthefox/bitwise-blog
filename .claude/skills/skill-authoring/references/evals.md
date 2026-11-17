@@ -15,7 +15,7 @@ through `claude plugin eval`; they differ in what a case asks.
 - Output-quality evals
 - Writing cases and graders
 - Fixtures: the sandbox is empty
-- Running, and reading the result (and comparing with the previous version)
+- Running, and reading the result (comparing with the previous version; judging saved answers again; keeping a baseline)
 - Models, cost and thresholds
 - Running every skill at once
 - Converting skill-creator's `evals.json`
@@ -156,6 +156,12 @@ scores the same with and without the skill: it measures nothing about the skill.
   not_contains` or `count:N`, `target`), `tool_used` (`tool`, `input_match`, `min`/`max`),
   `tool_order`, `file_exists`. Use `llm` only for judgment, and write the rubric as concrete
   PASS and FAIL conditions. An `llm` grader votes 2 of 3 and is noisier on long text.
+- **A judge reads a rubric literally, so one rubric asks one thing.** "States the point as a single
+  sentence, and everything it then includes serves that sentence" failed answers that stated the
+  point in two sentences, and answers that ended with a note about `npm run check` (#237). Say what
+  counts ("in one to three sentences"), say what must not fail the answer, and give a second
+  condition its own grader. "Every finding gives a concrete change" is a count the judges disagree
+  on: "the first finding and at least two others" is one they agree on.
 - **`flags: i`, never `(?i)`.** JavaScript regex has no inline flags and the grader throws.
 - **One grader on the result, one on the steps.** For a skill: a content check plus
   `tool_used` with `tool: Skill` and `input_match: '"skill"\s*:\s*"(?:[\w-]+:)?<name>"'`.
@@ -196,7 +202,7 @@ Each run starts in an empty temporary workspace with a temporary home. User sett
 ```bash
 claude plugin eval .claude/skills/<name> \
   --scaffold --trust-plugin \
-  --model claude-sonnet-5-5 --judge-model claude-haiku-5-5 \
+  --model claude-sonnet-5-5 --judge-model claude-sonnet-5-5 \
   -j 4 --max-cost-usd 15 --no-publish
 ```
 
@@ -214,8 +220,8 @@ claude plugin eval .claude/skills/<name> \
     skill does not teach it. Read a transcript.
   - Positive `Δ` that comes from one grader: that grader is where the skill earns its
     place. Check that it is the one you meant to teach.
-  - Negative `Δ`: suspect the judge before the skill (re-run with `--judge-model sonnet`),
-    then the rubric, then the skill.
+  - Negative `Δ`: suspect the judge before the skill ([judge the saved answers
+    again](#judging-saved-answers-again)), then the rubric, then the skill.
   - With three runs a case moves in steps of a third. Treat a difference under about 0.2 on
     one case as noise; look for the same sign across cases.
 - Always open one with-skill and one baseline transcript (`tracePath` in `aggregate-result.json`). The
@@ -247,7 +253,7 @@ git archive HEAD -- . ":(exclude)$s" | tar -x -C "$snap"                 # the r
 git archive <ref> -- "$s" ":(exclude)$s/evals" | tar -x -C "$snap"       # the skill before your edit
 git archive HEAD -- "$s/evals" | tar -x -C "$snap"                       # today's cases and graders
 claude plugin eval "$snap/$s" --scaffold --trust-plugin --ablation none \
-  --model claude-sonnet-5-5 --judge-model claude-haiku-5-5 -j 4 --max-cost-usd 15 --no-publish
+  --model claude-sonnet-5-5 --judge-model claude-sonnet-5-5 -j 4 --max-cost-usd 15 --no-publish
 ```
 
 The snapshot is the whole repo, not the skill alone. A scaffold finds the files it copies
@@ -264,12 +270,63 @@ same noise rule as for Δ. Write down the cost and duration that each run report
 skill version that gains 0.1 and doubles the cost is a trade-off, not a win. For a blind
 side-by-side read of two outputs, use skill-creator's comparison mode.
 
+### Judging saved answers again
+
+Two runs differ in their answers and in how those answers were judged, and a score cannot say
+which moved. `claude plugin eval` has no option to judge old answers again (2.1.318), but a run
+made with `--json <file>` keeps every answer (the `evidence` of each `llm` grader, beside its
+three votes). `<skill-dir>/scripts/rejudge.mjs` (`<skill-dir>` is the directory holding this
+skill's SKILL.md) sends those answers to a judge of your choice:
+
+```bash
+node <skill-dir>/scripts/rejudge.mjs run.json --judge-model claude-sonnet-5-5 [--out verdicts.json]
+node <skill-dir>/scripts/rejudge.mjs run.json --judge-model claude-sonnet-5-5 \
+  --rubrics .claude/skills/<name>/evals [--case '<glob>'] [--grader '<glob>']
+```
+
+- It prints, per grader, how many answers passed in the record and pass now, how many got the
+  same verdict both times, and how many had split votes. `--out` keeps each vote's reasoning, which
+  the run itself does not record: read it to see how a judge took a rubric.
+- **Its judge prompt is not the built-in one**, which is not published. Run it first with the
+  judge the record used: that agreement is the ceiling for every other comparison. On
+  `pedagogical-diagrams` it was 84% to 89% with Haiku, and the disagreements were answers the
+  built-in Haiku judge failed three votes to none that plainly met the rubric.
+- `--rubrics` takes each rubric from the grader files as they are now, so a rewritten rubric can
+  be tried on old answers before paying for new ones. A rubric rewritten this way is fitted to
+  those answers: confirm it on a fresh run, and check the no-skill arm still fails it.
+- A vote costs about US$0.001 with Haiku and US$0.01 with Sonnet: 132 answer and grader pairs
+  cost $0.35 and $4.02.
+
+### Keeping a baseline
+
+`evals/results/` is git-ignored and a run's traces are deleted, so by default nothing is left to
+compare a later run with answer by answer (that is why the first `pedagogical-diagrams` scores
+could not be explained; #237). After a run that is worth comparing with, commit a trimmed copy:
+
+```bash
+node <skill-dir>/scripts/rejudge.mjs --trim run.json --out .claude/skills/<name>/evals/baselines/<date>.json
+```
+
+It holds the answers, each grader's rubric, verdict and votes, the models, the Claude Code version
+and the commit it was trimmed at (trim it at the commit the run was made on); it drops traces,
+costs and timings. `claude plugin eval` ignores the directory (it has no `prompt.md`), and
+`rejudge.mjs` reads a baseline as it reads a run. When a score moves with no change to the skill,
+re-judge the baseline and the new run with one judge: if they then agree, the judge moved, and if
+they do not, read the two sets of answers. The answers are model output and are published with the
+repo, so do not keep a baseline of a case whose fixture is not public.
+
 ## Models, cost and thresholds
 
 - Pin the agent model (`--model`) and the judge (`--judge-model`) so a model rollout is not
-  mistaken for a regression. This repo uses `claude-sonnet-5-5` for the agent and
-  `claude-haiku-5-5` for the judge. Re-run on the other models a skill will run under
-  (Haiku needs more explicit guidance, Opus tolerates less over-explanation).
+  mistaken for a regression. This repo uses `claude-sonnet-5-5` for both. Re-run on the other
+  models a skill will run under (Haiku needs more explicit guidance, Opus tolerates less
+  over-explanation).
+- **The judge is Sonnet, not Haiku, the tool's default.** On `pedagogical-diagrams` the Haiku judge
+  scored two runs 0.77 and 0.89 whose answers a second judging put at 0.90 and 0.92; the Sonnet
+  judge scored two runs 0.94 and 0.91, and split its three votes on 4 of 66 verdicts where Haiku
+  split on 8 to 13 ([measurements](measurements.md), 2026-11-18). Measured on that one suite. A
+  score judged by Haiku cannot be compared with one judged by Sonnet: on the same answers Sonnet
+  scored 0.03 to 0.07 higher.
 - **Check that the skill loaded before reading a Haiku score.** The `skill-fired` grader is
   `with-only, not scored`, so a with-skill arm in which Haiku never called `Skill` scores as the
   baseline and shows a Δ near zero. Count the `Skill` calls in the traces (`--keep-temp`) first:
@@ -277,8 +334,9 @@ side-by-side read of two outputs, use skill-creator's comparison mode.
   and a body edit could not have changed either. Also run the trigger evals with
   `--model claude-haiku-5-5`.
 - Cost: cases × runs × 2 arms agent runs, plus three judge calls per `llm` grader per run.
-  A five-case, three-run suite with Sonnet costs on the order of one to two US dollars and
-  a few minutes at `-j 4`. Always pass `--max-cost-usd`.
+  A four-case, three-run suite with a Sonnet agent costs about US$1.20 an arm for the agent,
+  plus about $0.12 an arm for a Haiku judge or $1.75 for a Sonnet one: about $6 for both arms
+  as this repo runs it, in a few minutes at `-j 4`. Always pass `--max-cost-usd`.
 - Threshold: the default 1.0 is too strict for judged graders. Use 0.8 once a suite is
   stable, and watch the trend in `Δ` rather than the absolute score.
 

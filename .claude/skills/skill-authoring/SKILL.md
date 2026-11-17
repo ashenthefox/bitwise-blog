@@ -58,6 +58,10 @@ the trigger for each is easy to miss until it has cost a run.
   ([evals](references/evals.md#comparing-with-the-previous-version)).
 - **Regex graders take `flags: i`, never `(?i)`.** JavaScript has no inline flags and the
   grader throws.
+- **A score judged by Haiku and one judged by Sonnet are not comparable**, and the built-in Haiku
+  judge moved one suite's mean by 0.12 between runs with equal answers (#237). The repo's judge is
+  Sonnet. Before explaining a moved output score, judge the saved answers again with
+  `<skill-dir>/scripts/rejudge.mjs` ([evals](references/evals.md#judging-saved-answers-again)).
 - **Rewording a query after it fails is not a result.** Record it as a change to the query
   ([measurements](references/measurements.md)).
 
@@ -86,7 +90,8 @@ script that is run, not read.
 
 - **Layout.** `SKILL.md`, `references/`, `scripts/`, `evals/`. Under `evals/`:
   `trigger-evals.json`, and one directory per output case (`prompt.md`, `graders/`,
-  `case.yaml` when it needs fixtures). `evals/results/` is git-ignored.
+  `case.yaml` when it needs fixtures). `evals/results/` is git-ignored. `evals/baselines/` holds
+  the runs kept for later comparison ([evals](references/evals.md#keeping-a-baseline)).
 - **`SKILL.md` stays under 500 lines.** Put detail in `references/`, each linked from
   `SKILL.md` with a note on *when* to read it. References are one level deep, and a file
   over 100 lines opens with a contents list.
