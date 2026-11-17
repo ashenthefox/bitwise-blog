@@ -159,7 +159,8 @@ export function judgeCommand(spec) {
   }
   if (spec.startsWith("pi:")) {
     // --no-approve ignores project-local files, so a judge never waits on pi's trust prompt.
-    return { argv: ["pi", "-p", "--no-approve", "--no-session", "--no-skills", "--no-extensions", "--no-context-files", "--no-prompt-templates",
+    // --mode json prints pi's events, which carry each model call's cost and any error.
+    return { argv: ["pi", "-p", "--mode", "json", "--no-approve", "--no-session", "--no-skills", "--no-extensions", "--no-context-files", "--no-prompt-templates",
       "--tools", "read,grep,find,ls", "--model", spec.slice(3)], input: "file" };
   }
   return { argv: absolutePaths(splitArgs(spec)), input: "stdin" };
@@ -298,13 +299,27 @@ export function runJudge(cmd, promptFile, timeoutS, cwd) {
   });
 }
 
-// `claude -p --output-format json` wraps the reply as { result, total_cost_usd, is_error }; other
-// judges print the reply itself. Returns { text, cost, error }.
+// `claude -p --output-format json` wraps the reply as { result, total_cost_usd, is_error }.
+// `pi -p --mode json` prints one event per line: the reply is the last assistant message's text,
+// the cost is the sum of every assistant message's usage.cost.total (zero when the model's entry
+// in pi has no prices), and a failed call is an assistant message with stopReason "error".
+// Other judges print the reply itself. Returns { text, cost, error }.
 export function unwrap(out) {
   try {
     const j = JSON.parse(out);
     if (j && typeof j === "object" && typeof j.result === "string") return { text: j.result, cost: Number(j.total_cost_usd) || 0, error: j.is_error ? j.result : "" };
   } catch {}
+  const turns = [];
+  for (const line of out.split("\n")) {
+    if (!line.startsWith("{")) continue;
+    try { const e = JSON.parse(line); if (e.type === "message_end" && e.message?.role === "assistant") turns.push(e.message); } catch {}
+  }
+  if (turns.length) {
+    const last = turns.at(-1);
+    const text = (Array.isArray(last.content) ? last.content : []).filter(c => c?.type === "text").map(c => c.text).join("");
+    const cost = turns.reduce((a, m) => a + (Number(m.usage?.cost?.total) || 0), 0);
+    return { text, cost, error: last.stopReason === "error" ? String(last.errorMessage || "the model call failed") : "" };
+  }
   return { text: out, cost: 0, error: "" };
 }
 

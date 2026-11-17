@@ -141,8 +141,8 @@ Check on each change, and when adopting a new host:
 - the 1,024-character description limit, which pi enforces;
 - the API: no network, no runtime package installs, `name` and `description` only;
 - that evals do not depend on Claude Code: `evals/` is plain files, and pi ignores it. pi
-  0.84.4's skill discovery was checked over RPC; a skill running in pi was not
-  ([sources](sources.md)). To check discovery yourself: `printf '%s\n'
+  0.84.4's skill discovery was checked over RPC, and the grader's pi judges have run; a pi
+  session loading and following a skill has not ([sources](sources.md)). To check discovery yourself: `printf '%s\n'
   '{"type":"get_commands"}' | pi --mode rpc --approve --no-session` from the repo root lists
   every skill pi loaded, with its path, before any model call.
 

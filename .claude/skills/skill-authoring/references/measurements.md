@@ -1163,9 +1163,47 @@ judged met, 1 unknown, which is `need-before-name`, where the runs split 1 met a
 note, as above. In pi 0.84.4 the same command with
 `--judge pi:zai/glm-5.3` and with `--judge pi:anthropic/claude-sonnet-5` gave 0 of 0 judged: every criterion unknown,
 "judge failed (exit 1): 429 … Insufficient balance" and "401 … invalid x-api-key". The grader handled it as
-designed (no verdict from a failed judge), but no pi model could run on this machine, so a pi scorecard is still
-owed. pi's discovery was checked separately: it loads all five skills and no `evals/` directory
-([sources](sources.md)).
+designed (no verdict from a failed judge), but no pi model could run on this machine that day. pi's discovery was
+checked separately: it loads all five skills and no `evals/` directory ([sources](sources.md)).
+
+**The pi scorecard, later the same day.** With a working provider (below),
+`--judge pi:anthropic-ant/claude-sonnet-5-5 --runs 3` on the same page and reader gave 10 of 10 judged met, 1
+unknown, US$0.33 for 33 calls: the same scorecard as Claude Code's. The unknown is again `need-before-name` (2 met,
+1 not met); `figures-earn` was met on 3 of 3 runs against a reference of not met, so it agrees with the reference
+on 9 of 11. A single run before it gave 11 of 11 met. The judge is still Sonnet, so this shows the pi path works end
+to end; it is not the judge from another model family that the rubric asks for against self-preference.
+
+- **Cost per call was about $0.01 in pi and $0.03 in `claude -p`**, for the same model and prompt. Not
+  investigated; the system prompts and tool definitions each harness adds are the likely difference.
+- **The grader now reads pi's cost.** It runs pi with `--mode json` and sums `usage.cost.total` over the
+  assistant messages. Before this, a pi scorecard printed no cost at all. pi computes the figure from the prices in
+  the model's entry, so a custom model without a `cost` reads as $0.
+- **The provider.** pi's built-in `anthropic` provider could not be used here: its stored key was rejected (401),
+  and an `auth.json` entry outranks the environment. The run used a custom provider in `~/.pi/agent/models.json`
+  that sends the `ant` CLI's login as a bearer token, as `ant` itself does. Each model entry copies `name`,
+  `cost`, `thinkingLevelMap` and `compat` from pi's own catalogue entry for the same id (in
+  `~/.pi/agent/models-store.json`); without `forceAdaptiveThinking` the API refuses the request.
+
+  ```json
+  { "providers": { "anthropic-ant": {
+      "baseUrl": "https://api.anthropic.com",
+      "api": "anthropic-messages",
+      "apiKey": "ant-login",
+      "headers": {
+        "Authorization": "!printf 'Bearer %s' \"$(ant auth print-credentials --access-token)\"",
+        "anthropic-beta": "oauth-2025-04-20"
+      },
+      "models": [ { "id": "claude-sonnet-5-5", "name": "Claude Sonnet 5.5", "reasoning": true,
+        "cost": { "input": 2, "output": 10, "cacheRead": 0.1, "cacheWrite": 2.5 },
+        "contextWindow": 1000000, "maxTokens": 128000, "compat": { "forceAdaptiveThinking": true } } ]
+  } } }
+  ```
+
+  `apiKey` is a placeholder pi needs before it lists the models. Do not put the token there: pi takes a key
+  beginning `sk-ant-oat` for a Claude subscription login and sends different headers, which this account answers
+  with "credit balance is too low".
+- **`pi -p` waits on an open stdin.** Called from a script with stdin left open, it hung until killed. The grader
+  closes the judge's stdin, so it is not affected.
 
 **Trigger evals** (Sonnet, three runs; the description gained "grading" and "grade or score this page"): 57 of 58
 pass. The ten new queries all behave as labelled, 3/3 each: "grade … give me the scorecard", "score this explainer",
