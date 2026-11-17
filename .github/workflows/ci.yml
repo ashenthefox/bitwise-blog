@@ -19,7 +19,11 @@ jobs:
     # Normally about 1.5 minutes. A hung step fails in 15 instead of running for GitHub's 360-minute default.
     timeout-minutes: 15
     steps:
+      # The full history (under 1 MB): the grader's calibration references pin pages to earlier
+      # commits, and tests/grade-page.test.mts rebuilds one with `git show <rev>:<page>`.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:

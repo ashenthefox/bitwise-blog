@@ -34,14 +34,14 @@ node <skill-dir>/scripts/grade.mjs docs/<slug>.html
 non-interactive judge per criterion. Each judge sees only the target reader, its one criterion
 (read from this file), the script checks, and a prose extract of the page; nothing from the
 conversation. It has read-only tools and runs in a scratch directory that holds only a copy of
-the page, so it cannot open the repo or the reference grades. Each verdict is checked: the section must exist, the quote
+the page, named `page.html` whatever the file is called, so it cannot open the repo or the reference grades, and the file name tells it nothing. Each verdict is checked: the section must exist, the quote
 must be word for word in that section, and a miss needs a gap. A verdict that fails the check,
 or a judge that fails or times out, counts as **unknown**, never as a grade.
 
 Options:
 
 - `--judge claude:<model>` (default `claude:claude-sonnet-5-5`), `--judge pi:<provider/model>`,
-  or any command, which gets the prompt on stdin (and its path in `GRADE_PROMPT_FILE`). Repeat `--judge` to use several:
+  or any command, which gets the prompt on stdin (and its path in `GRADE_PROMPT_FILE`; a relative path in the command is resolved from where you run the script). Repeat `--judge` to use several:
   where they disagree, the verdict is unknown. A judge from another model family is the main
   defence against a judge going easy on pages Claude drafted (see Why).
 - `--reader "<who>"`: the target reader. Default: the reader the page assumes.
