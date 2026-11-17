@@ -40,9 +40,12 @@ rates with the last full run. It calls `run-trigger-evals.mjs --json` and
 `claude plugin eval --json` and reads what they write.
 
 **It runs only when you start it.** It used to be a monthly workflow. It is not now, for two
-reasons: a full run costs US$40 to $60, and the scores move between runs of an unchanged skill
-by more than the tolerance (the four `pedagogical-diagrams` cases averaged 0.89, 0.75 and 0.66
-on three days with no change; #237), so a schedule would pay that every month to fail on noise.
+reasons: a full run costs US$55 to $80, and the output scores moved between runs of an unchanged
+skill by more than the tolerance (the four `pedagogical-diagrams` cases averaged 0.89, 0.75 and
+0.66 on three days with no change; #237). That movement was the judge: the first figure came from
+the Sonnet judge and the others from Haiku, whose verdicts on the same answers vary. With the
+Sonnet judge, now the default, two runs of that suite were 0.03 apart, but only that suite has
+been measured twice, so a schedule could still pay every month to fail on noise in another.
 Run it after a model or Claude Code update, or when a skill seems to have stopped loading.
 
 - **On your machine:** `npm run skill-evals -- --skills <name> --kind trigger --out <dir>
@@ -77,11 +80,16 @@ Run it after a model or Claude Code update, or when a skill seems to have stoppe
   baseline and only records a new one. Keep `baseline.json` yourself if you run it less often.
 - **Reading a drop.** The summary names both runs' versions and models. If only Claude Code changed,
   suspect its skill listing or system prompt; if only the model changed, run the trigger evals
-  on the new model by hand with `--keep` and read the traces. The 0.10 tolerance is a starting
-  value (`DEFAULT_TOLERANCE`), and #237 suggests it is too tight for the output cases.
+  on the new model by hand with `--keep` and read the traces. If the judge model changed, the
+  output scores cannot be compared at all: the same answers score 0.03 to 0.07 higher with Sonnet
+  than with Haiku. For a drop in an output score with nothing changed, judge the kept baseline's
+  answers and the new run's with one judge before reading anything into it
+  ([evals](evals.md#judging-saved-answers-again)). The 0.10 tolerance is a starting value
+  (`DEFAULT_TOLERANCE`): it was too tight for output cases judged by Haiku (two runs 0.12 apart)
+  and has held for the one suite measured twice with Sonnet (#237).
 - **Cost.** About US$0.27 per trigger query with Sonnet (about US$40 for the 147 queries in the
-  five skills; `pedagogical-writing`'s 48 alone are about US$13) plus a few US dollars per output
-  suite, so roughly US$40 to $60 for everything, stopped at a hard ceiling (default US$75). The
+  five skills; `pedagogical-writing`'s 48 alone are about US$13) plus about US$6 per output
+  suite of four cases with the Sonnet judge, so roughly US$55 to $80 for everything, stopped at a hard ceiling (default US$100). The output part is an estimate: only `pedagogical-diagrams` has been run with the Sonnet judge, and `pedagogical-writing`'s 13 cases should cost $17 to $18. The
   trigger evals are most of that. A trigger suite on Haiku costs about a twentieth as much and
   answers a different question: whether the smallest model loads the skill. Always give a run of
   your own `--max-cost-usd`.

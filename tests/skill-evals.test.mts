@@ -157,6 +157,16 @@ test("flipped queries, version changes, new and removed skills are listed but do
   ]);
 });
 
+test("output scores are not compared across a change of judge model", () => {
+  const prev = record({ beta: out({ x: [1], y: [1] }) }, { models: { agent: "claude-sonnet-5-5", judge: "claude-haiku-5-5" } });
+  const cur = record({ beta: out({ x: [1], y: [0.5] }) }, { models: { agent: "claude-sonnet-5-5", judge: "claude-sonnet-5-5" } });
+  const r = compare(prev, cur, 0.1);
+  assert.deepEqual(r.regressions, []);
+  assert.deepEqual(r.changes, ["judge model claude-haiku-5-5 → claude-sonnet-5-5", "beta: output scores not compared, the judge model changed"]);
+  // The same fall under one judge is a regression: the control for the case above.
+  assert.equal(compare(record({ beta: out({ x: [1], y: [1] }) }), record({ beta: out({ x: [1], y: [0.5] }) }), 0.1).regressions.length, 1);
+});
+
 test("a skill with trigger evals in only one of the two records is not compared", () => {
   assert.deepEqual(compare(record({ alpha: { errors: [] } }), record({ alpha: trig(0, 10) }), 0.1).regressions, []);
 });
@@ -288,7 +298,7 @@ test("a first run records every skill and exits 0 as the baseline", (t) => {
   assert.ok(fs.existsSync(path.join(res.out, "summary.md")));
   // The tools were called with the pinned models and a cost ceiling, and a case directory named results/ was not a case.
   const claude = res.calls.find(c => c.startsWith("claude "))!;
-  assert.match(claude, /plugin eval \S+\/alpha --scaffold --trust-plugin --model claude-sonnet-5-5 --judge-model claude-haiku-5-5 -j 4 --max-cost-usd 15 --no-publish --json /);
+  assert.match(claude, /plugin eval \S+\/alpha --scaffold --trust-plugin --model claude-sonnet-5-5 --judge-model claude-sonnet-5-5 -j 4 --max-cost-usd 30 --no-publish --json /);
   assert.match(res.calls.find(c => c.startsWith("trigger alpha"))!, /--model claude-sonnet-5-5 --max-cost 20$/);
   assert.equal(res.calls.filter(c => c.startsWith("claude ")).length, 1);
 });

@@ -35,6 +35,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-16: `advisors` added, a skill that fires only on request (#117)
 - 2026-11-16: `pedagogical-writing` tells Haiku to load it before answering (#233)
 - 2026-11-17: `pedagogical-writing` grades pages, and the grader's calibration (#242)
+- 2026-11-18: why the `pedagogical-diagrams` output scores fell with no change, and the judge (#237)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -982,7 +983,8 @@ reason: #154 had just lengthened `pedagogical-writing`'s description, which coul
 - **Today's numbers are below the first measurement and equal to the scheduled one.** On 2026-11-10 the four cases
   averaged 0.89 with the skill; the scheduled run on 2026-11-12 gave 0.75, and `main` gives 0.66 today with no change
   to the skill in between. `design-lz77-figure` went from 0.94 to 0.61. That drift is not explained here, and no
-  transcript was read for it.
+  transcript was read for it. It is explained in the 2026-11-18 section (#237): the 0.89 was judged by Sonnet and
+  the other two by Haiku.
 - **The neighbour's longer description took nothing.** All ten should-stay-quiet queries stayed at 0 of 3 and all
   fourteen should-fire queries fired, including the boundary queries about step captions.
 
@@ -1224,3 +1226,110 @@ section. On the broken copy it finds the unpaid deferral in all three runs but n
 its need. With the skill, every run gives a per-criterion scorecard with quotes and `#id`s, says it was graded by
 hand in one context and so is the weakest form of the grade, and fails both broken criteria with a gap. One
 with-skill run of the broken copy reported 8 of 11 met: the two broken criteria and one more.
+
+## 2026-11-18: why the `pedagogical-diagrams` output scores fell with no change, and the judge (#237)
+
+Claude Code 2.1.318, agent `claude-sonnet-5-5`, three runs per case, with the skill only (`--ablation none`) unless a row
+says both arms. Every score here leaves the `skill-fired` grader out, as a two-arm run does, so the figures compare
+with the earlier sections. All of it cost about US$24: $16.50 of suite runs and $7.75 of re-judging.
+
+**The cause.** The four cases averaged 0.89 on 2026-11-10, 0.75 on 2026-11-12 and 0.66 on 2026-11-16 with no change
+to the skill. Two things made that look like a decline, and neither is the skill or its answers:
+
+1. **The 0.89 was judged by Sonnet and the other two by Haiku.** The 2026-11-10 section says so of its own table;
+   #237 and the 2026-11-16 section read all three as Haiku-judged. On the same answers Sonnet scores 0.03 to 0.07
+   higher than Haiku (table below), and today's answers judged by Sonnet score 0.88, where 2026-11-10 had 0.89.
+2. **The Haiku judge built into `claude plugin eval` gives different verdicts on equal answers.** Two runs it
+   scored 0.77 and 0.89 were 0.90 and 0.92 when their answers were judged again by one judge. Seven Haiku-judged runs
+   of the suite today ranged from 0.74 to 0.89; the 0.66 of 2026-11-16 was not reproduced, on the skill as it was
+   then (0.81 and 0.74) or as it is now.
+
+**The same answers, two judges.** `claude plugin eval` cannot judge old answers again, but `--json` keeps each
+answer, so `scripts/rejudge.mjs` (new) sends them to a judge with a prompt of its own, three votes each. The first
+two runs gave 24 answers and 132 answer and grader pairs, with the rubrics as they were on `main`:
+
+| Judge of the same 24 answers | Pairs passed | Mean, run 1 | Mean, run 2 | Same verdict as the built-in Haiku judge |
+| --- | --- | --- | --- | --- |
+| Haiku, built into `claude plugin eval` | 105 of 132 | 0.82 | 0.81 | the reference |
+| Haiku, through `rejudge.mjs` | 111 of 132 | 0.86 | 0.85 | 118 of 132 (89%) |
+| Sonnet, through `rejudge.mjs` | 115 of 132 | 0.89 | 0.87 | 110 of 132 (83%) |
+
+- **The script's judge is not the built-in one, and the control shows how far apart they are.** The same model
+  with the script's prompt disagrees with the built-in judge on 11% of pairs. The two script judges agree with each
+  other on 118 of 132. So the difference between Haiku and Sonnet (4 pairs, 0.03) is smaller than the difference
+  between the two Haiku judges (6 pairs, 0.04): on these answers the model matters less than the built-in judge's
+  own behaviour.
+- **The built-in Haiku judge fails answers that plainly pass.** One `fix-confusing-figure` answer says to redraw
+  the figure as "two frames in one fixed layout" and to "say what you left out in the caption". The built-in judge
+  failed it three votes to none on grader 05 (hit and miss side by side) and on 06 (says what is no longer shown);
+  both script judges passed both, three votes to none, quoting those lines. Its reasons cannot be read: the result
+  records the votes and no text. It split its three votes on 20 of the 132 verdicts.
+- **Three rubrics were read literally.** `design-lz77-figure` 03 asked for the point "as a single sentence":
+  Haiku failed five of six answers that stated the point first, in two or three sentences, and said so. The same
+  rubric ended "and everything it then includes serves that sentence", which failed answers for a closing note
+  about `npm run check`. `review-deflate-figures` 05 ("each finding gives a concrete change") and
+  `review-stepper-boundary` 02 (three conditions in one sentence) split the judges the same way.
+
+**The second cause in #237 was not reproduced.** `design-lz77-figure` 05 (names a misreading and what prevents it)
+passed 1 of 3 on 2026-11-16. Today it passed 14 of 15 with the built-in Haiku judge on the skill as it is, 6 of 6
+with the Sonnet judge, and 4 of 6 on the skill as it was before #236. The checklist step proposed in the issue was
+therefore not added: a rule for something the answers already do does not belong in the skill.
+
+**What changed.**
+
+- **Six graders rewritten as conditions a literal reader applies the way they were meant**:
+  `design-lz77-figure` 03, `fix-confusing-figure` 04 and 06, `review-deflate-figures` 02 and 05,
+  `review-stepper-boundary` 02. Each was tried on the 24 saved answers with `rejudge.mjs --rubrics` before any new
+  run. With the new text the two script judges gave the same totals on five of them (6, 6, 5, 6 and 4 of 6) and
+  differed by one answer on `review-deflate-figures` 05.
+- **The repo's judge is now Sonnet** (`DEFAULT_JUDGE_MODEL` in `scripts/skill-evals.mts`, and the commands in
+  `evals.md`). The rewritten rubrics alone did not steady the Haiku judge:
+
+| Two runs of the unchanged suite, rewritten graders | Run 1 | Run 2 | Difference | Split votes | Judge cost per run |
+| --- | --- | --- | --- | --- | --- |
+| Haiku judge | 0.77 | 0.89 | 0.12 | 13 and 8 of 66 | $0.12 |
+| The same two runs' answers, judged again by Haiku through `rejudge.mjs` | 0.90 | 0.92 | 0.02 | 4 of 132 | $0.34 for both |
+| Sonnet judge | 0.94 | 0.91 | 0.03 | 4 and 4 of 66 | $1.75 |
+
+  With the graders as they were, two Haiku-judged runs were 0.82 and 0.81, so the Haiku pair above is not worse
+  because of the rewrite: the first run of that pair is the low draw this judge produces now and then, as on
+  2026-11-16. Per case the Sonnet runs were 0.94 and 0.89, 0.94 and 0.94, 1.00 and 0.95, 0.87 and 0.87.
+- **A baseline is kept**: `pedagogical-diagrams/evals/baselines/2026-11-18.json` is the first Sonnet-judged run
+  (12 answers with their verdicts and votes, mean 0.94). The next unexplained move can be checked answer by answer
+  with `rejudge.mjs`, which reads it.
+
+**Both arms**, rewritten graders, Haiku judge (run before the judge was changed), $2.71:
+
+| Case | With | Without | Δ |
+| --- | --- | --- | --- |
+| `design-lz77-figure` | 0.89 | 0.11 | +0.78 |
+| `fix-confusing-figure` | 0.67 | 0.78 | −0.11 |
+| `review-deflate-figures` | 0.95 | 0.76 | +0.19 |
+| `review-stepper-boundary` | 0.93 | 0.73 | +0.20 |
+
+Mean 0.86 with the skill, 0.60 without, Δ +0.26. The negative row is the judge again: Sonnet through `rejudge.mjs`
+passed 18 of 18 with-skill verdicts of `fix-confusing-figure` where the built-in Haiku judge passed 12, and 16 of 18
+without the skill where it passed 14, which is +0.11.
+
+**What this does not show.**
+
+- **No two-arm run with the Sonnet judge was made**, so the Δ under the judge now in use is not measured. The
+  `fix-confusing-figure` gap is small under either judge (+0.11 by the re-judge): the no-skill answer already cuts
+  boxes, separates the arrow meanings and drops the legend. That case needs harder graders or should go.
+- **The rewritten graders were fitted to answers that had been read**, as the 2026-11-10 graders were. Three of
+  them (`design-lz77-figure` 03, `fix-confusing-figure` 04, `review-deflate-figures` 02) now pass nearly every
+  with-skill answer, and `fix-confusing-figure` 04 passes 2 of 3 without the skill, so it separates the arms less
+  than its old text was meant to.
+- **Two Sonnet-judged runs are one pair.** 0.03 apart meets #237's bar of under 0.1; it does not show how often a
+  pair would. A mean over 66 verdicts has a standard error near 0.04 even with a perfect judge.
+- **Only this suite was measured.** The other skills' output suites have Haiku-judged records. Their next run is
+  judged by Sonnet and will read higher for that reason alone: it starts a new series.
+- **The other output suites' cost with the Sonnet judge is an estimate.** `pedagogical-writing` (13 cases, 61 `llm`
+  graders) should cost $17 to $18, so the step ceiling went from $15 to $30 and the run's from $75 to $100.
+- **`review-stepper-boundary` 02 no longer asks that the markings stay the same on every frame**, and
+  `design-lz77-figure` 03 no longer asks that everything in the figure serves the point. No grader took those
+  conditions over: each would need its own grader and a measurement. The wording of the first was touched once more
+  after the runs here (a sentence that wrongly said another grader covers it).
+- **Why the built-in Haiku judge behaves as it does is unknown.** Its prompt is not published and it records no
+  reasoning. A per-grader judge model is not available either: `model:` in a grader's frontmatter is rejected.
+- **A day effect cannot be excluded for 2026-11-16.** Every run here was made within one hour.
