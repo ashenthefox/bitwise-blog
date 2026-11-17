@@ -6,7 +6,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { pageStats, scriptChecks } from "../.claude/skills/pedagogical-writing/scripts/page-stats.mjs";
-import { absolutePaths, blobId, buildPrompt, decodeOnce, extract, parseReply, quoteInSection, readCriteria, scorecardMarkdown, splitArgs, stable, validate, withoutExamples } from "../.claude/skills/pedagogical-writing/scripts/grade.mjs";
+import { absolutePaths, blobId, buildPrompt, decodeOnce, extract, parseReply, quoteInSection, readCriteria, scorecardMarkdown, splitArgs, stable, unwrap, validate, withoutExamples } from "../.claude/skills/pedagogical-writing/scripts/grade.mjs";
 import { applyEdit, materialize, readRefs, score } from "../.claude/skills/pedagogical-writing/scripts/calibrate.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -208,6 +208,30 @@ test("grade.mjs: claude's JSON wrapper is unwrapped, its cost summed, and an err
   assert.match(card.results.find((x: any) => x.id === "one-concept").reason, /error reply.*529/);
   assert.equal(card.met, 10);
   assert.equal(card.costUsd, 2.75);
+});
+
+// pi -p --mode json: one event per line. `turns` are assistant messages as [text, cost] or { error }.
+function piEvents(...turns: ([string, number] | { error: string })[]): string {
+  const msg = (t: [string, number] | { error: string }) => Array.isArray(t)
+    ? { role: "assistant", content: [{ type: "thinking", thinking: "…" }, { type: "text", text: t[0] }], usage: { cost: { total: t[1] } }, stopReason: "stop" }
+    : { role: "assistant", content: [], usage: { cost: { total: 0 } }, stopReason: "error", errorMessage: t.error };
+  return [{ type: "session" }, { type: "message_end", message: { role: "user", content: [{ type: "text", text: "the prompt" }] } },
+    ...turns.map(t => ({ type: "message_end", message: msg(t) })), { type: "agent_settled" }].map(e => JSON.stringify(e)).join("\n") + "\n";
+}
+
+test("grade.mjs: pi's JSON events give the reply, the summed cost, and an error reply as unknown", () => {
+  assert.deepEqual(unwrap(piEvents(["Let me open the page.", 0.01], ['{"verdict":"met"}', 0.02])), { text: '{"verdict":"met"}', cost: 0.03, error: "" });
+  assert.deepEqual(unwrap(piEvents({ error: "401 invalid x-api-key" })), { text: "", cost: 0, error: "401 invalid x-api-key" });
+  assert.deepEqual(unwrap('{"verdict":"met"}'), { text: '{"verdict":"met"}', cost: 0, error: "" }, "a custom judge's bare reply is not taken for pi events");
+
+  const { card } = grade(writePage(), {
+    "*": { reply: piEvents(["Reading.", 0.05], [JSON.stringify(MET), 0.2]) },
+    "one-concept": { reply: piEvents({ error: "429 Insufficient balance" }) },
+  });
+  assert.equal(card.results.find((x: any) => x.id === "one-concept").verdict, "unknown");
+  assert.match(card.results.find((x: any) => x.id === "one-concept").reason, /judge failed \(error reply\): 429 Insufficient balance/);
+  assert.equal(card.met, 10);
+  assert.equal(card.costUsd, 2.5);
 });
 
 test("grade.mjs: two judges that disagree, or runs that disagree, give unknown", () => {

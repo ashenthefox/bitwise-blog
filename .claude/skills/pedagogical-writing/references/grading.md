@@ -54,7 +54,9 @@ on pages of 2,000–7,000 words, so about $0.30 for one run of all eleven; the s
 the total. Grade when you need the comparison; to improve a page, review it.
 
 In pi, run the same command with `--judge pi:<provider/model>`. pi has no subagents, so the
-script is how it gets a fresh context per criterion.
+script is how it gets a fresh context per criterion. The scorecard's cost for a pi judge is what
+pi reports, which comes from the prices in that model's entry: a custom model in
+`~/.pi/agent/models.json` without a `cost` reads as US$0.
 
 ## Without Bash: the rubric by hand
 
