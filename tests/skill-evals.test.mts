@@ -288,7 +288,7 @@ test("a first run records every skill and exits 0 as the baseline", (t) => {
   assert.ok(fs.existsSync(path.join(res.out, "summary.md")));
   // The tools were called with the pinned models and a cost ceiling, and a case directory named results/ was not a case.
   const claude = res.calls.find(c => c.startsWith("claude "))!;
-  assert.match(claude, /plugin eval \S+\/alpha --scaffold --trust-plugin --model claude-sonnet-5-5 --judge-model claude-haiku-5-5 -j 4 --max-cost-usd 15 --no-publish --json /);
+  assert.match(claude, /plugin eval \S+\/alpha --scaffold --trust-plugin --model claude-sonnet-5-5 --judge-model claude-sonnet-5-5 -j 4 --max-cost-usd 15 --no-publish --json /);
   assert.match(res.calls.find(c => c.startsWith("trigger alpha"))!, /--model claude-sonnet-5-5 --max-cost 20$/);
   assert.equal(res.calls.filter(c => c.startsWith("claude ")).length, 1);
 });
