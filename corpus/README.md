@@ -44,7 +44,8 @@ Guards, because a rule that must hold every time belongs in a check:
   `scripts/leak-allowed.mts`, with a reason and a cap on the shared words, so quoting more still fails.
 - `.githooks/pre-push` runs `leak-check --pushed` before every push, so it runs without anyone remembering. Enable it
   once per clone with `npm run hooks` (`git config core.hooksPath .githooks`; worktrees share the setting). With no
-  private data in the checkout it does not block the push: it says nothing was checked and how to `link`.
+  private data in the checkout it does not block the push: it says nothing was checked and how to `link` (the
+  checkout to run the command in, and that its argument is the data clone).
   With no `node_modules` (a new worktree has none) it does block the push, with one line saying to run `npm ci` in
   that checkout: the `yaml` package must resolve for the check to run at all, and skipping would look like a pass.
   It checks what is being pushed, not what is checked out: it reads the lines git gives a pre-push hook and scans
@@ -99,12 +100,18 @@ Guards, because a rule that must hold every time belongs in a check:
 general_prose.jsonl, thoughts/, library/
 ```
 
-Clone the private data repo anywhere outside this repository, then point each worktree at it (git worktrees
-don't share ignored files, so this is once per worktree):
+Clone the private data repo anywhere outside this repository, then point each checkout at it. Run the command
+in the checkout to link, and pass the path of the data clone (git worktrees don't share ignored files, so this is
+once inside each worktree, with the same argument every time):
 
 ```
-npm run advisor -- link <path-to-clone>
+cd <checkout-or-worktree-to-link>
+npm run advisor -- link <path-to-data-clone>
 ```
+
+The argument is never a checkout of this repository: `link` refuses another worktree of it, since that would make
+this checkout look linked while `leak-check` found no posts and checked nothing. A target with no writers (a new,
+empty clone, or the wrong directory) is linked with a warning that says so.
 
 With no clone, `npm run sync-posts` makes `corpus/private` a plain directory. That works, but it belongs to that
 one checkout: it goes when a worktree is removed, and `link` won't replace it while it has anything in it.
@@ -123,7 +130,7 @@ or writing question that names no advisor is answered normally (#110, D8).
 
 - **It needs no API key.** All three are markdown, run as ordinary subagents on the session's own login. Nothing
   reads `ANTHROPIC_API_KEY`.
-- **It needs the private data**, linked into this checkout (`npm run advisor -- link <path>`, above). Without it
+- **It needs the private data**, linked into this checkout (`npm run advisor -- link <path-to-data-clone>`, run in this checkout; above). Without it
   the skill stops and says so. It does not answer from what the model remembers of the writer.
 - **Agents load when a session starts.** After adding or editing an agent file, start a new session.
 - **What the public files may hold (#117).** The agent file holds the process and the rules only: which files to
@@ -145,7 +152,8 @@ or writing question that names no advisor is answered normally (#110, D8).
 ## Commands
 
 ```
-npm run advisor -- link <path> [--force]         point corpus/private at a clone
+npm run advisor -- link <path-to-data-clone> [--force]
+                                                 point this checkout's corpus/private at a clone of the data repo
 npm run advisor -- index [<writer>]              regenerate the INDEX.md catalogues
 npm run advisor -- holdout <writer> [--check]    choose the eval holdout, or check it is current
 npm run advisor -- leak-check [--history]        see above

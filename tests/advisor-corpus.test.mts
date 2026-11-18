@@ -316,6 +316,61 @@ test("link: makes the symlink, is idempotent, and refuses what it could lose", a
   assert.ok(fs.lstatSync(privateDir(corpusRoot)).isSymbolicLink());
 });
 
+test("link: refuses another checkout of this repository, and changes nothing (#323)", async (t) => {
+  // A throwaway repository with a linked worktree, as `git worktree add` leaves them.
+  const repoRoot = path.join(tmp(t), "repo");
+  const worktree = path.join(tmp(t), "worktree");
+  const git = (cwd: string, ...args: string[]) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", ...args], { encoding: "utf8", stdio: "pipe", timeout: 60_000 });
+  fs.mkdirSync(path.join(repoRoot, "corpus"), { recursive: true });
+  git(repoRoot, "init", "-q", "-b", "main");
+  fs.writeFileSync(path.join(repoRoot, ".gitignore"), "corpus/private\n");
+  fs.writeFileSync(path.join(repoRoot, "corpus", "README.md"), "corpus\n");
+  git(repoRoot, "add", ".");
+  git(repoRoot, "commit", "-q", "-m", "first");
+  git(repoRoot, "worktree", "add", "-q", worktree, "-b", "feature");
+  const run = async (from: string, ...argv: string[]) => {
+    const s = sink();
+    return { code: await main(["link", ...argv], { corpusRoot: path.join(from, "corpus"), repoRoot: from, out: s.out }), ...s };
+  };
+  const untouched = (checkout: string) => fs.lstatSync(privateDir(path.join(checkout, "corpus")), { throwIfNoEntry: false });
+
+  // The mistake in the issue: run in the main checkout, with the worktree as the argument.
+  const fromMain = await run(repoRoot, worktree);
+  assert.equal(fromMain.code, 1);
+  assert.match(fromMain.errors[0], /is a checkout of this repository, not the private data\. The argument is your clone of the private data repo; to link a worktree, run this command in that worktree/);
+  assert.deepEqual(fromMain.lines, []);
+  assert.equal(untouched(repoRoot), undefined, "no link was made");
+  // The other way round, a directory inside the worktree, and a symlink to it.
+  assert.match((await run(worktree, repoRoot)).errors[0], /is a checkout of this repository/);
+  assert.equal(untouched(worktree), undefined);
+  assert.match((await run(repoRoot, path.join(worktree, "corpus"))).errors[0], /is a checkout of this repository/);
+  const alias = path.join(tmp(t), "alias");
+  fs.symlinkSync(worktree, alias);
+  assert.match((await run(repoRoot, alias)).errors[0], /is a checkout of this repository/);
+  assert.equal(untouched(repoRoot), undefined);
+
+  // The data clone is a git repository too, but another one: it links. An existing link is not repointed at a checkout.
+  const data = privateDir(copyOfFixtures(t));
+  git(data, "init", "-q", "-b", "main");
+  const linked = await run(repoRoot, data);
+  assert.equal(linked.code, 0, linked.errors.join("\n"));
+  assert.deepEqual(linked.errors, [], "a clone with writers gets no warning");
+  assert.equal((await run(repoRoot, "--force", worktree)).code, 1);
+  assert.equal(fs.realpathSync(privateDir(path.join(repoRoot, "corpus"))), fs.realpathSync(data), "--force does not override it");
+  assert.equal(git(repoRoot, "status", "--porcelain"), "", "and the link is ignored");
+});
+
+test("link: a target with no writers is linked, with a warning that leak-check will have nothing to check", async (t) => {
+  const repoRoot = tmp(t);
+  const empty = tmp(t);
+  const s = sink();
+  assert.equal(await main(["link", empty], { corpusRoot: path.join(repoRoot, "corpus"), repoRoot, out: s.out }), 0);
+  assert.match(s.lines[0], /no writers yet/);
+  assert.equal(s.errors.length, 1);
+  assert.match(s.errors[0], /^warning: .* holds no writer .*leak-check has nothing to compare with and will skip.*link --force <path-to-data-clone>/);
+  assert.ok(fs.lstatSync(privateDir(path.join(repoRoot, "corpus"))).isSymbolicLink());
+});
+
 // ---- parity ---------------------------------------------------------------------------
 
 test("parity: skips cleanly with no private data", async (t) => {
@@ -331,7 +386,7 @@ test("a dangling corpus/private is an error, not a clean skip", async (t) => {
   for (const argv of [["leak-check"], ["parity"], ["index"], ["holdout", WREN]]) {
     const s = sink();
     assert.equal(await main(argv, { corpusRoot, repoRoot: tmp(t), out: s.out }), 1, argv[0]);
-    assert.match(s.errors[0], /doesn't exist/, argv[0]);
+    assert.match(s.errors[0], /doesn't exist; run `npm run advisor -- link <path-to-data-clone>` in .* \(the checkout to link; the argument is your clone of the private data repo/, argv[0]);
   }
   const relink = sink();
   assert.equal(await main(["link", "--force", tmp(t)], { corpusRoot, repoRoot: tmp(t), out: relink.out }), 0, "link can repair it");
