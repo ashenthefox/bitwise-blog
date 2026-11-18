@@ -47,7 +47,14 @@
       <p class="eyebrow">Architecture decision record</p>
       <h1>ADR-002: Rate limit at the edge gateway</h1>
       <p class="lede">Enforce one per-client token bucket in the gateway, with state in Redis, so limits hold however many services and replicas run behind it.</p>
-      <dl class="bh-meta" data-auto></dl>
+      <dl class="bh-meta" data-auto>
+        <div><dt>Status</dt><dd><span class="badge accepted">accepted</span></dd></div>
+        <div><dt>Updated</dt><dd><time datetime="2026-10-05">2026-10-05</time></dd></div>
+        <div><dt>Authors</dt><dd>John Ky</dd></div>
+        <div><dt>Reading time</dt><dd>1 min</dd></div>
+        <div><dt>Tags</dt><dd>rate limiting, architecture</dd></div>
+        <div><dt>Supersedes</dt><dd><a href="adr-001-rate-limit-in-each-service.html">ADR-001: Rate limit inside each service</a></dd></div>
+      </dl>
     </header>
 
     <div class="decision">

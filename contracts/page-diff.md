@@ -98,7 +98,11 @@ of changes (`.bh-diff-summary`) are in the article when `bh.js` runs, so each pa
 - **Code blocks**: a copy's `<pre>` gets no header or Copy button, and with no `language-*` class no highlighter
   matches it (Prism highlights every matching element in the document, on its own as well as when `bh.js` asks).
 - **Figure numbers** in a link's toast and a `data-ref`'s title (`linkLabel`) count only the page's own figures.
-- **Reading time** (`buildMeta`) counts only the page's words.
+- **Reading time** (`buildMeta`) counts only the page's words. A diff page builds the hero's list in the
+  browser: `diffPages` leaves the generated list and the "Superseded" banner out of both versions
+  (`withoutHeroMeta`, `scripts/hero-meta.mts`), since they restate the metas, a version from before #298
+  has none, and the reading time would mark the hero changed on most edits. The Review panel's data
+  counts blocks without the banner, as `diff.js` skips it (`INJECTED`).
 - The rest are harmless there: headings, the table of contents, link buttons, deep links and `data-ref` all need
   an id or an attribute a copy does not keep; reveal-on-scroll only fades in; and Mermaid draws the old sketch in
   the copy, under ids of its own. A scrolling copy joining the tab order is deliberate (above).

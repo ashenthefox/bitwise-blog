@@ -244,7 +244,7 @@ process while requests are served.
   - `§n` section eyebrows
   - copy-link controls on every section, figure and glossary entry; arriving at a
     `#id` link opens whatever hides the target and highlights it
-  - meta row (status, date, authors, reading time) filled from `<meta name="bh:*">`
+  - meta row (status, date, authors, reading time, tags) written into the page by `npm run index` from `<meta name="bh:*">`
 - **Components** (see `docs/component-gallery.html`):
   - `.tldr`, `.callout`, `.badge`
   - `.cards`, `.metrics`, `.compare`/`.option`, `.decision`

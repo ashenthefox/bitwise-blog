@@ -20,6 +20,7 @@
 // like the rest of the tooling: fine for the pages we author, not a general HTML parser.
 
 import { VOID_TAGS, decodeEntities } from "./html-tree.mts";
+import { withoutHeroMeta } from "./hero-meta.mts";
 
 // ---- Tokens ---------------------------------------------------------------------------------
 
@@ -389,8 +390,16 @@ export function pageStyle(html: string): string {
 const pageTitle = (html: string) => headValue(html, /<title>([^<]*)<\/title>/i);
 const pageDescription = (html: string) => headValue(html, /<meta\s+name="description"\s+content="([^"]*)"/i);
 
-/** Compare two versions of a page. Null when either has no article to compare (a sealed page). */
+/**
+ * Compare two versions of a page. Null when either has no article to compare (a sealed page).
+ * The hero's generated list and the "Superseded" banner are left out of both (scripts/hero-meta.mts):
+ * they restate the page's metas, a version from before they were generated has none, and the reading
+ * time would mark the hero changed on most edits. A diff page has them as bh.js builds them, and the
+ * Review panel's data counts the live page's blocks without the banner, as diff.js does.
+ */
 export function diffPages(oldHtml: string, newHtml: string): PageDiff | null {
+  oldHtml = withoutHeroMeta(oldHtml);
+  newHtml = withoutHeroMeta(newHtml);
   const o = splitPage(oldHtml), n = splitPage(newHtml);
   if (!o || !n) return null;
   const entries = alignBlocks(o.blocks, n.blocks);

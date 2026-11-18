@@ -47,8 +47,19 @@
       <p class="eyebrow">Architecture decision record</p>
       <h1>ADR-001: Rate limit inside each service</h1>
       <p class="lede">Each service enforces its own per-client token bucket in process, so we can ship limits before launch without new infrastructure.</p>
-      <dl class="bh-meta" data-auto></dl>
+      <dl class="bh-meta" data-auto>
+        <div><dt>Status</dt><dd><span class="badge superseded">superseded</span></dd></div>
+        <div><dt>Updated</dt><dd><time datetime="2025-11-12">2025-11-12</time></dd></div>
+        <div><dt>Authors</dt><dd>John Ky</dd></div>
+        <div><dt>Reading time</dt><dd>1 min</dd></div>
+        <div><dt>Tags</dt><dd>rate limiting, architecture</dd></div>
+        <div><dt>Superseded by</dt><dd><a href="adr-002-rate-limit-at-the-edge.html">ADR-002: Rate limit at the edge gateway</a></dd></div>
+      </dl>
     </header>
+    <aside class="callout warn bh-superseded" role="note">
+      <p class="callout-title">Superseded</p>
+      <p>This decision has been replaced by <a href="adr-002-rate-limit-at-the-edge.html">ADR-002: Rate limit at the edge gateway</a>. It is kept as the record of why things were once done this way.</p>
+    </aside>
 
     <div class="decision">
       <p>We will embed a per-client token bucket in every service, keyed by API key, because launch is three weeks away and this needs no shared infrastructure.</p>
