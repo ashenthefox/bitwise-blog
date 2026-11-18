@@ -16,6 +16,11 @@ reader would see it, in three places that share one function, `diffPages` (`scri
 - **Then words.** Inside a changed block the prose is diffed word by word and written into the *new*
   version's markup as `<ins>`/`<del>`, only inside text that may hold them (never between table rows
   or list items), so the result always nests properly. An entity is one word.
+- **Rows and items before words.** Inside a changed block, table rows and list items (`tr`, `li`, `dt`,
+  `dd`) are aligned like blocks are, a row by its first cell. A row that stayed is compared only with
+  itself, cell by cell when both versions have the same number of cells, and nested lists the same way
+  in turn. A row that is gone is written back where it was as a row of its own, struck through and
+  marked `data-diff="removed"`. A reordered row shows as gone in one place and added in another.
 - **Pictures are compared whole.** An inline `<svg>`, a `<bh-sequence>`, a Mermaid sketch, a `<canvas>`
   and any `<script>` are never word-diffed. When one changes, the old and new figures are shown as a
   `<bh-versions>` pair, and each part with a `data-id` is marked `data-change` (removed, added, changed)

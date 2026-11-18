@@ -111,8 +111,13 @@ export interface Block {
 }
 
 // An element that ends a <p> left open before it, and the elements that end one another.
-const P_CLOSERS = new Set("address article aside blockquote details div dl fieldset figcaption figure footer form h1 h2 h3 h4 h5 h6 header hr main menu nav ol p pre section table ul".split(" "));
-const AUTO_CLOSE: Record<string, string[]> = { li: ["li"], dt: ["dt", "dd"], dd: ["dt", "dd"], tr: ["tr", "td", "th"], td: ["td", "th"], th: ["td", "th"], option: ["option"] };
+const P_CLOSERS = new Set("address article aside blockquote details div dl fieldset figcaption figure footer form h1 h2 h3 h4 h5 h6 header hr main menu nav ol p pre section table ul li dt dd".split(" "));
+const SECTION_END = ["tr", "td", "th", "thead", "tbody", "tfoot", "caption", "colgroup"];
+const AUTO_CLOSE: Record<string, string[]> = {
+  li: ["li"], dt: ["dt", "dd"], dd: ["dt", "dd"], option: ["option"],
+  tr: ["tr", "td", "th", "caption", "colgroup"], td: ["td", "th"], th: ["td", "th"],
+  thead: SECTION_END, tbody: SECTION_END, tfoot: SECTION_END, caption: SECTION_END, colgroup: SECTION_END,
+};
 const OPAQUE = new Set(["svg", "math", "canvas", "bh-sequence"]);
 
 interface Frame { name: string; opaque: boolean; svg: boolean; pre: boolean }
@@ -288,17 +293,10 @@ export interface PageDiff {
 
 const words = (s: string) => s.toLowerCase().match(/[\p{L}\p{N}_]+/gu) ?? [];
 
-/** How alike two blocks are, 0 to 1: the share of words they have in common (Dice). */
+/** How alike two blocks are, 0 to 1 (see `dice`). Two pictures of the same kind are worth comparing. */
 function similarity(a: Block, b: Block): number {
   if (a.tag !== b.tag) return 0;
-  const wa = words(a.text), wb = words(b.text);
-  if (!wa.length && !wb.length) return 0.5; // two pictures of the same kind: worth comparing
-  if (!wa.length || !wb.length) return 0;
-  const count = new Map<string, number>();
-  for (const w of wa) count.set(w, (count.get(w) ?? 0) + 1);
-  let common = 0;
-  for (const w of wb) { const c = count.get(w) ?? 0; if (c > 0) { common++; count.set(w, c - 1); } }
-  return (2 * common) / (wa.length + wb.length);
+  return !words(a.text).length && !words(b.text).length ? 0.5 : dice(a.text, b.text);
 }
 const PAIR_AT = 0.5;
 const MOVE_TEXT = 40;
@@ -516,48 +514,238 @@ function emitBlock(toks: Tok[], emit: Emit, extra: Attr[] = []): string {
   return toks.map((t) => emitTok(t, emit, false, t === first ? extra : [])).join("").trim();
 }
 
-/** The new block's markup with the prose differences marked <ins>/<del>. `count` is the number of marks. */
+// ---- Rows and items: aligned before their words are compared ---------------------------------
+
+const ITEM = new Set(["tr", "li", "dt", "dd"]);
+const CELL = new Set(["td", "th"]);
+
+/** A row, an item or a cell: the tokens [start, end), and the index of the token that opens its parent (-1 at the top). */
+interface Seg {
+  start: number;
+  end: number;
+  container: number;
+  /** Whether its own end tag is written (and is then its last token). */
+  closed: boolean;
+}
+
+/** The outermost elements named in `names` among toks[from, to), in order: the rows and items of a block, or the cells of one row. */
+function segments(toks: Tok[], names: Set<string>, from = 0, to = toks.length): Seg[] {
+  const out: Seg[] = [], stack: { name: string; at: number }[] = [];
+  let open: Seg | null = null, base = 0;
+  const shrink = (length: number, end: number, closed = false) => {
+    stack.length = length;
+    if (open && length <= base) { open.end = end; open.closed = closed; out.push(open); open = null; }
+  };
+  for (let i = from; i < to; i++) {
+    const t = toks[i];
+    if (isTag(t)) {
+      if (!t.svg) {
+        let n = stack.length;
+        while (n && ((stack[n - 1].name === "p" && P_CLOSERS.has(t.name)) || AUTO_CLOSE[t.name]?.includes(stack[n - 1].name))) n--;
+        if (n !== stack.length) shrink(n, i);
+      }
+      if (!open && names.has(t.name) && !t.opaque && t.kind === "open") { open = { start: i, end: to, container: stack.length ? stack.at(-1)!.at : -1, closed: false }; base = stack.length; }
+      if (t.kind === "open") stack.push({ name: t.name, at: i });
+    } else if (t.kind === "close") {
+      const k = stack.findLastIndex((f) => f.name === t.name);
+      if (k >= 0) shrink(k, open && k === base ? i + 1 : i, !!open && k === base); // its own end tag is part of it; an ancestor's is not
+    }
+  }
+  if (open) out.push(open);
+  return out;
+}
+
+/** Pair the items of two lists: equal keys first (in order), then the alike ones left between them. [-1, n] is new, [o, -1] is gone. */
+function alignItems(oldKeys: string[], newKeys: string[], alike: (o: number, n: number) => number): [number, number][] {
+  const out: [number, number][] = [];
+  let dels: number[] = [], ins: number[] = [];
+  const closeGap = () => {
+    let oi = 0;
+    for (const n of ins) {
+      let best = -1, bestSim = PAIR_AT;
+      // Only the next few candidates: a table rewritten row by row would otherwise cost rows squared.
+      for (let j = oi; j < Math.min(dels.length, oi + PAIR_WINDOW); j++) { const sim = alike(dels[j], n); if (sim > bestSim || (sim === bestSim && best < 0)) { best = j; bestSim = sim; } }
+      if (best < 0) { out.push([-1, n]); continue; }
+      for (; oi < best; oi++) out.push([dels[oi], -1]);
+      out.push([dels[best], n]);
+      oi = best + 1;
+    }
+    for (; oi < dels.length; oi++) out.push([dels[oi], -1]);
+    dels = []; ins = [];
+  };
+  for (const op of diffSeq(oldKeys, newKeys)) {
+    if (op.op === "del") dels.push(op.a);
+    else if (op.op === "ins") ins.push(op.b);
+    else { closeGap(); out.push([op.a, op.b]); }
+  }
+  closeGap();
+  return out;
+}
+
+const PAIR_WINDOW = 32;
+
+/** How alike two texts are, 0 to 1: the share of words they have in common (Dice). */
+const dice = (a: string, b: string): number => diceWords(words(a), words(b));
+function diceWords(wa: string[], wb: string[]): number {
+  if (!wa.length || !wb.length) return 0;
+  const count = new Map<string, number>();
+  for (const w of wa) count.set(w, (count.get(w) ?? 0) + 1);
+  let common = 0;
+  for (const w of wb) { const c = count.get(w) ?? 0; if (c > 0) { common++; count.set(w, c - 1); } }
+  return (2 * common) / (wa.length + wb.length);
+}
+
+/**
+ * The new block's markup with the prose differences marked <ins>/<del>. `count` is the number of marks.
+ *
+ * Rows and items (tr, li, dt, dd) are aligned before any words are compared, so a row that is gone
+ * is shown as a row of its own, struck through, where it used to be, and a row that stayed is compared
+ * only with itself, cell by cell when both versions have the same number of cells. Without that, the
+ * words of a removed row would be reported as deleted from whichever neighbouring cell came next.
+ */
 export function inlineDiff(oldToks: Tok[], newToks: Tok[], emit: Emit = { inert: false, prefix: "" }, extra: Attr[] = []): { html: string; count: number } {
   const A = proseWords(oldToks), B = proseWords(newToks);
-  const ops = mergeShortRuns(diffSeq(A.keys, B.keys), A.keys, B.keys);
-  const pending = new Map<number, string[]>(), inserted = new Uint8Array(B.words.length);
-  let j = 0, lastNode = -1;
-  for (const o of ops) {
-    if (o.op === "del") {
-      // Words from two text nodes (two cells, two list items) were never one phrase: keep them apart.
-      const list = pending.get(j) ?? [];
-      if (list.length && A.node[o.a] !== lastNode && !/\s$/.test(list.at(-1)!) && !/^\s/.test(A.words[o.a])) list.push(" ");
-      lastNode = A.node[o.a];
-      pending.set(j, [...list, A.words[o.a]]);
-    }
-    else { if (o.op === "ins") inserted[j] = 1; j++; }
-  }
-  let count = 0;
-  const del = (at: number) => {
-    const gone = (pending.get(at) ?? []).join("");
-    pending.delete(at);
-    if (!gone.trim()) return "";
+  const inserted = new Uint8Array(B.words.length);
+  // Deleted words (indexes into A), by where they are written: before or after a new word, or around a new token.
+  const before = new Map<number, number[]>(), after = new Map<number, number[]>();
+  const tokBefore = new Map<Tok, string>(), tokAfter = new Map<Tok, string>();
+  let count = 0, tail = "";
+  const add = <K,>(map: Map<K, number[]>, key: K, a: number) => { if (!map.has(key)) map.set(key, []); map.get(key)!.push(a); };
+  const append = (map: Map<Tok, string>, key: Tok, html: string) => map.set(key, (map.get(key) ?? "") + html);
+  /** Deleted words as one <del>. Words from two text nodes (two cells, two items) were never one phrase: they are kept apart. */
+  const del = (gone: number[] | undefined): string => {
+    if (!gone?.length) return "";
+    let text = "";
+    gone.forEach((a, i) => {
+      if (i && A.node[a] !== A.node[gone[i - 1]] && !/\s$/.test(text) && !/^\s/.test(A.words[a])) text += " ";
+      text += A.words[a];
+    });
+    if (!text.trim()) return "";
     count++;
-    return `<del>${gone}</del>`;
+    return `<del>${text}</del>`;
   };
-  const proseToks = newToks.filter((t) => B.ranges.has(t)), last = proseToks.at(-1);
+  const wordsIn = (W: Words, toks: Tok[], seg: Seg): number[] => {
+    const out: number[] = [];
+    for (let i = seg.start; i < seg.end; i++) { const r = W.ranges.get(toks[i]); if (r) for (let w = r[0]; w < r[1]; w++) out.push(w); }
+    return out;
+  };
+  /** Compare two runs of words. `anchor` is where deletions go when the new side has no word to put them beside. */
+  const compare = (aIdx: number[], bIdx: number[], anchor: { tok: Tok; side: "before" | "after" } | null) => {
+    const ops = mergeShortRuns(diffSeq(aIdx.map((i) => A.keys[i]), bIdx.map((j) => B.keys[j]))
+      .map((o): Op => ({ op: o.op, a: o.a < 0 ? -1 : aIdx[o.a], b: o.b < 0 ? -1 : bIdx[o.b] })), A.keys, B.keys);
+    const orphans: number[] = [];
+    let k = 0;
+    for (const o of ops) {
+      if (o.op !== "del") { if (o.op === "ins") inserted[o.b] = 1; k++; }
+      else if (k < bIdx.length) add(before, bIdx[k], o.a);
+      else if (bIdx.length) add(after, bIdx.at(-1)!, o.a);
+      else orphans.push(o.a);
+    }
+    if (anchor) append(anchor.side === "before" ? tokBefore : tokAfter, anchor.tok, del(orphans)); else tail += del(orphans);
+  };
+  /** Where a deletion goes when its row, item or cell has no new word to put it beside: just inside the element, at its end if that is written. */
+  type Anchor = { tok: Tok; side: "before" | "after" } | null;
+  const inside = (toks: Tok[], sg: Seg): Anchor => (sg.closed ? { tok: toks[sg.end - 1], side: "before" } : { tok: toks[sg.start], side: "after" });
+  /** The tokens between an element's tags. */
+  const inner = (sg: Seg): [number, number] => [sg.start + 1, sg.closed ? sg.end - 1 : sg.end];
+
+  // Words of different text nodes are kept apart, or "Outer" + "inner" would read as one word.
+  const textOf = (W: Words, idx: number[]) => collapse(decodeEntities(idx.map((i, k) => (k && W.node[i] !== W.node[idx[k - 1]] ? " " : "") + W.words[i]).join("")));
+  const gone = (sg: Seg): string => {
+    const inert: Emit = { inert: true, prefix: `${emit.prefix}gone${sg.start}-` };
+    let html = "";
+    for (let i = sg.start; i < sg.end; i++) {
+      const t = oldToks[i];
+      if (isProse(t) && t.src.trim()) { count++; html += `<del>${t.src}</del>`; }
+      else html += emitTok(t, inert, false, i === sg.start ? [["data-diff", "removed"]] : []);
+    }
+    return html;
+  };
+
+  /** Compare old tokens [oFrom, oTo) with new tokens [nFrom, nTo): their rows and items pairwise (and those items' own, in turn), and the words around them. */
+  const region = (oFrom: number, oTo: number, nFrom: number, nTo: number, anchor: Anchor): void => {
+    const aAll = wordsIn(A, oldToks, { start: oFrom, end: oTo, container: -1, closed: false }), bAll = wordsIn(B, newToks, { start: nFrom, end: nTo, container: -1, closed: false });
+    const oSegs = segments(oldToks, ITEM, oFrom, oTo), nSegs = segments(newToks, ITEM, nFrom, nTo);
+    if (!oSegs.length || !nSegs.length) { compare(aAll, bAll, anchor); return; }
+    const oWords = oSegs.map((sg) => wordsIn(A, oldToks, sg)), nWords = nSegs.map((sg) => wordsIn(B, newToks, sg));
+    const oText = oWords.map((idx) => textOf(A, idx)), nText = nWords.map((idx) => textOf(B, idx));
+    const cellsOf = (toks: Tok[], sg: Seg) => (toks[sg.start].name === "tr" ? segments(toks, CELL, ...inner(sg)) : []);
+    const oCells = oSegs.map((sg) => cellsOf(oldToks, sg)), nCells = nSegs.map((sg) => cellsOf(newToks, sg));
+    // A row is recognised by its first cell (its name) even when every number in it changed.
+    const oLead = oCells.map((cells) => (cells.length ? textOf(A, wordsIn(A, oldToks, cells[0])) : "")), nLead = nCells.map((cells) => (cells.length ? textOf(B, wordsIn(B, newToks, cells[0])) : ""));
+    const oBag = oText.map(words), nBag = nText.map(words);
+    const alike = (o: number, n: number) => {
+      if (oldToks[oSegs[o].start].name !== newToks[nSegs[n].start].name) return 0;
+      return oLead[o] && oLead[o] === nLead[n] ? 1 : diceWords(oBag[o], nBag[n]);
+    };
+    const key = (toks: Tok[], sg: Seg, text: string) => `${toks[sg.start].name}:${text.replace(/\s+/g, "")}`;
+    const pairs = alignItems(oSegs.map((sg, i) => key(oldToks, sg, oText[i])), nSegs.map((sg, i) => key(newToks, sg, nText[i])), alike);
+    const partner = new Map<number, number>();
+    for (const [o, n] of pairs) if (o >= 0 && n >= 0) partner.set(o, n);
+
+    // Everything outside the rows and items (a caption, a summary, a lead-in sentence) is one run of its own.
+    const outside = (all: number[], lists: number[][]) => { const used = new Set(lists.flat()); return all.filter((w) => !used.has(w)); };
+    compare(outside(aAll, oWords), outside(bAll, nWords), anchor);
+
+    // Which new list an old one became: the one a surviving row of it is in now; failing that (every row
+    // replaced), the next unclaimed new list of the same kind, in order.
+    const kind = (toks: Tok[], container: number) => (container < 0 ? "" : toks[container].name);
+    const became = new Map<number, number>();
+    for (const [o, n] of partner) if (!became.has(oSegs[o].container)) became.set(oSegs[o].container, nSegs[n].container);
+    const claimed = new Set(became.values());
+    for (const sg of oSegs) {
+      if (became.has(sg.container)) continue;
+      const match = nSegs.find((ns) => !claimed.has(ns.container) && kind(newToks, ns.container) === kind(oldToks, sg.container) && newToks[ns.start].name === oldToks[sg.start].name);
+      if (match) { became.set(sg.container, match.container); claimed.add(match.container); }
+    }
+
+    for (const [o, n] of pairs) {
+      if (o < 0) compare([], nWords[n], null);
+      else if (n >= 0) {
+        const oc = oCells[o], nc = nCells[n];
+        if (oc.length && oc.length === nc.length) oc.forEach((cell, i) => region(...inner(cell), ...inner(nc[i]), inside(newToks, nc[i])));
+        // A row that gained or lost a cell is compared as one run of words. Nothing may be written
+        // between its cells, so a deletion with no word beside it goes into the last cell.
+        else if (newToks[nSegs[n].start].name === "tr") compare(oWords[o], nWords[n], nc.length ? inside(newToks, nc.at(-1)!) : null);
+        else region(...inner(oSegs[o]), ...inner(nSegs[n]), inside(newToks, nSegs[n]));
+      } else {
+        // A removed row goes back where it was: after the nearest earlier row of its own list that is
+        // still there, else before the nearest later one, else at the start of the list its own became.
+        // With no such list (the whole list is gone), only its words can be reported: in the item that
+        // held the list, or after the block.
+        const same = (x: number) => oSegs[x].container === oSegs[o].container;
+        let prev = o - 1, next = o + 1;
+        while (prev >= 0 && same(prev) && !partner.has(prev)) prev--;
+        while (next < oSegs.length && same(next) && !partner.has(next)) next++;
+        const home = became.get(oSegs[o].container);
+        const first = home === undefined ? undefined : nSegs.find((ns) => ns.container === home);
+        if (prev >= 0 && same(prev)) append(tokAfter, newToks[nSegs[partner.get(prev)!].end - 1], gone(oSegs[o]));
+        else if (next < oSegs.length && same(next)) append(tokBefore, newToks[nSegs[partner.get(next)!].start], gone(oSegs[o]));
+        else if (first) append(tokBefore, newToks[first.start], gone(oSegs[o]));
+        else compare(oWords[o], [], anchor);
+      }
+    }
+  };
+  region(0, oldToks.length, 0, newToks.length, null);
+
   const texts = new Map<Tok, string>();
-  for (const t of proseToks) {
-    const [from, to] = B.ranges.get(t)!;
+  for (const t of newToks) {
+    const range = B.ranges.get(t);
+    if (!range) continue;
     let out = "", run = "";
     const flush = () => { if (run.trim()) { count++; out += `<ins>${run}</ins>`; } else out += run; run = ""; };
-    for (let w = from; w < to; w++) {
-      if (pending.has(w)) { flush(); out += del(w); }
+    for (let w = range[0]; w < range[1]; w++) {
+      if (before.has(w)) { flush(); out += del(before.get(w)); }
       if (inserted[w]) run += B.words[w]; else { flush(); out += B.words[w]; }
+      if (after.has(w)) { flush(); out += del(after.get(w)); }
     }
     flush();
-    if (t === last) for (const at of [...pending.keys()].sort((x, y) => x - y)) out += del(at);
     texts.set(t, out);
   }
-  // Nowhere to write a deletion (the new block has no prose): say it after the block.
-  const tail = [...pending.keys()].sort((x, y) => x - y).map(del).join("");
   const first = newToks.find(isTag);
-  const html = newToks.map((t) => texts.get(t) ?? emitTok(t, emit, count > 0, t === first ? extra : [])).join("").trim();
+  // `changed` is known only now, so the marks are counted before any tag is written.
+  const html = newToks.map((t) => (tokBefore.get(t) ?? "") + (texts.get(t) ?? emitTok(t, emit, count > 0, t === first ? extra : [])) + (tokAfter.get(t) ?? "")).join("").trim();
+  // Nowhere to write a deletion (the new block has no prose): say it after the block.
   return { html: tail ? `${html}\n<p class="bh-diff-tail">${tail}</p>` : html, count };
 }
 
