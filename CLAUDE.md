@@ -315,7 +315,7 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
   depends on something it builds (the table of contents, the `no-toc` class, the `js` class) shows
   one layout while it loads and another after, and the first one for good without JavaScript. The
   article was once 224px wide at 1280px for exactly this reason: auto-placement put it in the
-  column kept for the table of contents. Place grid items by name, and when the script decides
+  column kept for the table of contents. Place grid items explicitly, and when the script decides
   something from the markup (fewer than three headings means no table of contents), make CSS reach the
   same answer from the same markup (`:has()` in `layout.css`). `tests/pre-script-layout.test.mts`
   compares every public page with `bh.js` held, with JavaScript off and settled.
