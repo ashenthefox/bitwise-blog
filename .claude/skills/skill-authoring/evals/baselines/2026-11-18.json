@@ -1,0 +1,1642 @@
+{
+ "format": "bh-eval-baseline/1",
+ "startedAt": "2026-11-18T00:30:18.998Z",
+ "claudeVersion": "2.1.318",
+ "models": {
+  "agent": "claude-sonnet-5-5",
+  "judge": "claude-sonnet-5-5"
+ },
+ "ablation": "with-without",
+ "commit": "01c596aa22028b9c45a8099069b09bd3438e73c5",
+ "cases": [
+  {
+   "name": "add-evals",
+   "graders": [
+    {
+     "name": "baseline-delta",
+     "type": "regex"
+    },
+    {
+     "name": "case-layout",
+     "type": "regex"
+    },
+    {
+     "name": "pins-model",
+     "type": "regex"
+    },
+    {
+     "name": "plugin-eval",
+     "type": "regex"
+    },
+    {
+     "name": "run-trigger-evals",
+     "type": "regex"
+    },
+    {
+     "name": "separates-trigger-and-output",
+     "type": "llm",
+     "criteria": "PASS if the answer treats \"does the skill fire on the right prompts\" and \"is the output better with the skill\" as two separate kinds of eval and says which tool does each.\nFAIL if it describes one eval type only or does not say which tool does what."
+    },
+    {
+     "name": "skill-fired",
+     "type": "tool_used"
+    },
+    {
+     "name": "trigger-file",
+     "type": "regex"
+    }
+   ],
+   "arms": {
+    "with": [
+     {
+      "score": 1,
+      "answer": "Use one tool, `claude plugin eval`, for two kinds of eval. Replace `<name>` with your skill's directory name, and run everything from the repo root.\n\n**Which eval answers which question**\n\n| Question | Eval kind | Files |\n|---|---|---|\n| Does the skill load on the right prompts and stay quiet on the wrong ones? | Trigger | `evals/trigger-evals.json` |\n| Is the answer better with the skill than without it? | Output quality | `evals/<case>/` |\n\n**Files to create under `.claude/skills/<name>/evals/`**\n\n1. `trigger-evals.json` is a list of `{\"query\": \"...\", \"should_trigger\": true|false}`.\n   - Write about 20 queries, roughly half each way. The should-not half should be near misses that share vocabulary with the skill.\n   - Mark about 40% of them `\"heldout\": true` before you start tuning the description.\n2. At least 3 case directories, one of them an ambiguous request. Each holds:\n   - `prompt.md` is the prompt, phrased as a user would type it.\n   - `graders/<check>.md` is one check per file. Prefer `regex` or `tool_used`, which cost nothing. Use `llm` only for judgment, with concrete PASS/FAIL rubrics. Write regex flags as `flags: i`, never `(?i)`.\n   - A grader with `tool_used: Skill` and `input_match: '\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?<name>\"'` confirms the skill loaded. It is not scored.\n   - `case.yaml` and `fixture.sh` are needed only if the case reads repo files. The sandbox is empty and has no `Bash`.\n\nWrite the cases from gaps you saw when running the task without the skill. Scaffold one with `claude plugin eval init --bare <case>` from the skill directory.\n\n**Commands**\n\nTrigger evals cost about $4–8:\n```bash\nnpm run trigger-evals -- <name> [--runs N] [--only 1,5,9] [--keep]\n```\n\nOutput evals, with and without the skill, reporting `Δ`:\n```bash\nclaude plugin eval .claude/skills/<name> \\\n  --scaffold --trust-plugin \\\n  --model claude-sonnet-5-5 --judge-model claude-sonnet-5-5 \\\n  -j 4 --max-cost-usd 15 --no-publish\n```\nAdd `--ablation none` while tuning graders, which halves the cost.\n\nLint, before or after the evals:\n```bash\nnpm run lint-skills\nclaude plugin validate .claude/skills\n```\n\n**After you change the skill**\n\nCommit the change. Then run the same suite against the version before your edit, and compare the `WITH` scores case by case:\n```bash\ns=.claude/skills/<name>; snap=$(mktemp -d)\ngit archive HEAD -- . \":(exclude)$s\" | tar -x -C \"$snap\"\ngit archive <ref> -- \"$s\" \":(exclude)$s/evals\" | tar -x -C \"$snap\"\ngit archive HEAD -- \"$s/evals\" | tar -x -C \"$snap\"\nclaude plugin eval \"$snap/$s\" --scaffold --trust-plugin --ablation none \\\n  --model claude-sonnet-5-5 --judge-model claude-sonnet-5-5 -j 4 --max-cost-usd 15 --no-publish\n```\n`<ref>` is the commit before your edit, such as `HEAD~1`. Snapshot the whole repo, because a snapshot of the skill alone fails with `scaffold failed`.\n\n**Reading results**\n- A `Δ` near zero with a high score means Claude did the task unaided, so cut or harden that case.\n- A difference under about 0.2 on one case is noise.\n- Open one with-skill transcript and one baseline transcript.\n- A `scaffold failed` row scores 0.00 at $0.00. It is a setup error, not a result.\n- If a score moves and the skill didn't change, re-judge the saved answers with `node <skill-dir>/scripts/rejudge.mjs run.json --judge-model claude-sonnet-5-5`. Here `<skill-dir>` is the `skill-authoring` skill's directory. Keep a baseline with `rejudge.mjs --trim`.\n\nOnce the suite is stable, use `--threshold 0.8`, because the default of 1.0 is too strict for judged graders.",
+      "graders": [
+       {
+        "name": "baseline-delta",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "case-layout",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "pins-model",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "plugin-eval",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "run-trigger-evals",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "separates-trigger-and-output",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         false,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       },
+       {
+        "name": "trigger-file",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "Use one tool, `claude plugin eval`, for both kinds of eval. Trigger evals go through this repo's wrapper script, `scripts/run-trigger-evals.mjs`. Don't use skill-creator's `run_eval.py`, because it scored 0 of 12 on this repo.\n\nI read the repo's `skill-authoring/references/evals.md` for this. I haven't run anything. `<name>` below is your skill's directory name.\n\n## Files to create\n\nUnder `.claude/skills/<name>/evals/`:\n\n```\ntrigger-evals.json        # ~20 queries: [{\"query\": \"...\", \"should_trigger\": true|false}]\n<case>/prompt.md          # a realistic user prompt, with frontmatter\n<case>/graders/<g>.md     # one check per file\n<case>/case.yaml          # only if the case needs repo files\n<case>/fixture.sh         # scaffold script for case.yaml\n```\n\n- **Trigger queries:**\n  - Make about half should-trigger and half should-not. The should-not half should be near misses that share vocabulary with your skill.\n  - Mark about 40% of queries `\"heldout\": true`, and don't tune the description against those.\n- **Output cases:**\n  - Write at least three, with one ambiguous boundary case.\n  - Base them on gaps you see when running the task without the skill.\n  - Delete any case that scores the same with and without the skill.\n- **Graders:**\n  - Prefer free ones: `regex` (use `flags: i`, never `(?i)`) and `tool_used`.\n  - Use `llm` only for judgment, with a rubric that states concrete PASS and FAIL conditions.\n  - Add a `tool_used` grader with `tool: Skill` and `input_match: '\"skill\"\\s*:\\s*\"(?:[\\w-]+:)?<name>\"'` as a load indicator. It isn't scored.\n- **Sandbox:** it is empty and has no `Bash`, so a case can't run your skill's bundled scripts. Fixtures must copy in any repo files the case reads.\n\nYou can scaffold a case with `claude plugin eval init --bare <case>` from the skill directory.\n\n## Commands\n\nRun these from the repo root.\n\n**Trigger evals** (about $4–8 per skill):\n```bash\nnpm run trigger-evals -- <name> [--runs N] [--only 1,5,9] [--keep]\n```\n\n**Output evals**, with and without the skill and a Δ per case (about $6):\n```bash\nclaude plugin eval .claude/skills/<name> \\\n  --scaffold --trust-plugin \\\n  --model claude-sonnet-5-5 --judge-model claude-sonnet-5-5 \\\n  -j 4 --max-cost-usd 15 --no-publish\n```\n\n**Checking an edit.** The with/without Δ shows the skill helps, but not that your edit helped. To compare against the previous version:\n\n1. Commit the edit.\n2. Build a snapshot of the whole repo, with the skill taken from the previous commit (`<ref>`). A snapshot of the skill alone fails to scaffold.\n3. Run the eval on the snapshot with `--ablation none`, then on the working copy, and compare the `WITH` scores.\n\nThe exact snapshot commands are in `evals.md` under \"Comparing with the previous version\".\n\n**Lint:**\n```bash\nnpm run lint-skills\nclaude plugin validate .claude/skills\n```\n\n## Reading results\n\n- Treat a Δ under about 0.2 on one case as noise.\n- Open one with-skill and one baseline transcript, because the score doesn't say why.\n- Check the table for `scaffold failed` rows. They show 0.00 but are setup errors.\n- Keep the judge on Sonnet, as above. Scores from a Haiku judge and a Sonnet judge aren't comparable.\n\nI can scaffold the cases for a specific skill if you tell me which one.",
+      "graders": [
+       {
+        "name": "baseline-delta",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "case-layout",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "pins-model",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "plugin-eval",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "run-trigger-evals",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "separates-trigger-and-output",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       },
+       {
+        "name": "trigger-file",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "Use **`claude plugin eval`** for both kinds of eval, plus the repo's `scripts/run-trigger-evals.mjs` wrapper for trigger evals. Don't use skill-creator's `run_eval.py`: it scored 0 of 12 here. Its `evals.json` format is retired.\n\nI didn't see your skill's contents, so the filenames below are placeholders. Substitute your skill's name for `<name>`.\n\n## Files to create (under `.claude/skills/<name>/evals/`)\n\n```text\nevals/\n├── trigger-evals.json        # [{\"query\": \"...\", \"should_trigger\": true|false}, ...]\n├── <case-1>/\n│   ├── prompt.md             # the prompt, phrased as a user would type it\n│   ├── graders/<check>.md    # one check per file (regex, tool_used, or llm rubric)\n│   └── case.yaml + fixture.sh  # only if the case needs repo files\n├── <case-2>/ …\n└── <case-3>/ …\n```\n\n- **Trigger evals:**\n  - Write about 20 queries, roughly half of them should-not-trigger near misses.\n  - Mark about 40% of them `\"heldout\": true` before you start tuning.\n- **Output cases:**\n  - Write at least 3, and make one an ambiguous boundary case.\n  - Pick them from gaps you saw when running the task without the skill.\n  - Prefer free graders (`regex` with `flags: i`, `tool_used`).\n  - Use an `llm` grader only for judgment, with concrete PASS and FAIL conditions.\n  - Add a `tool_used` grader with `tool: Skill` as a loaded-or-not indicator.\n- **Sandbox limits:**\n  - The eval sandbox is empty and has no `Bash`, so a case that needs repo files must scaffold them in.\n  - Don't commit `evals/results/`, which is git-ignored.\n\nYou can scaffold a case with `claude plugin eval init --bare <case>` from the skill directory.\n\n## Commands (from the repo root)\n\nTrigger evals (about $4–8):\n```bash\nnpm run trigger-evals -- <name> [--runs N] [--only 1,5,9] [--keep]\n```\n\nOutput-quality evals, with and without the skill and the Δ between them:\n```bash\nclaude plugin eval .claude/skills/<name> \\\n  --scaffold --trust-plugin \\\n  --model claude-sonnet-5-5 --judge-model claude-sonnet-5-5 \\\n  -j 4 --max-cost-usd 15 --no-publish\n```\n\nAdd `--ablation none` while tuning graders, to skip the baseline arm.\n\nLint and validate:\n```bash\nnpm run lint-skills\nclaude plugin validate .claude/skills\n```\n\n## Checking whether an edit helped\n\nΔ only tells you the skill beats no skill. To compare your edit with the previous version:\n\n1. Commit your edit.\n2. Build a snapshot of the whole repo with the old skill (the `git archive` recipe in `references/evals.md`).\n3. Run the eval above with `--ablation none` on both the snapshot and the live skill.\n4. Compare the `WITH` scores case by case.\n\nTreat differences under about 0.2 per case as noise.\n\nTwo things to do after each run:\n- Read one with-skill and one baseline transcript.\n- If a score moves without a change to the skill, re-judge the saved answers with `node <skill-dir>/scripts/rejudge.mjs`. `<skill-dir>` is the `skill-authoring` skill's directory.\n\nTo keep a baseline for later runs, save a trimmed copy of a run:\n```bash\nnode <skill-dir>/scripts/rejudge.mjs --trim run.json --commit <sha> \\\n  --out .claude/skills/<name>/evals/baselines/<date>.json\n```\n\nUse `--threshold 0.8` once the suite is stable. The default of 1.0 is too strict for judged graders.",
+      "graders": [
+       {
+        "name": "baseline-delta",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "case-layout",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "pins-model",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "plugin-eval",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "run-trigger-evals",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "separates-trigger-and-output",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       },
+       {
+        "name": "trigger-file",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     }
+    ],
+    "without": [
+     {
+      "score": 0.14285714285714285,
+      "answer": "I found no files under `.claude/skills/` in this repo, so the paths below use `<skill>` as a placeholder. I haven't run any of these commands.\n\n## Tools\n\n1. **`claude -p` (headless Claude Code)** runs each test prompt with the skill loaded. This is the real execution path, so it tests the skill as Claude Code uses it.\n2. **A small shell or Python runner** loops over the cases, saves the outputs, and checks them.\n3. **Optional: Promptfoo** gives you assertions, an LLM-as-judge, and a comparison table. Check its docs for Claude Code and skills support before relying on it. Start without it.\n\nThe question you care about is whether the skill still helps. So run every case twice, once with the skill and once without it, and compare the two.\n\n## Files to create\n\n```\n.claude/skills/<skill>/\n  SKILL.md                  # existing\nevals/<skill>/\n  cases.jsonl               # one test case per line\n  check.py                  # grader: deterministic checks, then an optional LLM judge\n  run.sh                    # runs with-skill and baseline, then grades\n  results/                  # git-ignored outputs\n```\n\n`cases.jsonl` example:\n```json\n{\"id\":\"basic-1\",\"prompt\":\"<realistic task the skill should handle>\",\"must_contain\":[\"<expected string>\"],\"must_not_contain\":[\"<bad pattern>\"],\"rubric\":\"<one-sentence pass criterion for the judge>\"}\n```\n\nInclude some should-trigger prompts, some should-not-trigger prompts, and a few edge cases.\n\n## Commands\n\n`run.sh`:\n```bash\n#!/usr/bin/env bash\nset -euo pipefail\nS=$1; D=evals/$S; mkdir -p $D/results/with $D/results/base\nwhile IFS= read -r line; do\n  id=$(jq -r .id <<<\"$line\"); p=$(jq -r .prompt <<<\"$line\")\n  claude -p \"$p\" --output-format json > $D/results/with/$id.json\n  claude -p \"$p\" --disable-slash-commands --output-format json > $D/results/base/$id.json\ndone < $D/cases.jsonl\npython3 $D/check.py $D\n```\n\nRun it with:\n```bash\nchmod +x evals/<skill>/run.sh\nevals/<skill>/run.sh <skill>\n```\n\nConfirm `--disable-slash-commands` actually disables the skill in your version with `claude --help`. If it doesn't, run the baseline from a copy of the repo that lacks `.claude/skills/<skill>`.\n\n`check.py` should do the following:\n- Read each result's `.result` field.\n- Apply the `must_contain` and `must_not_contain` checks.\n- Optionally call a judge with `claude -p \"Rubric: … Output: … Answer PASS or FAIL\"`.\n- Print the pass rate for with-skill and for baseline, and exit non-zero if with-skill drops below a threshold or doesn't beat baseline.\n\n## Workflow\n\n1. Run the evals once to record a baseline score before you edit the skill.\n2. Edit `SKILL.md`, then rerun and compare.\n3. Run each case 3 times, because LLM output is noisy.\n4. Optionally wire `run.sh` into CI.\n\nI can scaffold these files once you tell me which skill to target.",
+      "graders": [
+       {
+        "name": "baseline-delta",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "case-layout",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "pins-model",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "plugin-eval",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "run-trigger-evals",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "separates-trigger-and-output",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "trigger-file",
+        "passed": false,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 0.14285714285714285,
+      "answer": "I found no `.claude/skills/` directory or eval config in this repo, so this is a general setup. Swap in your skill's name for `my-skill`.\n\n## Tools\n\nUse two things and no framework:\n\n1. **Claude Code headless mode** (`claude -p`) runs each prompt with and without the skill.\n2. **A small shell or Python script** grades the outputs. Use deterministic checks where you can, and an LLM judge (also `claude -p`) for fuzzy criteria.\n\nIf you later want matrices, caching and HTML reports, promptfoo can wrap the same prompts. Start without it.\n\n## Files\n\n```\n.claude/skills/my-skill/SKILL.md      # existing skill\nevals/my-skill/cases.jsonl            # test cases\nevals/my-skill/run.sh                 # runner\nevals/my-skill/results/               # gitignored outputs\n```\n\n`cases.jsonl` has one case per line. Include prompts that should trigger the skill and near-miss prompts that shouldn't:\n\n```json\n{\"id\":\"basic\",\"prompt\":\"<realistic user request>\",\"must_contain\":[\"<string>\"],\"rubric\":\"Output does X and does not do Y\"}\n{\"id\":\"no-trigger\",\"prompt\":\"<unrelated request>\",\"must_not_contain\":[\"<skill-specific marker>\"]}\n```\n\n## Runner (`run.sh`)\n\n```bash\n#!/usr/bin/env bash\nset -euo pipefail\ncd \"$(git rev-parse --show-toplevel)\"\nout=evals/my-skill/results; mkdir -p \"$out\"\n\n# Baseline copy with the skill removed\nbase=$(mktemp -d); git archive HEAD | tar -x -C \"$base\"\nrm -rf \"$base/.claude/skills/my-skill\"\n\nwhile read -r line; do\n  id=$(jq -r .id <<<\"$line\"); p=$(jq -r .prompt <<<\"$line\")\n  claude -p \"$p\" --output-format json > \"$out/$id.with.json\"\n  (cd \"$base\" && claude -p \"$p\" --output-format json) > \"$out/$id.without.json\"\n  # deterministic check\n  for s in $(jq -r '.must_contain[]?' <<<\"$line\"); do\n    jq -r .result \"$out/$id.with.json\" | grep -qF -- \"$s\" && echo \"PASS $id has $s\" || echo \"FAIL $id missing $s\"\n  done\ndone < evals/my-skill/cases.jsonl\n```\n\n`git archive HEAD` copies only committed files, so commit your skill edit first or the baseline will differ from what you're testing. Add `--permission-mode` or `--allowedTools` flags if your cases need tools without prompting.\n\nFor rubric cases, add a judge call. Pass it the output and the rubric, and ask for `PASS` or `FAIL` plus a reason: `claude -p \"Rubric: ... Output: ... Answer PASS or FAIL then one sentence.\"`\n\n## Commands\n\n```bash\nchmod +x evals/my-skill/run.sh\necho \"evals/*/results/\" >> .gitignore\n./evals/my-skill/run.sh | tee evals/my-skill/results/summary.txt\n```\n\nAfter each skill change, rerun and compare. You want the skill's pass rate to beat the baseline's, and the no-trigger cases to stay clean.\n\n## Caveats\n\n- LLM output varies, so run each case 3 to 5 times before trusting a regression.\n- Keep a fixed case set. Add a case whenever you find a failure, and don't edit cases to match new behavior.\n\nI can write the real files once you tell me which skill this is, or once it's in the repo.",
+      "graders": [
+       {
+        "name": "baseline-delta",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "case-layout",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "pins-model",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "plugin-eval",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "run-trigger-evals",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "separates-trigger-and-output",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "trigger-file",
+        "passed": false,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 0.14285714285714285,
+      "answer": "I found no `.claude/skills/` directory in this repo, and no existing eval setup. The plan below is generic, so swap in your skill's real name. I haven't checked these tools' current flags against their docs, so confirm them with `--help` before relying on them.\n\n## Tool choice\n\nUse **Promptfoo**, with one extra check that Claude Code actually loads the skill. Your question is whether the skill still helps after a change, so each test case should run twice, with the skill and without it. Promptfoo is built for side-by-side comparisons, assertions and regression runs in CI.\n\nClaude Code is the real runtime, so run the cases through it headlessly with `claude -p`. A plain API call would skip the skill-loading step you most need to test.\n\n## Files to create\n\n```\nevals/my-skill/\n  promptfooconfig.yaml   # providers, prompts, tests\n  run-claude.sh          # wrapper: runs claude -p with/without the skill\n  cases.yaml             # test cases: prompt + assertions\n```\n\n**`run-claude.sh`**\n```bash\n#!/usr/bin/env bash\n# $1 = prompt, $2 = \"with\" | \"without\"\nif [ \"$2\" = \"without\" ]; then\n  claude -p \"$1\" --disable-slash-commands\nelse\n  claude -p \"$1\"\nfi\n```\n\nCheck `claude --help` for the flag that disables skills. If your version has none, copy the repo to a temp directory with the skill deleted and run the baseline there.\n\n**`promptfooconfig.yaml`**\n```yaml\ndescription: my-skill evals\nprompts: [\"{{task}}\"]\nproviders:\n  - id: exec:./run-claude.sh with\n    label: with-skill\n  - id: exec:./run-claude.sh without\n    label: baseline\ntests: file://cases.yaml\n```\n\n**`cases.yaml`** (3–10 realistic tasks, including at least one where the skill should *not* trigger)\n```yaml\n- vars: { task: \"Do the thing the skill is for…\" }\n  assert:\n    - type: contains\n      value: \"expected marker\"\n    - type: llm-rubric\n      value: \"Follows the skill's required format and does not do X\"\n- vars: { task: \"Unrelated request\" }\n  assert:\n    - type: not-contains\n      value: \"skill-specific marker\"\n```\n\nPrefer deterministic assertions (`contains`, `regex`, `javascript`). Use `llm-rubric` only for fuzzy qualities.\n\n## Commands\n\n```bash\nchmod +x evals/my-skill/run-claude.sh\ncd evals/my-skill\nnpx promptfoo@latest eval -c promptfooconfig.yaml --repeat 3   # repeat to smooth out noise\nnpx promptfoo@latest view                                       # compare with-skill vs baseline\n```\n\n## Workflow\n\n1. Run the evals on the current skill and save the pass rates as your baseline.\n2. After each skill edit, rerun and compare. The skill is still helping if `with-skill` beats `baseline` and hasn't dropped from its earlier pass rate.\n3. Add a case each time you find a failure in real use.\n\nIf you point me at the skill, I can write the actual cases and config.",
+      "graders": [
+       {
+        "name": "baseline-delta",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "case-layout",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "pins-model",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "plugin-eval",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "run-trigger-evals",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "separates-trigger-and-output",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "trigger-file",
+        "passed": false,
+        "scored": true
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "name": "fix-not-firing",
+   "graders": [
+    {
+     "name": "checks-other-skills",
+     "type": "regex"
+    },
+    {
+     "name": "measures-not-guesses",
+     "type": "llm",
+     "criteria": "PASS if the answer tells the user to measure triggering with a set of should-trigger and should-not-trigger queries (run several times, ideally with some held out) and re-run it after changing the description.\nFAIL if it only rewrites the description and says to \"try it\"."
+    },
+    {
+     "name": "names-near-misses",
+     "type": "regex"
+    },
+    {
+     "name": "rewrites-description",
+     "type": "regex"
+    },
+    {
+     "name": "skill-fired",
+     "type": "tool_used"
+    },
+    {
+     "name": "trigger-evals",
+     "type": "regex"
+    }
+   ],
+   "arms": {
+    "with": [
+     {
+      "score": 0.8,
+      "answer": "I couldn't list the `changelog-writer` directory, so this is based on the description you gave me and the repo's authoring rules. I haven't seen its `SKILL.md` or any evals.\n\n## Why it doesn't fire\n\n\"Changelog writer. Writes changelogs.\" fails three of the repo's description rules:\n\n- **No \"when to use\" half.** It has no triggering condition.\n- **Wrong vocabulary.** You type \"tidy up the release notes\" and \"summarise what changed since the last tag\". Neither contains \"changelog\".\n- **No \"Not for…\" clause.** The skill has no stated boundary against `pedagogical-writing` or plain Claude.\n\nBoth prompts are also tasks Claude can do unaided. Unless the description says a procedure is needed, it just does them.\n\n## What to change\n\nRewrite it in third person, with both halves, using your own phrasings. The wording below is a draft. Quote it, because it contains `: ` and strict YAML parsers can misread that.\n\n```yaml\ndescription: \"Writes and edits changelogs and release notes from git history: summarising what changed since the last tag, drafting or tidying notes for a version (v2.3), grouping commits into Added/Changed/Fixed, CHANGELOG.md entries. Use even if the request says 'release notes', 'what's new' or 'what changed' rather than 'changelog'. Load it before answering or reading any file. Not for teaching prose or blog posts (pedagogical-writing), or charts (dataviz).\"\n```\n\nThe \"Load it before answering\" sentence is optional. The repo's measurements say it helps Haiku but Sonnet fires without it. It forces a load on every matching prompt, so drop it if the skill body rarely changes the answer.\n\nBefore polishing the wording, check whether the skill gives Claude anything it lacks. The repo's first rule is to run the task without the skill and look for gaps. If Claude's unaided release notes are already fine, the real fix may be a house format, a template, or a script. If there are no gaps, the skill may not need to exist.\n\n## How to check the fix worked\n\n1. **Write trigger evals first** in `changelog-writer/evals/trigger-evals.json`. Use about 20 queries, half `should_trigger: true`.\n   - Include your two real prompts, plus terse, chatty and typo'd variants.\n   - Make the should-not half near misses: a blog post about releases, a chart of release frequency, and a README edit.\n   - Put the material in the prompt, because the eval sandbox is empty and a query naming a file it lacks measures the sandbox.\n   - Mark about 40% as `\"heldout\": true` before you tune.\n2. **Run the baseline on the old description.** From the repo root, run `npm run trigger-evals -- changelog-writer --keep`. Expect near-zero fired on the should-trigger queries. That number is your \"before\".\n3. **Edit against the failing train queries only.** Generalise from the category a failure stands for rather than copying its keywords. Re-run, and stop after about five iterations. Keep the version that scores best on the held-out queries.\n4. **Read a `--keep` trace for any miss.** If the skill was never called, the description is still the problem. If it fired and Claude ignored the body, that's a body problem.\n5. **Check it doesn't steal prompts from `pedagogical-writing` or `dataviz`.** The script loads every repo skill, so those near misses are exercised. Re-run the neighbours' trigger evals too.\n6. **Run `npm run lint-skills` and `claude plugin validate .claude/skills`.** A frontmatter parse failure is another cause of a skill never firing, so rule it out.\n7. **Check output quality with `claude plugin eval`.** Write at least three `evals/<case>/` cases, which give a with/without delta. A Δ near zero means the skill isn't helping there. Triggering alone doesn't show the skill improves anything.\n8. **Try it on a real prompt.** Type \"tidy up the release notes for v2.3\" in a fresh session and confirm the Skill call appears. Also run `/context` or `/skill-doctor` to check the description isn't being dropped from the listing budget.\n\nDon't reword a query after it fails and call the pass a result. Record it as a change to the query.\n\nIf you'd like, I can draft the `trigger-evals.json` and the rewritten description in the repo.",
+      "graders": [
+       {
+        "name": "checks-other-skills",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "measures-not-guesses",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "names-near-misses",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "rewrites-description",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       },
+       {
+        "name": "trigger-evals",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "Two things are wrong, and the second matters more than the description wording.\n\n## 1. The description\n\n\"Changelog writer. Writes changelogs.\" doesn't say when to use the skill. It also doesn't use the words you actually type: \"release notes\", \"what changed since the last tag\", \"tidy up\", \"summarise\". Claude matches the description against your prompt, and neither of your example prompts contains \"changelog\".\n\nHere is a draft. It's third person, covers what the skill does and when to use it, leans pushy, and names the neighbours:\n\n```yaml\ndescription: \"Writes and edits changelogs and release notes from git history, tags, merged PRs or rough drafts. Use when asked to write, tidy up, reformat or summarise release notes, a CHANGELOG.md entry, 'what changed since the last tag', or 'what's new in vX.Y', even if the request doesn't say 'changelog'. Not for teaching prose or blog posts (pedagogical-writing) or charts (dataviz).\"\n```\n\nI quoted it because it contains `: `-style text, which a strict YAML parser may misread. Fill the body of the skill with whatever your changelog conventions are, such as format, grouping and tone. The description only decides whether the skill loads.\n\n## 2. Check whether the skill adds anything\n\nYour two prompts are easy tasks that Claude can do from memory. Even a good description may not load a skill for something Claude doesn't think it needs help with. The repo's rule is to measure before you write:\n\n1. Run those prompts without the skill and note what's missing. Examples are your header format, your grouping, a \"Breaking changes\" section, or links to PRs.\n2. If the baseline is already fine, the skill may not earn its context cost. If it falls short, put those specific gaps into the skill body.\n\n## 3. Verify the fix\n\n**Trigger evals** answer \"does it load?\":\n\n1. Create `.claude/skills/changelog-writer/evals/trigger-evals.json` with about 20 entries of the form `{\"query\": \"...\", \"should_trigger\": true|false}`.\n   - Should-trigger: your two prompts, plus terse, chatty and typo'd variants (\"rel notes for 2.3 pls\", \"what's new since v2.2.0\").\n   - Should-not, the hard half: near misses such as \"write a tutorial on semantic versioning\" (`pedagogical-writing`), \"chart commits per release\" (`dataviz`), and \"write a commit message\".\n2. Mark about 40% of the queries `\"heldout\": true` before you tune anything.\n3. Run `npm run trigger-evals -- changelog-writer` from the repo root. Edit the description against the failures in the train queries only. Look for the category of prompt each failure stands for rather than pasting in its keywords. Keep the version that scores best on the held-out queries.\n4. Run it again with `--model claude-haiku-5-5`. Haiku often answers from memory. If it misses, add a plain sentence such as \"Load it before answering.\"\n5. Run `--keep` and read a miss's transcript. If the skill was never called, the description is the problem. If it was called and ignored, the body is the problem.\n\n**Output evals** answer \"is the result better?\". Add at least three `evals/<case>/` directories with `prompt.md` and `graders/`, built from the gaps in step 2, and run `claude plugin eval .claude/skills/changelog-writer`. A delta near zero means the skill isn't helping on that case. Also check the transcripts for `Skill` calls. If the skill never loaded, the with-skill arm scores the same as baseline and looks like a body failure.\n\n**Lint**: run `npm run lint-skills` and `claude plugin validate .claude/skills`. Broken frontmatter silently disables description matching.\n\nLast, try the skill on one real prompt in a fresh session. Don't reword a query after it fails and count that as a pass. Record the reworded query as a change to the eval.\n\nI couldn't find `.claude/skills/changelog-writer/` from my working directory, so I haven't seen your SKILL.md, frontmatter or any existing evals. If you point me to the directory, I can lint it and draft the trigger evals file.",
+      "graders": [
+       {
+        "name": "checks-other-skills",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "measures-not-guesses",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "names-near-misses",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "rewrites-description",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       },
+       {
+        "name": "trigger-evals",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "The skill's files aren't in this checkout (my glob for `changelog-writer` found nothing), so this is based on the description you quoted and the repo's rules.\n\n## Why it never fires\n\n\"Changelog writer. Writes changelogs.\" is a label, not a description. Claude decides whether to load a skill from the description alone, and this one has three problems:\n\n- **It doesn't use the words you type.** Your prompts say \"tidy up the release notes\" and \"summarise what changed since the last tag\". Neither contains \"changelog\" or \"write\".\n- **It has no \"use when\" half.** The repo rules require both what the skill does and when to use it, in third person.\n- **It has no \"Not for…\" clause.** The repo asks each skill to name its neighbours (`pedagogical-writing`, `dataviz`) so the territory is divided.\n\nThere is also a second possibility, which no description change will fix. Claude can do \"summarise what changed\" perfectly well without a skill, so it may simply answer. If the skill adds nothing Claude can't already do (your changelog format, grouping rules, tone), it will rarely be worth loading. The authoring skill's first rule is to run the task without the skill and write down what Claude gets wrong. Write the skill body to close those gaps.\n\n## What to change\n\nReplace the description with something like this. Quote it, because it contains `: `. The wording is a draft to test, not a known-good version:\n\n```yaml\ndescription: \"Writes, tidies and summarises changelogs and release notes in this repo's format. Use when asked to tidy up or draft release notes, write a changelog entry, or summarise what changed since the last tag or release (e.g. v2.3), even if the request doesn't say 'changelog'. Load it before answering or reading any file. Not for teaching prose or blog pages (pedagogical-writing) or charts (dataviz).\"\n```\n\nThis puts your real phrasings in, adds \"even if…\" to cover adjacent wording, and says to load the skill before answering. That sentence is what made Haiku fire, though Sonnet fires without it. It also names the neighbours.\n\nCheck the rest of the skill too:\n\n- The `name` should match the directory.\n- The frontmatter should parse. Run `claude plugin validate .claude/skills`.\n- Check `/context` or `/skill-doctor` in case the description was dropped for exceeding the listing budget. The least-used skills lose theirs first, so a skill that never fires can end up dropped.\n\n## How to check it worked\n\n1. **Write `changelog-writer/evals/trigger-evals.json`.** Use about 20 entries of `{\"query\": \"...\", \"should_trigger\": true|false}`.\n   - Half should trigger. Include your two prompts plus terse and chatty variants.\n   - Half should not, and these should be near misses: \"write a blog post explaining our release process\", \"chart commits per release\", \"what does `git describe` do?\".\n   - Mark about 40% as `\"heldout\": true` before you tune, so you can tell a real fix from one overfitted to the queries you looked at.\n2. **Get a baseline.** Run it against the old description first:\n   ```bash\n   npm run trigger-evals -- changelog-writer --keep\n   ```\n   It builds a temporary plugin with every skill in the repo, runs each query three times, and records whether the `Skill` tool was called. It costs roughly $4–8. Expect your two prompts to fail here. If they pass, the problem is somewhere else.\n3. **Apply the new description and re-run.** Edit using only the failing train queries. Generalise from each failure to the kind of prompt it stands for, and don't paste its keywords in. Stop after about five iterations and keep the version with the best held-out score.\n4. **Read the transcripts.** `--keep` saves traces and prints the tool calls for any run that misbehaved. If a miss never called the skill, the body isn't the cause.\n5. **Test the cheaper model.** Run `--model claude-haiku-5-5`. If Haiku misses and Sonnet doesn't, that is the \"answers from memory\" case.\n6. **Check the neighbours.** Re-run `pedagogical-writing` and `dataviz` to confirm the new description doesn't steal their prompts.\n7. **Check that loading helps.** Firing isn't the goal. Add at least three output-quality cases in `evals/<case>/` with `claude plugin eval`. A with/without delta near zero means the skill adds nothing, and you should cut it or rewrite the body.\n8. **Finish with `npm run lint-skills`**, then try one real prompt.\n\nDon't reword a failing query until it passes. That doesn't show the fix works, and if you do it, record it as a change to the query.\n\nIf you'd like, point me at the `changelog-writer` directory and I'll write the trigger-evals file and tighten the description against it.",
+      "graders": [
+       {
+        "name": "checks-other-skills",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "measures-not-guesses",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "names-near-misses",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "rewrites-description",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       },
+       {
+        "name": "trigger-evals",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     }
+    ],
+    "without": [
+     {
+      "score": 0.8,
+      "answer": "I couldn't find `changelog-writer/SKILL.md` anywhere under the working directory. The skill list in this session doesn't include it either, only `dataviz` among your three. So there may be two problems, and you should rule out the second one first.\n\n## 1. Check the skill is loaded at all\n\nSkills are only discovered from these places:\n- `.claude/skills/changelog-writer/SKILL.md` in the project\n- `~/.claude/skills/changelog-writer/SKILL.md` for a personal skill\n- a plugin's `skills/` directory\n\nCheck three things:\n- The file is named exactly `SKILL.md`, in a folder named after the skill.\n- The frontmatter has valid `name:` and `description:` fields between `---` lines.\n- You restarted the session after adding it.\n\nIf it isn't in the skill list at session start, no description rewrite will help.\n\n## 2. Rewrite the description\n\nClaude decides whether to load a skill from its description alone. \"Changelog writer. Writes changelogs.\" fails for two reasons:\n- It says what the skill is, not when to use it.\n- It doesn't contain the words people actually use. You said \"tidy up the release notes\" and \"summarise what changed since the last tag\". Neither contains \"changelog\".\n\nClaude also handles these tasks fine without help, so it has no reason to load a skill unless the description promises something it wouldn't do by default. Say what's distinctive about your skill (your format, conventions, sources) and list the trigger phrasings.\n\nSomething like this, adjusted to what your skill really does:\n\n```yaml\n---\nname: changelog-writer\ndescription: Use when writing, editing, or tidying a changelog, release notes, or \"what's new\" summary, or when summarising changes between git tags or releases (e.g. \"tidy up the release notes for v2.3\", \"summarise what changed since the last tag\"). Applies this repo's changelog format and conventions: <one line on grouping, tone, linking PRs, etc.>.\n---\n```\n\nThe body of the skill should hold your actual conventions, such as the format, section order, what to omit, and how to gather commits. If the body is generic, Claude is right to skip it.\n\n## 3. Test it\n\n**Build a small test set.**\n- Write about 10 prompts. Include your two real ones and some rephrasings, such as \"draft release notes\", \"what's new in 2.3?\", and \"write up the diff since v2.2\".\n- Add 5 or so negative prompts that shouldn't fire it, such as \"explain this git rebase\", \"write a README\", or \"make a chart of commits per week\". The last one should trigger `dataviz` instead.\n\n**Run each prompt in a fresh session.** Context from earlier turns contaminates the result. Check whether the skill actually loaded, not whether the output looks good. In an interactive session, look for the `Skill(changelog-writer)` tool call. For something scriptable, run `claude -p \"<prompt>\" --output-format stream-json --verbose` and grep the output for the skill invocation.\n\n**Get a baseline.** Run the same set against the old description so you know the before and after. Right now I'd expect roughly 0/10.\n\n**Judge on these criteria:**\n- The positive prompts fire reliably. Aim for 9/10 or better, and run each 2–3 times because triggering is probabilistic.\n- The negative prompts don't fire.\n- When the skill does load, the output follows your conventions. A skill that loads but isn't followed is a body problem, not a description problem.\n\n**If it still misses,** look at which phrasings fail and add those words to the description. Don't pad it with generic filler, which causes false positives. Also check that the description doesn't overlap with `pedagogical-writing`. \"Writing\" language there can pull the wrong skill in.\n\nIf you tell me where the skill lives, or paste its current contents, I can check the file and draft the new description and test prompts.",
+      "graders": [
+       {
+        "name": "checks-other-skills",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "measures-not-guesses",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "names-near-misses",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "rewrites-description",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "trigger-evals",
+        "passed": false,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 0.8,
+      "answer": "I can't see the skill's files from here. There's no `SKILL.md` anywhere under `/private/tmp/e-5GF8go/home`. Also, `changelog-writer` isn't in the skill list I've been given, though `dataviz` is. So there are two separate things to check.\n\n## 1. Check it's registered at all\n\nBefore touching the description, confirm the skill loads:\n- The file must be at `.claude/skills/changelog-writer/SKILL.md`, or under a plugin's `skills/` directory. The folder name should match the `name:` in the frontmatter.\n- The frontmatter must be valid YAML with `name` and `description`. A stray colon in an unquoted description is a common way to break it silently.\n- Restart the session after adding or moving it. Then check whether `changelog-writer` appears in the available-skills list.\n\nIf it isn't listed, no description will fix it. A description can only help a skill the model can already see.\n\n## 2. Rewrite the description\n\n\"Changelog writer. Writes changelogs.\" tells the model nothing it can match against. Your two prompts, \"tidy up the release notes\" and \"summarise what changed since the last tag\", never use the word \"changelog\". The model also sees them as easy tasks it can do directly. The description has to say what the skill adds and name the trigger phrasings. For example:\n\n```yaml\ndescription: >\n  Use when writing, editing, or tidying release notes, changelogs, or\n  \"what's new\" summaries, including summarising commits or diffs since a\n  tag or release. Applies this repo's changelog format and conventions.\n  Triggers on: \"release notes\", \"changelog\", \"what changed since vX\",\n  \"tidy up the notes for vX.Y\", \"prepare the release summary\".\n```\n\nAlso check that the skill body contains something Claude wouldn't do by default, such as your format, section order, or how to handle breaking changes. If the skill adds nothing, the model is right to skip it. A skill that is just \"write good changelogs\" will lose to the model's own ability however good the description is.\n\n## 3. Test it\n\n1. **Write a prompt set before editing.** Include about 10 prompts that should trigger the skill. Use your two examples plus varied phrasings, such as \"draft notes for 2.4\", \"what's in this release\", and \"convert these commits to a changelog\". Include about 10 that shouldn't, such as \"explain this git rebase\", \"write a README\", and \"chart commit frequency\" (which should go to `dataviz`).\n2. **Get a baseline.** Run each prompt in a fresh session with the old description. Record whether the skill loaded. In a non-interactive run (`claude -p`, with the JSON or stream output) you can see the `Skill` tool call. Interactively, look for the \"Skill(changelog-writer)\" line.\n3. **Change only the description, then rerun.** You want the trigger rate on positives to go up without false positives on the negatives. Run each prompt 3 or more times, since triggering is probabilistic.\n4. **Check the output, not just the load.** For prompts where the skill fired, confirm the result follows the skill's conventions. That tells you the skill is useful and not just firing.\n5. **Watch the neighbours.** Make sure `pedagogical-writing` and `dataviz` don't start firing on the negatives, and that the new description doesn't overlap with them.\n\nIf you tell me where the skill lives, or paste its `SKILL.md`, I can review the frontmatter and body and draft the prompt set.",
+      "graders": [
+       {
+        "name": "checks-other-skills",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "measures-not-guesses",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "names-near-misses",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "rewrites-description",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "trigger-evals",
+        "passed": false,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 0.6,
+      "answer": "I couldn't find the `changelog-writer` skill file in this repo, so this is based on the description you quoted. Send me the path and I can edit it directly.\n\n## Why it doesn't fire\n\nClaude decides whether to load a skill almost entirely from its `description`. \"Changelog writer. Writes changelogs.\" has three problems:\n\n1. **It names the skill but doesn't say when to use it.** The description needs to be a trigger condition, not a label.\n2. **It doesn't match your phrasing.** You say \"tidy up the release notes\" and \"summarise what changed since the last tag\". Neither contains the word \"changelog\".\n3. **The task looks easy without the skill.** Claude can tidy release notes unaided, so it only loads a skill when the description promises something it wouldn't do by default. Say what the skill adds, such as your format, your conventions, or the git commands to run.\n\n## A better description\n\n```yaml\n---\nname: changelog-writer\ndescription: Use when the user wants to write, edit, tidy, or summarise release notes, a changelog, or \"what changed\" for a version, tag, or release — including requests like \"clean up the release notes for vX\", \"summarise changes since the last tag\", \"draft the CHANGELOG entry\", or \"what's new in this release\". Applies this repo's changelog format and gathers changes from git history between tags.\n---\n```\n\nAlso check that the body gives Claude a reason to load the skill. It should hold your actual format, section order, and tone rules, and how to find the previous tag. If the body is generic, Claude is right to skip it.\n\nMake sure the description doesn't overlap with `pedagogical-writing`. Avoid broad words like \"writing\" or \"explain\" in it.\n\n## How to verify it\n\n1. **Write a test set first, before editing.** Use 10–15 prompts:\n   - About 6 that should trigger: your two examples plus paraphrases (\"what's in this release?\", \"write the v2.3 entry\", \"diff since last tag as notes\").\n   - About 6 that shouldn't: ordinary writing and chart requests, and `git log` questions that aren't about release notes.\n2. **Get a baseline.** Run each prompt in a fresh session with the current description. Record whether the skill loaded. Check this in the transcript (the Skill tool call), not by judging whether the output looked good. Expect roughly 0 of 6.\n3. **Change the description, then rerun the same prompts.** Use a fresh session each time, because earlier context can bias the result. Run each prompt 2–3 times, since triggering is probabilistic.\n4. **Check both directions.** You want the should-trigger prompts to load the skill and the should-not prompts not to. A description that fires on everything is also a failure.\n5. **Check the output, not just the load.** For a few triggered runs, confirm the result follows your format. That tells you the skill body is doing its job.\n6. **Check for hijacking.** Run a couple of prompts that belong to `pedagogical-writing` or `dataviz` and confirm they still route to those skills.\n\nIf you want, I can write the test prompts as a script that runs `claude -p` and checks the transcripts for the Skill call. I'd need the skill's path, plus your go-ahead to run it.",
+      "graders": [
+       {
+        "name": "checks-other-skills",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "measures-not-guesses",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "names-near-misses",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "rewrites-description",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "trigger-evals",
+        "passed": false,
+        "scored": true
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "name": "merge-overlapping-skills",
+   "graders": [
+    {
+     "name": "checks-neighbours",
+     "type": "llm",
+     "criteria": "PASS if the answer says to re-run the trigger evals of the neighbouring skills after the change, since a new description can take their prompts.\nFAIL if it only re-tests the merged skill."
+    },
+    {
+     "name": "decides-from-evidence",
+     "type": "llm",
+     "criteria": "PASS if the answer decides what to merge or retire from evidence (usage data, which prompts each description steals, whether the skill still beats the no-skill baseline) and not from taste.\nFAIL if it only suggests reading the descriptions and merging the similar ones."
+    },
+    {
+     "name": "reruns-output-evals",
+     "type": "llm",
+     "criteria": "PASS if the answer says to re-run output-quality evals (with and without the skill, or `claude plugin eval`) to confirm that the merged skill still beats having no skill.\nFAIL if it only re-checks that the skill triggers, or never mentions re-running its outputs."
+    },
+    {
+     "name": "skill-fired",
+     "type": "tool_used"
+    },
+    {
+     "name": "trigger-check",
+     "type": "regex"
+    },
+    {
+     "name": "usage-report",
+     "type": "regex"
+    }
+   ],
+   "arms": {
+    "with": [
+     {
+      "score": 1,
+      "answer": "I couldn't find any `.claude/skills/*/SKILL.md` from the working directory, so I haven't looked at your three skills. The advice below comes from the repo's maintenance rules and is generic until you tell me their names.\n\n## Deciding: retire, merge or keep\n\nGet the evidence for each skill first, then apply the rules.\n\n1. **Check usage.** Run `/skill-doctor` for each skill's context cost, recent use, and whether it has ever been invoked. The skill that never gets used is a candidate for retiring.\n2. **Check whether the skill adds anything.** Run its output evals with and without the skill (`claude plugin eval`). If every case has Δ ≈ 0 on the current model, Claude does the task unaided, so **retire** it.\n3. **Check for overlap.** Run the trigger evals for each skill (`npm run trigger-evals -- <skill-name>`). Read which skill took each missed prompt, not just the score.\n   - If two skills keep taking each other's prompts, or are always loaded together, **merge** them.\n   - If the overlap comes from sloppy wording and the two jobs are really different, **keep** both and rewrite the descriptions. Each description should say what the skill does, use the words people actually type, and name what it is *not* for, pointing at its neighbours.\n4. **Check for a skill that is really two.** If a skill has a reference file that only some tasks read, it may be two skills. Split it only if the trigger evals can tell the two halves apart.\n\nFor your case, a sensible sequence is:\n- Retire the unused skill if its Δ is about 0.\n- If the remaining two still steal prompts, merge them. Otherwise tighten their descriptions.\n\nDon't reword a failing trigger query to make it pass. Record it as a change to the query instead.\n\n## Doing the change\n\n- **Merge:** keep the better-named skill and move the other's unique content into it. Put the detail in `references/`, each file linked from SKILL.md with a note on when to read it. Keep SKILL.md under 500 lines and the critical rules near the top. Combine the trigger queries and output cases from both skills into the survivor's `evals/`.\n- **Retire:** delete the skill's directory. Remove its name from any neighbour's \"Not for…\" list. Say in the commit that it was retired and why.\n- Write the surviving description last, so it covers both skills' trigger phrases and stays under 1,024 characters.\n\n## Checking nothing broke\n\n1. `npm run lint-skills -- --strict`, then `claude plugin validate .claude/skills`. These catch bad names, descriptions and frontmatter.\n2. Run the **trigger evals of the survivor and of every neighbour**, since a new description can take their prompts. The merged skill's suite should include the retired skills' old queries, so you can see their prompts still land somewhere.\n3. Run the **output evals** of the survivor and compare against the previous version (see the \"comparing with the previous version\" section of `references/evals.md`), not only against the no-skill baseline. Snapshot the whole repo for that comparison. A snapshot of the skill alone fails with a `scaffold failed` row, which scores 0.00 and is a setup error, not a result.\n4. Read two or three transcripts, not just the scores. Look for skipped steps and references that never get opened.\n5. Try the merged skill on one real task.\n6. Record the date, model, command and scores in the commit or PR. Scores from a Haiku judge and a Sonnet judge aren't comparable. If an output score moves unexpectedly, re-judge the saved answers with `scripts/rejudge.mjs` before blaming the edit.\n7. Optionally, run `npm run skill-evals -- --max-cost-usd <n>` for the full comparison. A full run costs roughly US$55 to $80, so scope it with `--skills` if you only need the touched skills. Note that a single-skill run is not recorded as a baseline.\n\nIf you tell me the three skill names, or run those commands and share the output, I can say which one to retire and which two overlap most.",
+      "graders": [
+       {
+        "name": "checks-neighbours",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "decides-from-evidence",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "reruns-output-evals",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       },
+       {
+        "name": "trigger-check",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "usage-report",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "I couldn't find any `.claude/skills/*/SKILL.md` from the current directory, so I haven't looked at your three skills. This is the repo's guidance applied in general. Tell me the three names and I can apply it to the actual descriptions.\n\n## Deciding: merge, retire, or keep\n\n1. **Gather evidence for each skill.**\n   - Run `/skill-doctor` for each skill's context cost, recent use, and whether it has ever been invoked.\n   - Run the trigger evals with `npm run trigger-evals -- <skill-name>`. Read which skill's queries land on which other skill. That shows who is stealing from whom.\n   - If a skill has output cases, check its with/without Δ.\n\n2. **Apply the repo's rules.**\n   - **Retire** a skill that has never been invoked over a month, or whose cases all score Δ ≈ 0. Claude handles that task unaided. Check this one first, because your unused skill may simply be one of these.\n   - **Merge** skills whose trigger evals keep stealing each other's prompts, or that are always loaded together. Merge when one body could serve both audiences.\n   - **Keep both** if the trigger evals can tell them apart. In that case, rewrite the descriptions so each names what the others handle (\"Not for…\") instead of merging.\n   - **Split** instead if a merged skill would have two audiences. A reference that only half of the tasks read is a separate skill waiting to happen.\n\n3. **Look at the unused skill's description.** It may be shadowed by a broader neighbour. If so, narrowing the neighbour may fix it, and you wouldn't need to retire anything. Also check that it isn't being dropped from the listing. When the listing overflows its budget, the least-used skills lose their descriptions first.\n\n## Making the change\n\n- Write the merged skill's trigger evals from the union of the old queries. Don't reword a query that fails; that counts as changing the query, not as a result.\n- Keep the merged `SKILL.md` under 500 lines. Put the detail in `references/`, and put the rules that must survive compaction at the top.\n- When retiring a skill, say so in the commit message. Remove its name from the neighbours' \"Not for\" lists.\n\n## Checking you haven't broken anything\n\n1. `npm run lint-skills`, then `claude plugin validate .claude/skills` (Claude Code 2.1.233 or later). The validate step parses the YAML frontmatter, which the lint doesn't.\n2. Re-run the trigger evals for the merged skill and for every neighbouring skill whose description changed or whose prompts it might take. Check that the old queries from the retired skills now land on the survivor, and that nothing else lost its prompts.\n3. Run the output evals. Compare against the previous version of the skill, not only the no-skill baseline, so you can tell whether the edit helped.\n4. Read two or three transcripts. Scores say whether something changed, and transcripts say why.\n5. Try the merged skill on one real task.\n6. Record the date, models, command and scores in the commit or PR, so the next run can be compared with this one.\n\nDon't compare scores from different judges. The repo's judge is Sonnet, and Haiku scores differ by 0.03 to 0.07 or more.\n\nA full `npm run skill-evals` run costs roughly US$55–80, so only use it after a model change. For this change, run a scoped command: `npm run skill-evals -- --skills <name> --kind trigger --max-cost-usd 15`.",
+      "graders": [
+       {
+        "name": "checks-neighbours",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "decides-from-evidence",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "reruns-output-evals",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       },
+       {
+        "name": "trigger-check",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "usage-report",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "The repo's rules (`references/maintenance.md`, \"Retire, merge or split\") give you a decision order, then a re-check. I haven't looked at your three skills, so this is the procedure, not a verdict on which to merge.\n\n## Deciding\n\n1. **Collect evidence per skill.**\n   - Run `/skill-doctor` for each skill's context cost and recent use. It also flags skills that have never been invoked.\n   - Run `npm run trigger-evals -- <skill-name>` for each skill. Look at which skill took each query that failed. That shows who is stealing from whom.\n   - Run the output evals (`claude plugin eval`). A case where the with-skill score is no better than the without-skill score (Δ ≈ 0) means Claude does the task unaided.\n\n2. **Apply the rules.**\n   - **Retire** the one that is never invoked over about a month, or whose cases all score Δ ≈ 0 on the current model. If it never fires *and* nobody steals its prompts, Claude is probably doing the task unaided. Retiring it is the likely outcome.\n   - **Merge** two skills whose trigger evals keep taking each other's prompts, or that are always loaded together. Before merging, check whether one body has two audiences. If the trigger evals can tell the halves apart, **split** or keep them separate and fix the descriptions instead.\n   - **Rewrite descriptions** if the overlap comes only from wording. Name what each is *not* for, and put the key use case first. This is cheaper than merging.\n\n3. **Prefer growing an existing skill over keeping all three.** Every description sits in every session's context.\n\n## Checking nothing broke\n\n1. Move or delete the old skills and run `npm run lint-skills` (add `-- --strict` to fail on warnings). Then run `claude plugin validate .claude/skills`.\n2. When retiring, remove the skill's name from neighbours' \"Not for…\" lists, and say so in the commit.\n3. Re-run the trigger evals of the surviving skills and of any neighbours. A changed description can take their prompts.\n4. If you merged, move the retired skills' trigger queries into the survivor's `evals/trigger-evals.json`. Move their output cases into its `evals/` too. Then check that the merged skill still passes the old queries and still beats the no-skill baseline. Compare against the previous version, not only the no-skill run (`references/evals.md#comparing-with-the-previous-version`).\n5. Don't reword a failing query to make it pass. Record it as a change to the query.\n6. Read two or three transcripts for skipped steps or references that were never opened.\n7. Record the date, models, commands and scores in the commit or PR.\n\nIf you want a wider check, `npm run skill-evals` covers every skill. It costs about US$55–80, so pass `--max-cost-usd`. The cheaper route is `-- --skills <names> --kind trigger`, which runs only the trigger evals for the skills you changed.\n\nIf you tell me which three skills they are, I can read their descriptions and run the lint to suggest which to merge or retire.",
+      "graders": [
+       {
+        "name": "checks-neighbours",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "decides-from-evidence",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "reruns-output-evals",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       },
+       {
+        "name": "trigger-check",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "usage-report",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     }
+    ],
+    "without": [
+     {
+      "score": 0.4,
+      "answer": "I couldn't find any skills at `.claude/skills` in the working directory (`/private/tmp/e-j1hy5f/home/cwd`) or its parent, so the advice below is general. If you tell me the path, I can apply it to your three skills.\n\n## Deciding what to merge or retire\n\n**1. Write down what each skill is for.** Use one line per skill: \"Use when the user wants X, and the input looks like Y.\" Then list the prompts you'd expect to trigger each one.\n\n**2. Build a prompt set and see where each prompt actually goes.** Collect 5–10 real prompts per skill, taken from past transcripts if possible. Add some prompts that should trigger none of them. Run each prompt in a fresh session and record which skill fired. Put the results in a confusion matrix of expected skill against actual skill. This shows who steals from whom, and it shows whether the unused skill ever fires.\n\n**3. Decide from the matrix.**\n- **Merge** two skills when they're confused in both directions and the underlying work is the same. Their bodies would be mostly the same instructions, so one skill with sections or reference files is better.\n- **Sharpen** the descriptions when the work really is different but the triggers blur. Say what each skill is for and also what it's not for (\"not for X, use Y\"). Put distinguishing words up front.\n- **Retire** the unused skill if its prompts are already handled correctly by another skill, or if nobody can name a prompt only it should handle. If it has unique content, fold that into the skill that absorbs it.\n- **Check the unused one for a bad description.** It may be unused because its description is vague or never matches how you phrase requests, not because it's redundant. Test it with explicit prompts before you decide it's dead.\n\nA reasonable default is to merge the two with the most overlap, sharpen the description of the third, and retire it only if it still never fires.\n\n## Checking you haven't broken anything\n\n1. **Keep the prompt set as a regression suite.** Re-run the same prompts after the change. Every prompt should reach the right skill, or the merged one, and the negative prompts should still reach none.\n2. **Test the merged skill's behavior.** Run a few of the old skills' tasks end to end and compare the output to what you got before. Merging often drops an instruction that was only in one body.\n3. **Search for references.** Grep the repo, `CLAUDE.md`, hooks, settings, and other skills for the old skill names. Look for slash-command invocations (`/old-name`) and permission rules too.\n4. **Do it in git.** Make the change on a branch, with the merge and the retirement as separate commits. Reverting is then trivial if a prompt starts misrouting.\n5. **Watch it for a week or two.** Note any prompt where the wrong skill fires or none does, and add it to the prompt set.",
+      "graders": [
+       {
+        "name": "checks-neighbours",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "decides-from-evidence",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "reruns-output-evals",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "trigger-check",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "usage-report",
+        "passed": false,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 0.4,
+      "answer": "I couldn't find any skills in `.claude/skills`, either in the working directory (`/private/tmp/e-DX5s2D/home/cwd`) or one level up. So this is general advice, not based on your actual files. If you tell me the path or paste the three descriptions, I can make it specific.\n\n## Deciding what to merge or retire\n\n**1. Write down what each skill is for.**\nFor each one, write a single sentence: \"Use this when the user wants X, and not when they want Y.\" Then list the prompts you'd expect to trigger it. If you can't state a boundary against the other two, that skill is a merge candidate.\n\n**2. Sort the overlap into three kinds.**\n- **Same job, different wording.** Merge them. Keep the best body and fold the trigger phrases into one description.\n- **Same trigger, different jobs.** Don't merge. Rewrite the descriptions to state their boundaries, and name the neighbour explicitly, for example \"not for X, use `other-skill`\".\n- **One is a subset of another.** Retire the subset, or turn it into a section of the broader skill.\n\n**3. Work out why the unused one is unused.**\n- Its description is a weaker version of a neighbour's, so it never wins. Merge or retire it.\n- It's too narrow or too vaguely worded for real prompts to match. Rewrite the description with the phrases users actually type.\n- It's for a job nobody does anymore. Retire it.\n\n**4. Check real usage before deciding.**\nSearch your session transcripts, or recent prompts, for the cases that should have hit each skill. Count which skill fired and which one should have. This beats guessing from the text.\n\n**5. Prefer fewer, broader skills with clear descriptions.**\nDescriptions are what Claude matches on, so put the \"when to use\" triggers there and keep the procedure in the body. Skills with long, multi-purpose bodies work fine as long as the description is crisp.\n\n## Checking nothing broke\n\n1. **Build a small prompt set before you change anything.** Aim for 5–10 prompts per skill: typical ones, edge cases, and a few \"near miss\" prompts that belong to a neighbour. Record which skill should handle each one.\n2. **Record a baseline.** Run the set against the current setup and note which skill fires. This also confirms the \"steals prompts\" and \"never used\" problems.\n3. **Make the change on a branch**, so you can diff and revert easily. Use `git mv` for merges so history follows.\n4. **Rerun the same prompts.** Every prompt should now hit the intended skill. Pay most attention to the near-miss prompts, since those catch over-broad merged descriptions.\n5. **Check for dangling references.** Grep the repo for the retired skill names in `CLAUDE.md`, other skills, hooks, slash commands, and docs. Also check that any scripts or reference files the old skills used still exist at their paths.\n6. **Look at the frontmatter.** Every remaining skill needs a valid `name` and `description`, and the folder name should match the `name`.\n7. **Watch for a few days.** Look for prompts where the wrong skill fires, or where none does and Claude falls back to general behaviour.\n\nOne more thing to check at step 4: a merged skill whose description tries to cover everything can start stealing prompts from skills outside this trio. Include a few prompts from your other skills in the set.",
+      "graders": [
+       {
+        "name": "checks-neighbours",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "decides-from-evidence",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "reruns-output-evals",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "trigger-check",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "usage-report",
+        "passed": false,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 0.2,
+      "answer": "I couldn't find a `.claude/skills` directory under the working directory or its parent, so I haven't seen your three skills. What follows is a general method. If you give me the path or the skill names, I can apply it to the actual descriptions.\n\n## Deciding: merge, retire, or sharpen\n\nClaude picks a skill almost entirely from its `description`, so overlap is a description problem before it's a content problem. For each skill, write down two things:\n\n1. **Trigger**: the user intent that should invoke it.\n2. **Output or procedure**: what it does once invoked.\n\nThen sort each pair of skills into one of these cases.\n\n| Situation | Action |\n|---|---|\n| Same trigger, same procedure | **Merge** into one skill and keep the better-worded description. |\n| Same trigger, different procedures (e.g. \"review quickly\" and \"review deeply\") | **Merge**, with the variants as sections or reference files inside one skill. Alternatively split them by an explicit signal in the description, such as \"use when the user asks for a deep or security review\". |\n| Different triggers, but the descriptions are vague or broad | **Keep both and rewrite the descriptions.** Name concrete triggers and add \"not for X, use Y\" lines. |\n| One is a strict subset of another | **Retire** the subset, or fold its distinctive bits into the larger skill. |\n| Never invoked, and its trigger is covered by another skill | **Retire.** |\n| Never invoked, but its trigger is distinct | The description is probably too weak or too generic. **Fix it, don't delete it.** |\n\nFor the one that never fires, check whether another skill's description already covers its trigger. If it does, that skill is winning on wording and you can usually fold the unused one into it. If nothing covers it, the unused skill's own description is the problem.\n\nTwo other things to look at:\n- **Description length and breadth.** The skill that \"steals\" prompts usually has the broadest description, with words like \"any\", \"all\", or \"whenever you write code\".\n- **Usage evidence.** If you keep transcripts, grep them for the skill names to see which ones actually fire and on what prompts.\n\n## Verifying afterwards\n\n1. **Build a prompt set before you change anything.** Write 5–10 realistic prompts per skill, plus a few ambiguous ones that sit between skills and a few that should trigger none. Record which skill you expect for each. These are your regression tests.\n2. **Run a baseline on the current setup.** Run each prompt in a fresh session and note which skill fires. That gives you the current misroutes and a before/after comparison.\n3. **Make one change at a time.** Merge or rewrite one skill, rerun the whole set, and check that the fix didn't break routing for the others.\n4. **Check the retired skill's coverage.** Its old prompts should now trigger the merged skill, and the output should still do what the old skill did.\n5. **Check for leftovers.** Grep the repo, `CLAUDE.md`, hooks, and docs for the old skill names or `/old-name` invocations. Anything that referenced a retired skill will now be a dead reference.\n6. **Review in git.** Do this in one commit, or one commit per skill change, so any one change is easy to revert.\n\nI can write the prompt set and run the baseline once I can see the skills.",
+      "graders": [
+       {
+        "name": "checks-neighbours",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "decides-from-evidence",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         true,
+         false
+        ]
+       },
+       {
+        "name": "reruns-output-evals",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "trigger-check",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "usage-report",
+        "passed": false,
+        "scored": true
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "name": "needs-a-script",
+   "graders": [
+    {
+     "name": "bundles-a-script",
+     "type": "regex"
+    },
+    {
+     "name": "lowest-rung",
+     "type": "llm",
+     "criteria": "PASS if the answer keeps the design small (a SKILL.md plus one script) and does not propose hooks, forked context, an MCP server or packaging without a reason.\nFAIL if it proposes heavier machinery with no reason from the use case."
+    },
+    {
+     "name": "no-repo-root-path",
+     "type": "llm",
+     "criteria": "PASS if any path to a bundled file is relative to the skill directory (or uses ${CLAUDE_SKILL_DIR}), or no path is given.\nFAIL if it names the script by a repo-root path such as `.claude/skills/<name>/scripts/x`."
+    },
+    {
+     "name": "reuses-existing-lint",
+     "type": "regex"
+    },
+    {
+     "name": "run-not-read",
+     "type": "llm",
+     "criteria": "PASS if the answer says the check should be a script that Claude runs (only its output enters context) rather than instructions that Claude re-implements or reads each time.\nFAIL if it only gives prose steps for Claude to perform by hand, or never distinguishes running a script from reading it."
+    },
+    {
+     "name": "skill-fired",
+     "type": "tool_used"
+    }
+   ],
+   "arms": {
+    "with": [
+     {
+      "score": 0.8,
+      "answer": "**Don't make this a skill. Make it a script, wired into the repo's check.**\n\nThe repo rule is that something which must hold every time goes in a check or hook, not in a skill or prose. Your check is deterministic, so a skill would only add a description to every session's context and a model-driven step to something a script does exactly. The repo already has `npm run lint-skills`, which runs `scripts/lint-skill.mjs` on every skill.\n\n**Where it lives:** first see whether `scripts/lint-skill.mjs` already covers this. The checklist says the lint checks the name (reserved words, directory match), so you may only need the missing piece. I haven't opened the script, so I can't say which. If something is missing, add it there rather than creating a new tool.\n\n**What the check does, per directory in `.claude/skills/`:**\n1. Fail if `SKILL.md` is missing.\n2. Parse the frontmatter and fail if `name` differs from the directory name.\n3. Optionally, enforce the other cheap rules: a name of at most 64 characters, no `claude` or `anthropic` in it, and a description of at most 1,024 characters.\n\nRun `claude plugin validate .claude/skills` too, since the lint reads files but doesn't parse YAML.\n\n**Making it automatic:** `npm run lint-skills` can run from `npm run check`. If you want it to fire when you add a skill, use a hook, and the `update-config` skill sets that up.\n\nA skill would only make sense for the judgment work around it, such as writing the description or the evals. That's what `skill-authoring` already covers.\n\nWant me to read `scripts/lint-skill.mjs` and tell you exactly what's missing?",
+      "graders": [
+       {
+        "name": "bundles-a-script",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "lowest-rung",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "no-repo-root-path",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "reuses-existing-lint",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "run-not-read",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 0.8,
+      "answer": "**Don't make it a skill. This is a deterministic check, so put it in a script.** The repo's own guidance says a rule that must hold every time belongs in a repo check or hook, not in a skill. A skill is also something Claude has to remember to invoke.\n\n**Where the check lives**\n- The repo already has `npm run lint-skills`, which runs `scripts/lint-skill.mjs` on every skill. It is described as checking the name (including the directory match), the description length and the body length. I haven't opened it, so confirm whether it also flags a directory with no `SKILL.md`.\n- If either check is missing, add it to `scripts/lint-skill.mjs`:\n  1. For each directory under `.claude/skills/`, fail if `SKILL.md` is absent.\n  2. Parse the frontmatter and fail if `name` differs from the directory name.\n- `claude plugin validate .claude/skills` (Claude Code 2.1.233 or later) separately checks that every frontmatter parses.\n\n**Making it automatic**\n- To run it without remembering, add a hook (the `update-config` skill sets that up). For example, run `npm run lint-skills` after edits under `.claude/skills/`. You could also add it to `npm run check` or to CI.\n\n**If you still want a skill**\n- Keep it as a thin wrapper, a few lines of `SKILL.md` that say \"run `npm run lint-skills`, then fix what it reports\".\n- Per the repo rules, measure first. Run the task without the skill and see whether Claude already does it. The skill would add little beyond a reminder.",
+      "graders": [
+       {
+        "name": "bundles-a-script",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "lowest-rung",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         true
+        ]
+       },
+       {
+        "name": "no-repo-root-path",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         false,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "reuses-existing-lint",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "run-not-read",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 0.6,
+      "answer": "**The check belongs in a script, not in a skill.** This repo's rule is that anything that must hold every time goes in a repo check or hook. It already has one: `npm run lint-skills` runs `scripts/lint-skill.mjs` on every skill. I haven't opened that script, so first confirm it covers these two checks:\n\n1. Every directory under `.claude/skills/` contains a `SKILL.md`.\n2. The frontmatter `name` equals the directory name.\n\nThe skill rules also require the name to be at most 64 characters, lowercase letters, digits and hyphens only, and free of `claude` and `anthropic`. The lint may already check those too.\n\nIf either check is missing, add it to `lint-skill.mjs`. A directory with no `SKILL.md` never reaches a per-skill lint, so that check may need to go in the loop that walks the directories.\n\n**Then the skill is thin, if you want one at all.** It would be a single `SKILL.md`, with no references or scripts of its own:\n\n- **Description:** says to use it when adding or renaming a skill, or when asked to check skill structure. It also says it isn't for writing a skill's content, which `skill-authoring` covers.\n- **Body:** a few lines. Run `npm run lint-skills` from the repo root, add `-- --strict` to fail on warnings, fix what it reports, then run `claude plugin validate .claude/skills`.\n\n`skill-authoring` step 6 already says to run both commands, so the new skill would mostly repeat it. A better option may be a **hook** or a pre-commit step that runs `npm run lint-skills` when `.claude/skills/**` changes. Then you don't have to remember to invoke anything.\n\nPer the repo's measure-first rule, run the task without a skill first. If Claude already runs the lint when you add a skill, you don't need a new skill.",
+      "graders": [
+       {
+        "name": "bundles-a-script",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "lowest-rung",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         true,
+         false
+        ]
+       },
+       {
+        "name": "no-repo-root-path",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "reuses-existing-lint",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "run-not-read",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         true,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     }
+    ],
+    "without": [
+     {
+      "score": 0.8,
+      "answer": "A skill is the wrong home for the check itself. Put the logic in a script and let the skill be a thin wrapper that runs it.\n\n**Layout**\n```\nskills/validate-skills/\n  SKILL.md\n  scripts/validate.sh   (or .py)\n```\n\n**The script (the actual check)**\n- Loop over each directory under `skills/`.\n- Fail if `SKILL.md` is missing.\n- Parse the frontmatter, and fail if `name:` is absent or differs from the directory name.\n- Print one line per problem, and exit non-zero if any were found.\n\nA script is deterministic, runs the same way every time, and can also be called from CI or a pre-commit hook. Having Claude do the comparison by reading files is slower and can miss things.\n\n**SKILL.md**\n- Frontmatter: `name: validate-skills`, plus a `description` that says when to trigger, such as \"Use after adding or renaming a skill, or when asked to validate skills.\"\n- Body: a few lines telling Claude to run `scripts/validate.sh`, report each failure by directory, and offer to fix it (rename the directory or correct the frontmatter). It shouldn't fix anything without asking, because it's not obvious which side is wrong.\n\n**Where it lives**\n- Put it in the repo's `.claude/skills/` if the check is specific to this project. Put it in `~/.claude/skills/` if you want it everywhere.\n- To skip even the manual invocation, add a hook (the `update-config` skill can set this up) that runs the script when files under `skills/` change.\n\nI can write the script and SKILL.md if you tell me where your skills directory is.",
+      "graders": [
+       {
+        "name": "bundles-a-script",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "lowest-rung",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "no-repo-root-path",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "reuses-existing-lint",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "run-not-read",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       }
+      ]
+     },
+     {
+      "score": 0.8,
+      "answer": "**What goes in the skill**\n\nA `SKILL.md` that stays short and delegates the work to a script:\n\n- Frontmatter: `name` (e.g. `validate-skills`) and a `description` saying when to trigger (\"after adding or renaming a skill, or before committing changes under skills/\").\n- Body: one instruction to run the script, how to read its output, and what to do on failure (fix the directory name or the frontmatter `name`, then rerun).\n\n**Where the check lives**\n\nPut the check in a script bundled with the skill, e.g. `validate-skills/scripts/check_skills.sh` (or `.py`), not in prose. Reasons: it's deterministic, it's faster, and the model doesn't have to re-derive the logic each time.\n\nThe script should:\n\n1. Loop over each directory in your skills root.\n2. Fail if `SKILL.md` is missing.\n3. Parse the frontmatter `name:` and fail if it differs from the directory name.\n4. Print one line per problem and exit nonzero if any were found.\n\n**Optional extras**\n\n- Also check that `description` is present, since a skill without one won't trigger.\n- Add a hook (via `/update-config`) or a pre-commit hook that runs the same script, so the check runs automatically instead of relying on you to invoke the skill. The skill is for on-demand use and the hook is for enforcement. Both call the one script.\n\n**Location**\n\nPlace the skill alongside your others, e.g. `.claude/skills/validate-skills/` for a project, or `~/.claude/skills/` for all projects. Make sure the validator skips itself cleanly, or just let it validate itself as a bonus test.\n\nI can write it if you tell me where your skills live.",
+      "graders": [
+       {
+        "name": "bundles-a-script",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "lowest-rung",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "no-repo-root-path",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "reuses-existing-lint",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "run-not-read",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       }
+      ]
+     },
+     {
+      "score": 0.8,
+      "answer": "**Put the check in a script, and have the skill call it.** Deterministic validation belongs in code, not in prose instructions Claude re-interprets each time.\n\n**Layout**\n```\n.claude/skills/validate-skills/\n├── SKILL.md\n└── scripts/check_skills.py\n```\n\n**The script** (`check_skills.py`)\n- Takes the skills root as an argument (default `.claude/skills`).\n- For each subdirectory: fail if `SKILL.md` is missing; parse the frontmatter; fail if `name` is absent or differs from the directory name.\n- Prints one line per problem (`<dir>: <reason>`), exits non-zero if any, zero otherwise.\n- Stdlib only, so it runs anywhere.\n\n**SKILL.md**\n- Frontmatter: `name: validate-skills`, plus a `description` that says when to trigger: \"Use after adding or renaming a skill, or before committing changes under `.claude/skills`, to verify every skill directory has a SKILL.md whose name matches its directory.\"\n- Body, kept short:\n  1. Run `python3 -I scripts/check_skills.py <skills-root>`.\n  2. If it exits 0, report that all skills pass.\n  3. If not, list the problems and offer to fix them (create the missing file or correct the `name`). Don't fix silently.\n\n**Optional extras**\n- Add `disable-model-invocation: true` if you'd rather trigger it only with `/validate-skills`.\n- To stop relying on remembering to run it, add a pre-commit hook or CI step that runs the same script. The skill and the automation then share one check.\n\nI can write the script and SKILL.md if you want. Tell me where your skills live if it isn't `.claude/skills`.",
+      "graders": [
+       {
+        "name": "bundles-a-script",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "lowest-rung",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "no-repo-root-path",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "reuses-existing-lint",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "run-not-read",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "name": "review-flawed-skill",
+   "graders": [
+    {
+     "name": "finds-body-length",
+     "type": "regex"
+    },
+    {
+     "name": "finds-description-length",
+     "type": "regex"
+    },
+    {
+     "name": "finds-first-person",
+     "type": "regex"
+    },
+    {
+     "name": "finds-hardcoded-path",
+     "type": "regex"
+    },
+    {
+     "name": "finds-nested-reference",
+     "type": "regex"
+    },
+    {
+     "name": "finds-no-evals",
+     "type": "regex"
+    },
+    {
+     "name": "finds-reserved-name",
+     "type": "regex"
+    },
+    {
+     "name": "ranks-and-fixes",
+     "type": "llm",
+     "criteria": "PASS if the review gives a concrete fix for each problem it names and leads with problems that stop the skill working or loading (such as a reserved name or an over-limit description) before style points.\nFAIL if it is a flat unranked list, or names problems without saying how to fix them."
+    },
+    {
+     "name": "skill-fired",
+     "type": "tool_used"
+    }
+   ],
+   "arms": {
+    "with": [
+     {
+      "score": 1,
+      "answer": "I read all four files in `skills/claude-report-helper`. I didn't run `npm run lint-skills` or any evals. Findings are ordered by importance.\n\n## Blocks loading or triggering\n\n1. **The name contains `claude`.** `claude-report-helper` uses a word the spec reserves, so the skill can fail to load.\n   - Fix: rename the directory and the `name:` field together, for example to `report-summariser`.\n\n2. **The description is over the 1,024-character limit.** `SKILL.md:3` repeats \"I can also help with report-related tasks of many other kinds.\" 16 times. By my estimate that's roughly 1,200 characters, and the lint will give the exact count.\n   - Fix: delete the repeats.\n\n3. **The description is vague, first person, and has no exclusions.** \"I help you with reports… format them nicely\" doesn't use the words people type, and it never says what the skill is not for. \"Many other kinds\" would also make it fire on any report task.\n   - Fix: use third person and name concrete triggers, for example: \"Summarises test, build and coverage reports from a file. Use when the user pastes or points at a JUnit/lcov/CI log and asks for a summary. Not for writing prose reports or charts (see `dataviz`).\"\n   - Fix: quote the description if it contains `: `, as the skill above does.\n\n## Broken or missing behaviour\n\n4. **The script is a stub.** `scripts/summarise.mjs` is only `console.log(\"summary\")`. It reads no file and ignores `<file>`, so the skill claims a capability it doesn't have.\n   - Fix: implement it to parse the formats you support, or remove the script and the instruction until it works.\n\n5. **The command path is repo-root-relative.** `SKILL.md:8` says `node skills/claude-report-helper/scripts/summarise.mjs`, which breaks when the skill loads from anywhere else.\n   - Fix: write `node <skill-dir>/scripts/summarise.mjs <file>` and state that `<skill-dir>` is the directory holding SKILL.md. Pi doesn't expand the skill-directory variable.\n\n6. **There are no evals.** The skill needs `evals/trigger-evals.json` and at least three `evals/<case>/` output cases, and a skill ships with both.\n   - Fix: run the report tasks without the skill first, write the cases from the gaps, and record the with/without delta. If the delta is near zero, cut the skill.\n\n## Wastes context\n\n7. **`SKILL.md` is 530 lines, over the 500-line cap.** Lines 11–530 are 520 numbered placeholders (\"Rule N: keep report line N short and clear\"). They carry no information, and a skill loads in full when invoked.\n   - Fix: delete them. The real guidance is probably a few lines, such as output template, length and which fields to lead with. Derive it from the baseline gaps in finding 6.\n\n8. **Key rules sit at the bottom or are missing.** After compaction only the first 5,000 tokens of an invoked skill survive.\n   - Fix: put the few real rules right after the title.\n\n## Structure\n\n9. **`details.md` isn't linked from `SKILL.md`.** It's reachable only through `formats.md`, which breaks the one-level-deep rule for references.\n   - Fix: link both files from `SKILL.md`, each with a note on when to read it. Better still, merge them, since together they hold two lines.\n\n10. **The reference content is almost empty and the links don't say why to follow them.**\n    - `formats.md` says \"See the other file\" and `details.md` says \"Column widths are 80.\"\n    - `SKILL.md:9` links `formats.md` with no note on when to read it.\n    - Fix: put the real format specs in one file, or inline the column width in `SKILL.md`.\n\n## Minor\n\n- There's no `references/sources.md`, which is only needed if you make evidence-based claims.\n- Frontmatter has only `name` and `description`. That's fine and portable.\n\nDon't ship it yet. Findings 1–7 are blockers. After the fixes, run `npm run lint-skills` and `claude plugin validate .claude/skills`, then try it on one real report.",
+      "graders": [
+       {
+        "name": "finds-body-length",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-description-length",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-first-person",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-hardcoded-path",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-nested-reference",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-no-evals",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-reserved-name",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "ranks-and-fixes",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "The skill should not ship as it is. It has five blockers or near-blockers, then some smaller issues. I read all four files and did not run `npm run lint-skills`.\n\n## Blockers (stop it loading or triggering)\n\n1. **The name contains `claude`.** `claude-report-helper` breaks the reserved-word rule. Rename the directory and the `name:` field together, for example to `report-summariser`.\n\n2. **The description is probably over the 1,024-character limit.** `SKILL.md:3` is about 1,150 characters by my count, so the lint may fail it. The sentence \"I can also help with report-related tasks of many other kinds.\" appears 16 times. Replace the whole description with something like:\n   ```\n   description: \"Summarises test, build and coverage reports into a short formatted digest. Use when the user pastes or points to a report file and asks for a summary, pass/fail counts or a cleaner format. Not for writing new reports or for log analysis.\"\n   ```\n   It is quoted because it contains `: `, and it is in third person, says what the skill does and when to use it, and names what it is not for. \"Help with report-related tasks of many other kinds\" is vague, and it will make the skill fire on unrelated requests.\n\n3. **The script path is a repo-root path.** `SKILL.md:8` says `node skills/claude-report-helper/scripts/summarise.mjs <file>`, which breaks when the skill loads from anywhere else. Write `node <skill-dir>/scripts/summarise.mjs <file>` and add one line saying `<skill-dir>` is the directory containing SKILL.md.\n\n4. **`scripts/summarise.mjs` is a stub.** It only runs `console.log(\"summary\")` and never reads its argument. The skill tells Claude to run it on a report, so it would output \"summary\" every time. Either implement it (read `process.argv[2]`, parse the report, print counts) or delete it and the instruction.\n\n5. **There are no evals.** The skill needs `evals/trigger-evals.json` and at least three `evals/<case>/` output cases. There is also no evidence of a baseline run without the skill, so nobody has shown it closes any gap.\n\n## Wasted context\n\n6. **`SKILL.md` is 530 lines, over the 500 limit.** Lines 11–530 are 520 numbered \"Rule N: keep report line N short and clear\" lines. Each is a mechanical variant of the same non-instruction, and Claude already follows it. Delete all of them. If a real formatting rule exists, state it once. This should leave a `SKILL.md` of about 20 lines.\n\n7. **Critical content is buried.** After compaction only the first 5,000 tokens of a skill survive. Once the filler is gone, the run command and the reference pointers should stay at the top.\n\n## Smaller issues\n\n8. **The references are thin and link to each other.**\n   - `references/formats.md` and `references/details.md` hold one line each (\"Column widths are 80\").\n   - `formats.md` links to `details.md`, so the references are two levels deep instead of one.\n   - `SKILL.md` links only `formats.md` and never mentions `details.md`.\n   - Fold the 80-column fact into `SKILL.md` and delete both files. Otherwise, link both from `SKILL.md` with a note on when to read each.\n\n9. **The first-person voice is wrong.** \"I help you… I will format them nicely\" should be third person. \"Nicely\" says nothing concrete, so name the actual output format.\n\n10. **`references/sources.md` is missing.** It is only needed if the skill makes evidence-based claims, and it makes none, so skip it.\n\n## Order of fixes\n\nRename, rewrite the description, delete the filler, fix the path, implement or remove the script, then add evals. After that, run `npm run lint-skills` and `claude plugin validate .claude/skills`, and try it on one real report.\n\nNothing in the skill currently works, so I have no strengths to report.",
+      "graders": [
+       {
+        "name": "finds-body-length",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-description-length",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-first-person",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-hardcoded-path",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-nested-reference",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-no-evals",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-reserved-name",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "ranks-and-fixes",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "The skill isn't ready to ship. I read all four files but didn't run the lint or any evals. Findings are ordered most important first.\n\n**Blocks loading or triggering**\n\n1. **The name contains `claude`.** `claude-report-helper` uses a reserved word, so the spec disallows it.\n   - Fix: rename the directory and the `name:` field together, for example to `report-summariser`.\n\n2. **The description is probably over the 1,024-character limit.**\n   - By my rough count it is about 1,200 characters, but I didn't measure it, so let the lint confirm.\n   - The sentence \"I can also help with report-related tasks of many other kinds.\" is pasted 16 times (line 3).\n   - Fix: delete the repeats.\n\n3. **The description is first person and vague, and it has no \"not for\" clause.**\n   - \"I help you with reports\" and \"format them nicely\" give a router nothing to match on. \"Report-related tasks of many other kinds\" would make it fire on almost anything.\n   - Fix: write it in third person, with the words people actually type and an exclusion. For example: `Summarises test, build and coverage reports (JUnit XML, lcov, CI logs) into a short pass/fail digest. Use when asked to \"summarise this report\" or \"what failed in this build\". Not for writing new reports or charting data (use dataviz).`\n\n**Wastes context or is broken**\n\n4. **`SKILL.md` is 530 lines, over the 500-line cap.** Lines 11–530 are 520 identical placeholder rules (\"Rule N: keep report line N short and clear\"). They carry no information, and they bury the one real instruction.\n   - Fix: delete all of them. Write only what Claude gets wrong without the skill, measured against a baseline run. That is probably under 30 lines.\n\n5. **The script command uses a repo-root path.** Line 8 says `node skills/claude-report-helper/scripts/summarise.mjs`. That breaks if the skill loads from anywhere else.\n   - Fix: write `node <skill-dir>/scripts/summarise.mjs <file>` and say `<skill-dir>` is the directory holding `SKILL.md`.\n\n6. **`summarise.mjs` is a stub.** It only runs `console.log(\"summary\")`. It ignores its argument, so it summarises nothing, and `SKILL.md` tells Claude to run it.\n   - Fix: either implement it (read `argv[2]`, parse the formats you support, print the digest, exit non-zero on a bad file) or remove it and the line pointing to it.\n\n7. **The references are chained and one is orphaned.**\n   - `SKILL.md` links `formats.md`, and `formats.md` links `details.md`. References should be one level deep.\n   - `SKILL.md` never mentions `details.md`.\n   - Neither link says when to read the file.\n   - The content is also near-empty: \"Column widths are 80.\"\n   - Fix: merge both files into a single `references/formats.md`, or inline the one fact. Link it from `SKILL.md` with a \"read when…\" note, for example \"Read when formatting output columns\".\n\n**Missing**\n\n8. **There are no evals.** There is no `evals/trigger-evals.json` and no `evals/<case>/` directories, and the repo rule is that a skill ships with both.\n   - Fix: run the report tasks without the skill first and note the gaps. Write trigger evals (positive and negative queries) and at least three output cases from those gaps. Run `npm run trigger-evals -- <name>` and `claude plugin eval`, compare with and without the skill, and read a transcript.\n\n9. **I haven't run `npm run lint-skills` or `claude plugin validate .claude/skills`.** Run both after fixing 1–7. The lint doesn't parse YAML, which is why the `validate` step matters.\n\n**Already fine**\n\nThe frontmatter has only the cross-surface fields, and the description has no unquoted `: `. The layout (`SKILL.md`, `references/`, `scripts/`) is right. The structure is fine. The content is what's wrong.",
+      "graders": [
+       {
+        "name": "finds-body-length",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-description-length",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-first-person",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-hardcoded-path",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-nested-reference",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-no-evals",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-reserved-name",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "ranks-and-fixes",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     }
+    ],
+    "without": [
+     {
+      "score": 0.75,
+      "answer": "Review of `skills/claude-report-helper`, most important first.\n\n1. **The `description` is broken and will hurt triggering.**\n   - Line 3 of `SKILL.md` repeats \"I can also help with report-related tasks of many other kinds.\" 16 times. That wastes the always-loaded context budget, and the real trigger information is buried at the start.\n   - It is written in first person (\"I help you\"), and it is vague (\"report-related tasks of many other kinds\"). That makes the skill fire on unrelated requests, or not fire when it should.\n   - Fix: replace it with one or two third-person sentences that say what the skill does and when to use it. For example: `Summarise and format test, build, and coverage reports. Use when the user asks to summarise, condense, or reformat a test/build/coverage report file.` Keep it well under about 1024 characters.\n\n2. **The script is a stub, so the skill's core feature doesn't work.**\n   - `scripts/summarise.mjs` is only `console.log(\"summary\");`. It ignores the `<file>` argument and never reads or parses a report. Running it always prints \"summary\".\n   - Fix: implement it, or remove the script and the instruction that calls it. An implementation should read `process.argv[2]` and handle a missing or unreadable file with a clear error and a non-zero exit code. It should also parse the supported formats (test, build, coverage) and print real output. If it isn't ready, don't ship it.\n\n3. **The 520 \"Rule N\" lines in `SKILL.md` are filler.**\n   - Lines 11–530 are all \"keep report line N short and clear\". They say nothing specific and are redundant with each other. They also push the body far past the roughly 500-line guideline, so the whole file loads into context each time the skill is used.\n   - Fix: delete all of them. Replace them with a few concrete rules, for example the output structure (totals, then failures, then next steps), a maximum summary length, and what to do when a report is malformed.\n\n4. **The instructions are too thin to guide behavior.**\n   - After the fluff is removed, the body is one command line and one link. It doesn't say which report types are supported or what the input and output look like. It has no example and no guidance on when to use the script rather than reading the report directly.\n   - Fix: add a short workflow (identify the report type, run the script, present the result) and one input/output example.\n\n5. **The script path is fragile.**\n   - `node skills/claude-report-helper/scripts/summarise.mjs <file>` is relative to the repo root, so it breaks when run from any other directory or when the skill is installed elsewhere.\n   - Fix: reference the path relative to the skill directory, or use `${CLAUDE_SKILL_DIR}` if your harness supports it. Say explicitly that the script is run, not read.\n\n6. **The reference files are nearly empty and the chain is awkward.**\n   - `references/formats.md` is a single link to `details.md`, which says only \"Column widths are 80.\" That is a two-hop reference with almost no content. `SKILL.md` links only to `formats.md`, so `details.md` is reachable only indirectly.\n   - Fix: merge them into one `references/formats.md` with the real format specs (each report type, field layout, column width and what it applies to), and link it directly from `SKILL.md`. Also say when to read it.\n\n7. **Minor issues.**\n   - The `name` is `claude-report-helper`. The \"claude\" prefix is redundant, and it may be a reserved or discouraged word depending on your naming rules. Something like `report-summarizer` is clearer.\n   - The link text \"the other file\" is not descriptive. Use something like \"column width spec\".\n   - \"Column widths are 80\" doesn't say which output it governs, and the script doesn't enforce it.\n\n**Recommendation:** don't ship as is. Items 1–3 are blockers. Items 4–6 are needed before the skill is useful. I haven't changed any files. I can make these edits if you want.",
+      "graders": [
+       {
+        "name": "finds-body-length",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "finds-description-length",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-first-person",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-hardcoded-path",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-nested-reference",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-no-evals",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "finds-reserved-name",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "ranks-and-fixes",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       }
+      ]
+     },
+     {
+      "score": 0.5,
+      "answer": "Here's what's wrong, most important first.\n\n1. **The `description` is broken (SKILL.md line 3).**\n   - It repeats \"I can also help with report-related tasks of many other kinds.\" 15 times, which is padding.\n   - It's written in first person (\"I help you\"). Descriptions should say what the skill does and when to use it.\n   - It's vague (\"many other kinds\", \"whenever you ask\"), so it will either trigger on anything report-related or on nothing.\n   - **Fix:** replace it with one or two sentences. For example: `Summarise test, build, and coverage reports into a short formatted summary. Use when the user asks to summarise, condense, or format a test/build/coverage report file.`\n\n2. **The script is a stub (`scripts/summarise.mjs`).**\n   - The whole file is `console.log(\"summary\");`.\n   - It never reads the `<file>` argument, parses anything, or produces a summary. SKILL.md tells the agent to run it on a report, so the agent would get the literal word \"summary\" back.\n   - **Fix:** either implement it (read `process.argv[2]`, handle a missing file and unknown formats, and emit the real summary), or remove the script and the reference to it before shipping.\n\n3. **The body is 520 near-identical \"Rule N\" lines (SKILL.md lines 11–530).**\n   - \"Rule 1: keep report line 1 short and clear\" and the rest are placeholder filler. They carry no information.\n   - They bury the one real instruction and waste context every time the skill loads.\n   - The rules also don't make sense: a report can't have a fixed rule for each of 520 lines.\n   - **Fix:** delete them. Replace them with 3–6 real rules, such as the summary structure, a length cap, which sections to include (failures first), and how to handle each report type.\n\n4. **The reference files are thin and contradict each other.**\n   - `formats.md` has no formats in it. It just says \"See the other file\".\n   - `details.md` says only \"Column widths are 80\" and doesn't say which columns or what for.\n   - The two files are circular and give the agent nothing to act on.\n   - SKILL.md links only to `formats.md`, so `details.md` is two hops deep.\n   - **Fix:** put the actual per-type formats (test, build, coverage) in `formats.md`, with an example of the expected output for each. Fold the width rule into it and delete `details.md`, or link it directly from SKILL.md and say when to read it.\n\n5. **The script path is fragile (SKILL.md line 8).**\n   - `node skills/claude-report-helper/scripts/summarise.mjs <file>` is relative to the repo root.\n   - It will fail if the skill is installed elsewhere or the working directory differs.\n   - **Fix:** use the skill-directory-relative path your harness supports, for example `${CLAUDE_SKILL_DIR}/scripts/summarise.mjs`. Otherwise say explicitly where to run it from.\n\n6. **The skill has no `allowed-tools` and no input or output contract.**\n   - It doesn't say which file types it accepts (JUnit XML, lcov, plain logs?), what happens on bad input, or what the output should look like.\n   - **Fix:** add a short \"Inputs / Output\" section, plus a line on error handling.\n\n7. **The name is generic and framework-prefixed.**\n   - `claude-report-helper` is vague, and \"helper\" says nothing about what it does.\n   - **Fix (minor):** consider `report-summariser`, or another name that says what it does. If you rename it, update the directory to match.\n\nIf you want, I can rewrite SKILL.md and the formats reference and implement a real `summarise.mjs`. I'd need to know which report formats you actually want supported.",
+      "graders": [
+       {
+        "name": "finds-body-length",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-description-length",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "finds-first-person",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-hardcoded-path",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-nested-reference",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-no-evals",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "finds-reserved-name",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "ranks-and-fixes",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         true
+        ]
+       }
+      ]
+     },
+     {
+      "score": 0.625,
+      "answer": "Review of `skills/claude-report-helper`, most important first.\n\n1. **The `description` is padded and too vague to trigger reliably (SKILL.md:3).**\n   - The sentence \"I can also help with report-related tasks of many other kinds.\" is repeated 16 times. It adds nothing and bloats the text the model reads on every session to decide whether to load the skill.\n   - It is also written in first person (\"I help you…\"). Descriptions should be third person and say when to use the skill.\n   - \"Report-related tasks of many other kinds\" is so broad the skill could trigger on unrelated requests.\n   - Fix: replace it with one or two sentences, for example: *\"Summarises and formats test, build and coverage reports. Use when the user asks to summarise, condense or reformat a test/build/coverage report file.\"* Delete every repeated sentence.\n\n2. **The script is a stub that does nothing (`scripts/summarise.mjs:1`).**\n   - It contains only `console.log(\"summary\");`. It never reads the `<file>` argument, so SKILL.md's instruction to run it on a report is misleading. It prints the same word for any input.\n   - Fix: implement it, or remove it and the instruction. An implementation should:\n     - read `process.argv[2]`;\n     - handle a missing or unreadable file with a clear error and a non-zero exit code;\n     - parse the supported formats;\n     - print real counts such as passed, failed, skipped and coverage percentage.\n   - SKILL.md should also state which report formats it supports (JUnit XML, lcov, etc.). It currently doesn't.\n\n3. **The body is 520 near-identical filler rules (SKILL.md:11-530).**\n   - \"Rule N: keep report line N short and clear\" has no real content. It's about 520 lines of noise that costs context every time the skill loads. It also buries the one useful instruction, and it makes no sense, since report lines 200-520 won't exist in most reports.\n   - Fix: delete them all and replace them with a few concrete rules. Examples are the output structure, what to put first (failures), a maximum summary length, and what to do with an empty or malformed report. The body should be well under 500 lines, ideally about 20-40.\n\n4. **The script path is relative to the repo root (SKILL.md:8).**\n   - `node skills/claude-report-helper/scripts/summarise.mjs` only works when the working directory is the repo root. That won't hold once the skill is installed elsewhere, for example under `~/.claude/skills`.\n   - Fix: use `${CLAUDE_SKILL_DIR}/scripts/summarise.mjs` if your harness supports it. Otherwise describe the path relative to the skill directory. Also give an example invocation and the expected output.\n\n5. **The references are thin and chain through each other (`references/formats.md`, `references/details.md`).**\n   - `formats.md` is a title plus one line that links to `details.md`. `details.md` is \"Column widths are 80.\" Together they add no real information.\n   - Because the content sits one hop deeper than SKILL.md, the model may only partly read it. The link text \"the other file\" also says nothing about what the target contains.\n   - Fix: merge them into one file, or inline the content in SKILL.md. Link it directly from SKILL.md with a descriptive label and say when to read it, for example \"For column widths and layout, see formats.md\". Make the content real: the supported formats, an example input, an example output, and what \"80\" refers to (characters per line?).\n\n6. **Smaller points.**\n   - The skill name `claude-report-helper` includes \"claude\" and the generic word \"helper\". A more descriptive name like `report-summariser` would be clearer. Check whether your naming rules reserve \"claude\".\n   - SKILL.md doesn't say what the output should look like or give any example. Add one short before/after example.\n   - Rules 1-520 say \"line N\", but SKILL.md never says whether that means lines of the input report or of the summary. This goes away once the rules are rewritten (item 3).\n\nRecommended order: shrink the description, delete the filler, make the script real, then fix the path and the references. Items 1 and 3 are the quickest to fix and have the biggest effect.\n\nI made no changes. I can apply these fixes if you want, but I'd need to know which report formats the script should support.",
+      "graders": [
+       {
+        "name": "finds-body-length",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-description-length",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "finds-first-person",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-hardcoded-path",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-nested-reference",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "finds-no-evals",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "finds-reserved-name",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "ranks-and-fixes",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         false,
+         true
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}

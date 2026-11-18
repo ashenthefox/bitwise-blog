@@ -142,7 +142,7 @@ The authoring and publishing commands (`index`, `check`, `bundle`, `seal`, …) 
 - **Skill evals** (`.github/workflows/skill-evals.yml`) runs the skills' trigger and output evals when
   you start it from the Actions tab, records the pass rates and fails when a skill's rate falls
   against the previous full run, so a model or Claude Code update that changes a skill can be checked
-  for. It never runs on its own: it calls the Anthropic API (roughly US$55 to $80 for every skill),
+  for. It never runs on its own: it calls the Anthropic API (about US$73 for every skill),
   and it needs the secret `ANTHROPIC_API_KEY`. The same run on your own machine is
   `npm run skill-evals`; see "The full run" in
   `.claude/skills/skill-authoring/references/maintenance.md`.

@@ -185,6 +185,8 @@ async function main() {
     let commit = opt["--commit"] ?? null;
     if (!commit) try { commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch { /* not in a repo */ }
     const baseline = trim(read(files[0]), { commit });
+    // A skill's first baseline has no evals/baselines/ yet.
+    fs.mkdirSync(path.dirname(path.resolve(opt["--out"])), { recursive: true });
     fs.writeFileSync(opt["--out"], JSON.stringify(baseline, null, 1) + "\n");
     const runs = baseline.cases.flatMap(c => Object.values(c.arms).flat());
     console.log(`wrote ${opt["--out"]}: ${baseline.cases.length} cases, ${runs.length} runs, ${runs.filter(r => r.answer === null).length} without a saved answer`);
