@@ -165,11 +165,13 @@ test("an entity is one word, so a mark never cuts it in half", () => {
 const plain = (html: string) => html.replace(/<\/?(?:ins|del)>/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 const reading = (html: string, drop: "ins" | "del") => plain(html.replace(new RegExp(`<${drop}>[\\s\\S]*?</${drop}>`, "g"), ""));
 /** Diff two versions of one block, and check what every word diff must satisfy. */
-function words(oldHtml: string, newHtml: string, { balanced = true } = {}): string {
+function words(oldHtml: string, newHtml: string, { balanced = true, order = true } = {}): string {
   const { html } = inlineDiff(blockToks(oldHtml), blockToks(newHtml));
   if (balanced) assertBalanced(html);
   assert.equal(reading(html, "del"), plain(newHtml), "without the deletions it reads as the new block");
-  assert.equal(reading(html, "ins"), plain(oldHtml), "without the insertions it reads as the old block");
+  // (`order: false`: a deletion that could not go back where it was. Its words are all there, elsewhere.)
+  const sorted = (t: string) => t.split(" ").sort().join(" ");
+  assert.equal(order ? reading(html, "ins") : sorted(reading(html, "ins")), order ? plain(oldHtml) : sorted(plain(oldHtml)), "without the insertions it reads as the old block");
   // A mark between rows or items is invalid, and inside a table the parser would move it out of the table.
   assert.doesNotMatch(html, /<(?:table|thead|tbody|tfoot|tr|ul|ol|dl)\b[^>]*>\s*<(?:ins|del)>|<\/(?:tr|td|th|li|dt|dd|thead|tbody)>\s*<(?:ins|del)>/, `a mark between rows or items:\n${html}`);
   return html;
@@ -217,6 +219,53 @@ test("nested lists, definition lists and items without end tags are aligned too"
     /^<dl><dt data-diff="removed"><del>Alpha<\/del><\/dt><dd data-diff="removed"><del>First letter\.<\/del><\/dd><dt>Beta<\/dt><dd><del>Second<\/del><ins>The second<\/ins> letter\.<\/dd>/);
   const html = words(`<ul>\n<li>alpha one\n<li>beta two\n<li>gamma three\n</ul>`, `<ul>\n<li>alpha one\n<li>gamma three\n</ul>`, { balanced: false }); // the source itself leaves its items open
   assert.match(html, /<li>alpha one\s*<li data-diff="removed"><del>beta two\s*<\/del><li>gamma three/);
+});
+
+test("a removed row goes back into the list its own list became, never into another kind of container", () => {
+  // Every row of the body replaced: the old row belongs in the body, not above the header.
+  const table = (body: string) => `<table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody>${body}</tbody></table>`;
+  assert.match(words(table(`<tr><td>alpha</td><td>1</td></tr>`), table(`<tr><td>beta</td><td>2</td></tr>`)),
+    /<\/thead><tbody><tr data-diff="removed"><td><del>alpha<\/del><\/td><td><del>1<\/del><\/td><\/tr><tr><td><ins>beta<\/ins>/);
+  // A list and a table side by side, the list's only item replaced: the old item stays in the list.
+  assert.match(words(`<div><table><tr><td>a</td></tr></table><ul><li>one two three</li></ul></div>`, `<div><table><tr><td>a</td></tr></table><ul><li>four five six</li></ul></div>`),
+    /<table><tr><td>a<\/td><\/tr><\/table><ul><li data-diff="removed"><del>one two three<\/del><\/li><li><ins>four five six<\/ins>/);
+  assert.match(words(`<div><ul><li>keep</li></ul><table><tr><td>one two</td></tr></table></div>`, `<div><ul><li>keep</li></ul><table><tr><td>three four</td></tr></table></div>`),
+    /<ul><li>keep<\/li><\/ul><table><tr data-diff="removed"><td><del>one two<\/del><\/td><\/tr><tr><td><ins>three four<\/ins>/);
+  // Two lists of different kinds: the ordered one's item stays in the ordered one.
+  assert.match(words(`<div><ul><li>keep</li></ul><ol><li>one two three</li></ol></div>`, `<div><ul><li>keep</li></ul><ol><li>four five six</li></ol></div>`),
+    /<ul><li>keep<\/li><\/ul><ol><li data-diff="removed"><del>one two three<\/del><\/li>/);
+  // A nested list that is gone altogether has no list to go back to: its words are reported in the item that held it.
+  const html = words(`<ul><li>Parent<ul><li>child one</li></ul><table><tr><td>t</td></tr></table></li></ul>`, `<ul><li>Parent<table><tr><td>t</td></tr></table></li></ul>`, { order: false });
+  assert.match(html, /<ul><li>Parent<table><tr><td>t<\/td><\/tr><\/table><del>child one<\/del><\/li><\/ul>/);
+});
+
+test("a deletion with no word beside it is written inside a cell or an item, never between cells or after another element's end", () => {
+  // The row lost a cell, and both versions hold a nested list: the lost cell's word stays inside the last cell.
+  const row = inlineDiff(blockToks(`<table><tr><td><ul><li>a</li></ul></td><td>gone</td></tr></table>`), blockToks(`<table><tr><td><ul><li>a</li></ul></td></tr></table>`)).html;
+  assertBalanced(row);
+  assert.equal(row, `<table><tr><td><ul><li>a<del>gone</del></li></ul></td></tr></table>`);
+  // End tags left out: the item's last token is its nested list's end tag, not its own.
+  const item = inlineDiff(blockToks(`<ul><li>slow<ul><li>x</li></ul><li>b</ul>`), blockToks(`<ul><li><ul><li>x</li></ul><li>b</ul>`)).html;
+  assert.match(item, /^<ul><li><del>slow<\/del><ul><li>x<\/li><\/ul><li>b<\/ul>$/);
+  const cell = inlineDiff(blockToks(`<table><tr><td>a<td>gone<tr><td>b<td>c</table>`), blockToks(`<table><tr><td>a<td><tr><td>b<td>c</table>`)).html;
+  assert.match(cell, /^<table><tr><td>a<td><del>gone<\/del><tr><td>b<td>c<\/table>$/, "an emptied cell without an end tag still holds its deletion");
+});
+
+test("rows and items end where the parser ends them: a section ends a row, an item ends a paragraph", () => {
+  // The header row is not closed; the body must not be read as part of it.
+  const old = `<table><thead><tr><th>Name<tbody><tr><td>alpha<tr><td>beta</table>`;
+  const html = inlineDiff(blockToks(old), blockToks(`<table><thead><tr><th>Name<tbody><tr><td>beta</table>`)).html;
+  assert.match(html, /^<table><thead><tr><th>Name<tbody><tr data-diff="removed"><td><del>alpha<\/del><tr><td>beta<\/table>$/);
+  const list = inlineDiff(blockToks(`<ul><li><p>first words here<li><p>second words here</ul>`), blockToks(`<ul><li><p>second words here</ul>`)).html;
+  assert.match(list, /^<ul><li data-diff="removed"><p><del>first words here<\/del><li><p>second words here<\/ul>$/);
+});
+
+test("a long table rewritten row by row is still diffed quickly", () => {
+  const table = (word: string) => `<table>${Array.from({ length: 1500 }, (_v, i) => `<tr><td>${word} row ${i} first</td><td>${word} value ${i * 7}</td></tr>`).join("\n")}</table>`;
+  const started = Date.now();
+  const { count } = inlineDiff(blockToks(table("old")), blockToks(table("new")));
+  assert.ok(count >= 1500);
+  assert.ok(Date.now() - started < 5000, `took ${Date.now() - started} ms`);
 });
 
 test("the words around a list (a summary, a lead-in) are compared with each other, not with the items", () => {
