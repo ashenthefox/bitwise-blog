@@ -47,7 +47,7 @@ reader would see it, in three places that share one function, `diffPages` (`scri
 Two versions in one document would repeat ids and run the page's script twice. So wherever the old
 version is shown beside the live page, it is a copy with: no ids (ids inside a picture are prefixed,
 with their `url(#…)` and `href="#…"` references), links turned into plain spans, no scripts, no event
-handlers, controls disabled, headings turned into styled paragraphs, and custom elements turned into
+handlers, controls disabled, no `language-*` class (a highlighter would erase its `<ins>`/`<del>`), headings turned into styled paragraphs, and custom elements turned into
 `<div data-was="…">` so their scripts never run on the copy (`<bh-sequence>` is kept: it only draws itself).
 
 **A copy styled by id gets a shadow tree.** Page CSS is scoped by id (`#my-figure .part`), and a copy
@@ -89,6 +89,24 @@ The theme numbers nothing else across blocks: `.bh-article` resets a `table` cou
 `tests/page-diff-browser.test.mts` reads the number the page's last note is drawn with, with the marks closed and
 open, on the live page and on a diff page.
 
+**No other pass of `bh.js` takes a copy for the page's own either** (#335). On a diff page the marks and the list
+of changes (`.bh-diff-summary`) are in the article when `bh.js` runs, so each pass that walks it leaves them out
+(`DIFF_COPY` in `bh.js`), and on the live page the same rules hold for marks that arrive later:
+
+- **Glossary terms** (`GLOSSARY_SKIP`, and `[data-term]`): a term in a copy is not made a control, and does not take
+  the page's first use of that term, which is the one that is marked.
+- **Code blocks**: a copy's `<pre>` gets no header or Copy button, and with no `language-*` class no highlighter
+  matches it (Prism highlights every matching element in the document, on its own as well as when `bh.js` asks).
+- **Figure numbers** in a link's toast and a `data-ref`'s title (`linkLabel`) count only the page's own figures.
+- **Reading time** (`buildMeta`) counts only the page's words.
+- The rest are harmless there: headings, the table of contents, link buttons, deep links and `data-ref` all need
+  an id or an attribute a copy does not keep; reveal-on-scroll only fades in; and Mermaid draws the old sketch in
+  the copy, under ids of its own. A scrolling copy joining the tab order is deliberate (above).
+
+`tests/page-diff-browser.test.mts` compares the page's own (terms, figure numbers, reading time, code blocks) on a
+diff page, on the same page with its marks taken out and on the live page, and checks that nothing in a copy is
+made live.
+
 The word diff replaces a block *in place* only on the standalone diff page, and only when no custom
 element is inside it: a component's script reads its content (a chart's table, a code walk's lines), and
 an `<ins>` there would change what it computes. Such a block is left alone and its word diff is an inert
@@ -116,7 +134,9 @@ erase the marks.
    mark and the change bar go on the wrapper. A block that the *page's script* moved into another block (in
    `how-deflate-compresses`, a figure put inside the code walk) is found by its id, and its mark and change bar
    go on the article's child that holds it now, never inside that block: a component's layout has no room for a
-   mark. The bar's counts are the data's. A change whose block is nowhere in the article (the script took it
+   mark. The bar's counts are the data's, and they count changes, not marks: a moved block is one change with two
+   marks, one before the block where it is now and a "was here" mark where it was, linking to it (the diff
+   page's list names the move once). So "Previous" and "Next" visit changed + added + removed + 2 × moved marks. A change whose block is nowhere in the article (the script took it
    out, or the page is not the build the data was made for) has no mark, so the bar names it:
    "1 changed (1 not marked here: “…”)". The browser test covers both cases.
 

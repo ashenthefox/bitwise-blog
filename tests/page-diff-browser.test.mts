@@ -882,4 +882,116 @@ test("the diff module marks a live page with what changed since a commit", { ski
     assert.deepEqual(await q.evaluate(NUMBERS), numbered(0, 1), "nor with the mark closed");
     await noErrors(q);
   });
+
+  await t.test("on a diff page, bh.js treats no copy as the page's own: terms, code, figure numbers and reading time; and a move is one change with two marks", async () => {
+    // What was taken out sits before the page's first use of a glossary term, and holds that term (in text and as
+    // data-term), a highlighted code block, a numbered figure and enough words to change the reading time. A tab
+    // holds a code block that changed: its word diff is a copy beside it, as a component's script reads its content.
+    const PASSES = "docs/passes.html";
+    const words = (n: number, w: string) => Array.from({ length: n }, (_, i) => `${w}${i}`).join(" ");
+    const fig = (id: string, caption: string) => `<figure class="diagram" id="${id}">
+      <svg viewBox="-16 -16 162 72" role="img" aria-label="One part"><g class="node c1" data-id="part"><rect x="0" y="0" width="130" height="40" rx="8"/><text x="65" y="20">Part</text></g></svg>
+      <figcaption>${caption}</figcaption>
+    </figure>`;
+    const tabs = (v: string) => `<bh-tabs id="tabs"><section data-label="JS"><pre><code class="language-js">const limit = ${v};</code></pre></section></bh-tabs>`;
+    const gone = `<div class="callout"><p>The token bucket was explained here, with <span data-term="token-bucket">its bucket</span>. ${words(400, "gone")}</p>
+      <pre><code class="language-js">const taken = "out";</code></pre>
+      ${fig("old-figure", "A figure that was taken out.")}
+    </div>`;
+    const content = (removed: string, v: string, moveEarly: boolean) => {
+      const mover = `<p id="mover">A paragraph that the new version moves from the first section to the second.</p>`;
+      return `
+    <h2 id="alpha">Alpha</h2>${removed}
+    <p>The page's first use of the token bucket, which the glossary marks. ${words(300, "kept")}</p>
+    ${tabs(v)}
+    ${fig("first", "The first figure.")}${moveEarly ? `\n    ${mover}` : ""}
+    <h2 id="beta">Beta</h2>
+    <p>A sentence that stays exactly as it was in both versions.</p>${moveEarly ? "" : `\n    ${mover}`}
+    ${fig("second", "The second figure.")}
+    <p>See <span data-ref="second:part">its part</span>.</p>
+    <dl class="glossary"><dt id="token-bucket">token bucket</dt><dd>A limiter that refills.</dd></dl>`;
+    };
+    const { oldHtml, newHtml, data } = fixture(PASSES, content(`\n    ${gone}`, "10", true), content("", "20", false));
+    assert.deepEqual(data.stats, { changed: 1, added: 0, removed: 1, moved: 1 }, "the fixture's differences");
+
+    // The page's own: its glossary terms, each figure's number, a data-ref's title, its reading time and its code blocks.
+    const OWN = `(() => {
+      const own = (sel) => [...document.querySelectorAll(sel)].filter((n) => !n.closest(".bh-diff-mark, .bh-diff-summary"));
+      const reading = /Reading time\\s*(\\d+ min)/.exec(document.querySelector("dl.bh-meta").textContent);
+      return {
+        terms: own(".bh-article .term").map((n) => n.textContent),
+        figures: own(".bh-article figure[id]").map((f) => f.id + ": " + bh.linkLabel(f)),
+        refs: own(".diagram-ref").map((n) => n.title),
+        reading: reading && reading[1],
+        code: own(".bh-article .code-block").length,
+      };
+    })()`;
+    const own = { terms: ["token bucket"], figures: ["first: Figure 1", "second: Figure 2"], refs: ["Show in Figure 2"], reading: "2 min", code: 1 };
+    // What bh.js added inside the copies: a copy is inert, so nothing (a short copy at this width does not scroll).
+    const COPIES = `(() => {
+      const inMark = [...document.querySelectorAll(".bh-diff-mark *")];
+      return {
+        marks: document.querySelectorAll(".bh-diff-mark").length,
+        terms: inMark.filter((n) => n.matches(".term, [data-term][role]")).length,
+        controls: inMark.filter((n) => n.matches("button:not([disabled]), [tabindex]")).map((n) => n.localName + "." + n.className),
+        code: inMark.filter((n) => n.matches(".code-block, .code-head, .token")).length,
+        figures: inMark.filter((n) => n.matches("figure")).length,
+        diffed: [...document.querySelectorAll(".bh-diff-mark .bh-diff-copy code")].map((c) => c.innerHTML),
+      };
+    })()`;
+    const copies = (marks: number) => ({ marks, terms: 0, controls: [], code: 0, figures: 1, diffed: ["const limit = <del>10</del><ins>20</ins>;"] });
+    // A move is one change and two marks: one where the block is now, and one where it was, which links to it.
+    const MOVES = `(() => ({
+      moved: document.querySelectorAll('.bh-diff-mark[data-diff="moved"]').length,
+      wasHere: [...document.querySelectorAll(".bh-diff-mark[data-moved]")].map((m) => { const a = m.querySelector("a[href^='#']"); const to = a && document.querySelector(a.getAttribute("href")); return to ? to.dataset.diff : null; }),
+    }))()`;
+
+    // The real command, in the repository an earlier test set up.
+    const git = (...args: string[]) => spawnSync("git", ["-C", root, "-c", "user.name=T", "-c", "user.email=t@example.test", "-c", "commit.gpgsign=false", ...args], { encoding: "utf8", timeout: 30_000 });
+    fs.writeFileSync(path.join(root, PASSES), oldHtml);
+    for (const args of [["add", PASSES], ["commit", "-q", "-m", "passes"]]) {
+      const r = git(...args);
+      assert.equal(r.status, 0, `git ${args[0]}: ${r.stderr}`);
+    }
+    fs.writeFileSync(path.join(root, PASSES), newHtml);
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    for (const key of Object.keys(env)) if (key.startsWith("BH_")) delete env[key];
+    const made = spawnSync(process.execPath, [path.join(root, "scripts/bh.mts"), "diff", PASSES], { cwd: root, env, encoding: "utf8", timeout: 60_000 });
+    assert.equal(made.status, 0, made.stdout + made.stderr);
+    const out = "dist/diff/" + path.basename(PASSES);
+    const html = fs.readFileSync(path.join(root, out), "utf8");
+    assert.match(html, /<script[^>]*>[^<]*Prism/, "the diff page carries the highlighter, for the page's own code");
+    // The same page with the marks and the list of changes taken out: what the page's own should read as.
+    const bare = html.replace(/<details class="bh-diff-mark"[\s\S]*?<\/details>/g, "").replace(/<p class="bh-diff-mark"[\s\S]*?<\/p>/g, "").replace(/<aside class="bh-diff-summary"[\s\S]*?<\/aside>/, "");
+    assert.ok(bare.length < html.length && !/<\w+ class="bh-diff-(?:mark|summary)"/.test(bare), "the marks were taken out");
+    fs.writeFileSync(path.join(root, "dist/diff/bare.html"), bare);
+
+    const b = await tab();
+    await b.goto(base + "dist/diff/bare.html");
+    assert.deepEqual(await b.evaluate(OWN), own, "without marks");
+    const q = await tab();
+    await q.goto(base + out);
+    assert.deepEqual(await q.evaluate(OWN), own, "the diff page's own, as without marks");
+    // The diff page's marks are open when it loads, so nothing here waits on a mark being opened.
+    assert.equal(await q.evaluate(`document.querySelectorAll("details.bh-diff-mark:not([open])").length`), 0);
+    assert.deepEqual(await q.evaluate(COPIES), copies(4), "nothing in a copy is made live");
+    assert.ok(await q.evaluate(`document.querySelectorAll(".bh-article .code-block .token").length > 0`), "the page's own code is highlighted, so the highlighter did run");
+    assert.deepEqual(await q.evaluate(MOVES), { moved: data.stats.moved, wasHere: ["moved"] }, "one moved block: its mark, and a mark where it was that links to it");
+    assert.match(await q.evaluate(`document.querySelector(".bh-diff-summary p").textContent`), /1 changed, 1 removed, 1 moved/);
+    assert.equal(await q.evaluate(`document.querySelectorAll(".bh-diff-summary li").length`), 3, "the list names the move once");
+    await noErrors(q);
+
+    // On the live page the marks arrive after bh.js's passes, but a figure's number is read when it is asked for.
+    const p = await tab();
+    await p.goto(`${base}${PASSES}?diff=${BASE}`);
+    assert.deepEqual(await p.evaluate(OWN), own, "the live page's own, with the marks closed");
+    await p.evaluate("document.querySelector('.bh-diff-bar [data-expand]').click()");
+    assert.deepEqual(await p.evaluate(OWN), own, "and open");
+    assert.deepEqual(await p.evaluate(COPIES), copies(4));
+    assert.deepEqual(await p.evaluate(MOVES), { moved: data.stats.moved, wasHere: ["moved"] });
+    const stats = data.stats;
+    assert.deepEqual(await p.evaluate(`[document.querySelector(".bh-diff-bar-text").textContent, bh.diff.placed.length]`),
+      ["Changes since bbbbbbb: 1 changed, 1 removed, 1 moved", stats.changed + stats.added + stats.removed + 2 * stats.moved], "the bar counts changes; each move has two marks");
+    await noErrors(p);
+  });
 });
