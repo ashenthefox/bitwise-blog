@@ -45,6 +45,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-18: the Haiku misses of `pedagogical-writing` labelled from traces, and seven queries reworded (#308)
 - 2026-11-18: the two `pedagogical-diagrams` review cases graded on what the skill adds, and three unsteady graders (#301)
 - 2026-11-18: `prompt-opus-explainers` graded on what the skill adds (#317)
+- 2026-11-18: `pedagogical-writing`'s description names one part of a page and planning one (#319)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -2431,3 +2432,97 @@ got the recorded verdict on all 12.
   unchanged rubric that was judged again, and the fresh run went as the saved answers did for 03 and 07.
 - **Only Sonnet was run**, and only this case. The other cases with graders that pass in both arms in #248's
   baseline (`review-deflate-page`, `design-rank-interactive`, the other prompt cases) were not touched.
+
+## 2026-11-18: `pedagogical-writing`'s description names one part of a page and planning one (#319)
+
+Claude Code 2.1.318, three runs per query unless a row says six, `--keep` on every run. #308 left five should-fire
+queries that Haiku answers in one turn without the skill: #6, #12, #35, and the held-out #25 and #38. The
+description changed once and was not revised. US$10.89 in all: $2.54 for five Haiku runs and $8.34 for five
+Sonnet runs.
+
+**The change.** The description's verbs were about a page or a passage of one. It now also names one part of a
+page and planning one. Only #6, #12 and #35 guided the words, and none of their phrasing is copied.
+
+| | Before (987 characters) | After (1,019 characters) |
+| --- | --- | --- |
+| Added | "…or technical blog page, or a passage of one, or when asked…" | "…or technical blog page, or one part of it (a passage, a prediction question, an exercise, a playground), when planning one (the order to teach in, whether an interactive is needed), or when asked…" |
+| Cut to make room | "explanations whose purpose is teaching"; "Triggers on requests like"; the quoted triggers "write an explainer", "teach", "tutorial" and "review this page for clarity" | "explanations that teach"; "Triggers on"; four quoted triggers remain |
+
+The four quoted triggers that went repeat words the "Use when" sentence already has (drafting an explainer,
+tutorial, reviewing). The cuts and the addition were measured together, not one by one.
+
+**`pedagogical-writing` on Haiku**, the whole suite, `npm run trigger-evals -- pedagogical-writing --model
+claude-haiku-5-5 --keep`:
+
+| Description | Passed | Should-fire | Quiet | Train | Held-out | Cost |
+| --- | --- | --- | --- | --- | --- | --- |
+| Before, #308's final run | 50 of 58 | 21 of 29 | 29 of 29 | 33 of 38 | 17 of 20 | $0.70 |
+| Before, run again for this section | 52 of 58 | 23 of 29 | 29 of 29 | 34 of 38 | 18 of 20 | $0.70 |
+| **After, first run** | 54 of 58 | 25 of 29 | 29 of 29 | 36 of 38 | 18 of 20 | $0.71 |
+| **After, second run** | 55 of 58 | 26 of 29 | 29 of 29 | 36 of 38 | 19 of 20 | $0.70 |
+
+No quiet query fired in any run of any of the three new Haiku runs (0 of 87 runs each). The two "before" rows
+differ in the sandbox misses alone: #11 and #51 passed in the second and missed in #308's.
+
+| Query | Before, #308's runs | Before, today | After, first run | After, second run | A missing run after the change |
+| --- | --- | --- | --- | --- | --- |
+| #6 (what order to introduce things in) | 0 of 3 | 0 of 3 | 3 of 3 | 3 of 3 | none |
+| #12 (a question for the reader to predict) | 0, 0, 0 of 3 | 0 of 3 | 2 of 3 | 2 of 3 | no tool calls; the question written in one turn |
+| #35 (whether to build a playground) | 0 of 3 | 0 of 3 | 0 of 3 | 0 of 3 | no tool calls, or one `Grep`; "Build it, but keep it small" in one turn |
+| #25 held-out | 0, 0, 0 of 3 | 0 of 3 | 0 of 3 | 1 of 3 | no tool calls, or one `Grep`, then the answer |
+| #38 held-out | 0, 0, 0 of 3 | 0 of 3 | 0 of 3 | 2 of 3 | no tool calls; answered in one turn |
+| #4 (sandbox) | 1 of 3 | 1 of 3 | 2 of 3 | 3 of 3 | the file hunt |
+| #11 (sandbox) | 0 of 3 | 2 of 3 | 1 of 3 | 1 of 3 | the file hunt, to the turn cap |
+
+- **Two of the three train queries now pass in both runs**: #6 at 3 of 3 and #12 at 2 of 3, each 0 of 3 in every
+  run before. That is the rise from 23 to 25. The 26th in the second run is the held-out #38.
+- **#35 did not move**: 0 of 6. "Whether an interactive is needed" does not make Haiku load the skill for a
+  question of whether to build one. It answers the question from memory. It stays a description miss on Haiku.
+- **The held-out pair moved in one run of two.** #38 fired 0 and then 2 of 3, #25 0 and then 1 of 3, against 0 of
+  3 in every run before. One 3-run result is not a pass or a miss, so this shows the change does not over-fit the
+  three train queries, not that the held-out pair is fixed.
+- **The only other miss is #11**, the file hunt #308 labelled as the sandbox's.
+
+**`pedagogical-writing` on Sonnet**, the 29 quiet queries and the five description misses (`--only` with those 34
+positions, $6.73). The should-fire queries Sonnet already passed were not run again.
+
+| Queries | Before | After |
+| --- | --- | --- |
+| Quiet, 29 | 29 of 29 in every full run on record (#242 the last) | 29 of 29 |
+| #6, #12, #35 | 3 of 3 each (#12 in #308, the others in #242's full run) | 3 of 3 each |
+| #38 held-out | 3 of 3 (#308) | 3 of 3 |
+| #25 held-out | 0 of 3 (#308) | 0 of 3, no tool calls |
+
+- **One quiet run in 87 loaded the skill.** On #32 ("…should I use an animation, a stepper or one static
+  figure?") one run of three called `pedagogical-diagrams` and then `pedagogical-writing`. The query passes, since
+  two runs stayed quiet. #32 was then run six times with each description ($0.29 and $0.31): 0 of 6 before and 0 of
+  6 after. So it is 1 run of 9 after against 0 of 6 before, and the diagram skill loaded first in that one run.
+  "Whether an interactive is needed" is the likely cue; one run does not establish it.
+- **#25 is still Sonnet's one miss**, as in every run since #91.
+
+**The neighbours.** `pedagogical-diagrams` on Haiku, the whole suite with each description (a clone of the
+commit before the change gave the "before" run):
+
+| Description | Passed | Should-fire | Quiet | Cost |
+| --- | --- | --- | --- | --- |
+| Before | 18 of 24 | 8 of 14 | 10 of 10 | $0.21 |
+| After | 19 of 24 | 9 of 14 | 10 of 10 | $0.23 |
+
+#4 and #12 passed after and missed before; #10 (held-out) passed before and missed after, and its three missing
+runs are the file hunt to the turn cap with no `Skill` call, so nothing took it. On Sonnet with the new
+description, the two diagram queries nearest the new words (#4, how many frames a stepper has, and #9, animation,
+stepper or static figure) loaded `pedagogical-diagrams` 3 of 3 each ($0.39), and the two `anatomy` queries that
+say "interactive" (#1 and the held-out #21) loaded `anatomy` 3 of 3 each ($0.62).
+
+**What this does not show.**
+
+- **The full Sonnet suites were not run** ($16 for this skill's 58 queries, $6.50 for `pedagogical-diagrams`).
+  Sonnet's should-fire queries other than the five were not measured with the new description, nor were the
+  quiet queries of `pedagogical-diagrams`, `anatomy`, `skill-authoring` or `advisors` on Sonnet. #233 found a
+  neighbour's quiet query changed by a description edit only in a full Sonnet run.
+- **Which part of the edit did the work.** The addition and the cuts went in together.
+- **Whether the held-out queries are still unseen.** #308 quoted #25 and #38 in this file, so the author of the
+  change had read them. The words came from the three train queries and the skill's own sections; "example" was
+  left out of the list of parts for that reason, since only #25 asks for one.
+- **#11 and #34** still hunt for the quoted text and pass or fail by the run, as #308 left them.
+- **Output evals were not run**: the body did not change.
