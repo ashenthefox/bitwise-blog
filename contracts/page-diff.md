@@ -24,7 +24,9 @@ reader would see it, in three places that share one function, `diffPages` (`scri
 - **Pictures are compared whole.** An inline `<svg>`, a `<bh-sequence>`, a Mermaid sketch, a `<canvas>`
   and any `<script>` are never word-diffed. When one changes, the old and new figures are shown as a
   `<bh-versions>` pair, and each part with a `data-id` is marked `data-change` (removed, added, changed)
-  unless the author marked it already.
+  unless the author marked it already. Those marks obey the page's change-highlight switch (the top
+  bar's button, off when a page opens), so a diff turns it on: a diff page (`data-bh-diff`) starts with
+  it on, and `diff.js` calls `bh.showChanges()` when it places a changed diagram.
 - **How the source is wrapped or indented is not a change.** Comments are ignored.
 - Each difference says what differs: `text`, `figure` (a picture), or `markup` (attributes or structure only).
 

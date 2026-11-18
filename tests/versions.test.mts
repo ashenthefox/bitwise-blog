@@ -250,6 +250,12 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
       own.click(); await tick(); out.figureOff = read();
       page.click(); await tick(); out.pageOffAgain = read();
       page.click(); await tick(); out.figureStillOff = read();
+      // Code that shows the reader a change they asked for (the diff view) turns the switch on.
+      own.click(); await tick(); page.click(); await tick();
+      const before = page.getAttribute("aria-pressed");
+      window.bh.showChanges(); await tick();
+      out.shownByCode = [before, page.getAttribute("aria-pressed"), document.documentElement.getAttribute("data-changes")];
+      own.click(); await tick();
       own.click(); await tick();
       lone.remove();
       return out;
@@ -262,6 +268,7 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
       // Printing lifts the switch on the page, though the button still says what the reader chose.
       printing: { ...on, page: "false", slash: true }, afterPrint: off,
       pageOn: on, figureOff, pageOffAgain: { ...off, own: "false" }, figureStillOff: figureOff,
+      shownByCode: ["false", "true", null],
     });
   });
 

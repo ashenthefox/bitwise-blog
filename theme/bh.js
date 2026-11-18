@@ -267,10 +267,14 @@
   // Where there is no button to ask with, the marks show: without JavaScript, on paper, and in
   // the slides (the top bar is hidden while presenting).
 
+  /** Turn the page's switch on: for code that shows the reader a change they asked for (diff.js). */
+  let showChanges = () => {};
+
   /** The top bar's switch for the whole page, or null when the page marks no change. */
   function changesButton() {
     if (!doc.querySelector("main [data-change]")) return null;
-    let on = false;
+    // A page that is itself a diff (npm run diff) is read for its marks, so there the switch starts on.
+    let on = doc.body.hasAttribute("data-bh-diff");
     const btn = el("button", {
       class: "btn ghost icon bh-changes-btn", type: "button", "aria-label": "Show change highlights",
       // A square holding + and −; the stroke through it appears only while the highlights are off.
@@ -286,6 +290,7 @@
     // Entering or leaving the slides changes the class on <html>.
     if ("MutationObserver" in window) new MutationObserver(apply).observe(root, { attributes: true, attributeFilter: ["class"] });
     apply();
+    showChanges = () => { on = true; apply(); };
     return btn;
   }
 
@@ -1697,6 +1702,7 @@
   window.bh = {
     applyTheme, whenReady, el, format, copyText, copyLink, toast, linkLabel, settle,
     reducedMotion, LINK_ICON, ensureMarkers: () => injectMarkers(true), loadScript, siteRoot: SITE_ROOT,
+    showChanges: () => showChanges(),
     sitePath, meta, storage, loadModule, examples: EXAMPLES, fragment,
     // Unlisted pages: whether to surface them, and their data (null while the flag is off).
     unlisted: { visible: UNLISTED.visible, page: UNLISTED.page, data: loadUnlisted },
