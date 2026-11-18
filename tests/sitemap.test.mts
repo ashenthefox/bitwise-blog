@@ -4,7 +4,6 @@ import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import http from "node:http";
-import net from "node:net";
 import { fileURLToPath } from "node:url";
 import { test, type TestContext } from "node:test";
 
@@ -137,10 +136,14 @@ test("serve answers a missing path with the 404 page, rebased onto the local roo
   f.edit("package.json", /"homepage": "[^"]*"/, '"homepage": "https://example.org/blog/"');
   assert.equal(f.bh("index").status, 0);
   assert.match(f.read("404.html"), /href="\/blog\/theme\/bh\.css"/);
-  const port = await new Promise<number>((resolve) => { const s = net.createServer(); s.listen(0, () => { const p = (s.address() as net.AddressInfo).port; s.close(() => resolve(p)); }); });
-  const child = spawn(process.execPath, [path.join(f.root, "scripts/bh.mts"), "serve", String(port)], { cwd: f.root, stdio: ["ignore", "pipe", "pipe"] });
+  // Port 0 on 127.0.0.1, where the request goes: serve binds a free port there and names it (see tests/serve.test.mts).
+  const child = spawn(process.execPath, [path.join(f.root, "scripts/bh.mts"), "serve", "0", "127.0.0.1"], { cwd: f.root, stdio: ["ignore", "pipe", "pipe"] });
   t.after(() => { child.kill(); });
-  await new Promise<void>((resolve, reject) => { child.stdout.on("data", (d) => { if (String(d).includes("Serving ")) resolve(); }); child.once("exit", () => reject(new Error("serve exited"))); });
+  let output = "";
+  const port = await new Promise<number>((resolve, reject) => {
+    child.stdout.on("data", (d) => { output += d; const m = output.match(/Serving .* at .*http:\/\/127\.0\.0\.1:(\d+)\//); if (m) resolve(Number(m[1])); });
+    child.once("exit", () => reject(new Error("serve exited")));
+  });
   const res = await new Promise<{ status?: number; body: string }>((resolve, reject) => http.get({ hostname: "127.0.0.1", port, path: "/no/such/page" }, (r) => {
     let body = ""; r.setEncoding("utf8"); r.on("data", (d) => { body += d; }); r.on("end", () => resolve({ status: r.statusCode, body }));
   }).on("error", reject));
