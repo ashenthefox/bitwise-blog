@@ -109,8 +109,8 @@ cd <checkout-or-worktree-to-link>
 npm run advisor -- link <path-to-data-clone>
 ```
 
-The argument is never a checkout of this repository: `link` refuses another worktree of it, since that would make
-this checkout look linked while `leak-check` found no posts and checked nothing. A target with no writers (a new,
+The argument is never a checkout of this repository: `link` refuses another worktree of it, and a separate clone or copy (one
+with `scripts/advisor.mts` at its root), since that would make this checkout look linked while `leak-check` found no posts and checked nothing. A target with no writers (a new,
 empty clone, or the wrong directory) is linked with a warning that says so.
 
 With no clone, `npm run sync-posts` makes `corpus/private` a plain directory. That works, but it belongs to that
