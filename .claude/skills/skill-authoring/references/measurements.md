@@ -38,6 +38,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-18: why the `pedagogical-diagrams` output scores fell with no change, and the judge (#237)
 - 2026-11-18: every output suite with the Sonnet judge, both arms, and what it costs (#248)
 - 2026-11-18: `fix-confusing-figure` graded on what the skill adds, and the two dropped conditions (#249)
+- 2026-11-18: why `needs-a-script` scored lower with the skill on two graders (#300)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -1568,3 +1569,123 @@ Passes of each changed or new grader, with the skill and without, in the first r
   needs a stated job), and a future change to the skill there should change the grader with it.
 - **`--case` takes `*` and `?` only.** `{a,b}` and `[ey]` match nothing, at no cost, so two cases that share no
   pattern need two runs.
+
+## 2026-11-18: why `needs-a-script` scored lower with the skill on two graders (#300)
+
+Claude Code 2.1.318, agent and judge `claude-sonnet-5-5`, three runs per arm, `-j 4`. No change to the skill or
+to the prompt: two grader files changed. US$1.48 in all: $0.94 for two judgings of the saved answers with
+`rejudge.mjs` and $0.54 for one fresh run of the case in both arms (`claude plugin eval --case needs-a-script`,
+35 s, $0.32 of it the judge) on commit `9f88d01`. No run errored, and the skill loaded in 3 of 3 with-skill runs.
+
+**What the answers said.** The six `needs-a-script` answers of #248's run were read, three from each arm. The
+prompt asks to turn a by-hand check (every skill directory has a `SKILL.md`, and its `name` matches the directory)
+into a skill, and asks what goes in the skill and where the check lives.
+
+- **All three no-skill answers build a new skill**: a `validate-skills` directory with a short `SKILL.md` and a
+  new script of its own ("Put the check in a script, and have the skill call it"). None knows the repo has a
+  lint.
+- **All three with-skill answers say not to build one.** "Don't make this a skill. Make it a script, wired into
+  the repo's check", "Don't make it a skill", "The check belongs in a script, not in a skill". Each gives the
+  skill's reason (section 1: a rule that must hold every time goes in a repo check or hook), names
+  `npm run lint-skills` and `scripts/lint-skill.mjs`, says to see whether the lint already covers the two checks
+  and to add what is missing there, and adds `claude plugin validate`. Two offer a skill as an option, a few
+  lines that say to run the lint, and say it may not be needed.
+- **All six answers mention a hook, a pre-commit step or CI**, each with the same reason: so the check runs
+  without anyone remembering to start it.
+
+The with-skill answers are the better ones for this repo: the lint already makes both checks, and a second
+script in a new skill would be a second copy.
+
+**Why the two graders failed them.**
+
+- **`run-not-read` asked for a distinction that the better answer has no reason to draw.** Its rubric was "the
+  check should be a script that Claude runs (only its output enters context) rather than instructions that Claude
+  re-implements or reads each time", and it failed an answer that "never distinguishes running a script from
+  reading it". That describes a script bundled in a skill. An answer that puts the check in the repo's lint, run
+  by `npm` or a hook, says nothing about what Claude reads, because Claude is not what runs it. The votes that
+  failed with-skill answers when the old rubric was judged again say so: "It never says that Claude runs the
+  script so that only its output enters context, and it never contrasts running a script with reading or
+  re-implementing it." The no-skill answers
+  pass with one sentence ("not in prose instructions Claude re-interprets each time"). The rubric was read to
+  the letter and the answer had moved to a place the letter did not cover.
+- **`lowest-rung` asked two things, and one of them is a judgment the judge does not hold steady.** It wanted
+  "a SKILL.md plus one script" and no hooks "without a reason". The record does not keep the built-in judge's
+  reasoning, so why it failed two with-skill answers (one vote to two, both times) cannot be read. What can be
+  shown: all six answers propose a hook with the same reason, and the same judge model, asked again through
+  `rejudge.mjs` with the same rubric, passed all three with-skill answers and failed a no-skill one three votes
+  to none ("the only reason given is skipping manual invocation"). 3 of the 6 verdicts changed between two
+  judgings of the same text. Whether "so you do not have to remember" is a reason from the use case is the
+  whole verdict, and the skill itself says a must-hold rule goes in a check or hook. This grader was already
+  noted as noise twice on 2026-10-30 (#86 and #96).
+- **Neither is the skill's fault and neither is the prompt's.** The skill steers the answer away from "a
+  `SKILL.md` plus one script", which is what both rubrics took as the right answer, towards no new skill. The
+  graders were written before the skill said that.
+
+**What changed.**
+
+- **`lowest-rung` now asks one thing: does the answer say the check needs no new skill?** It passes an answer
+  that puts the check in something the repo runs and calls a skill unnecessary, or at most an optional thin
+  wrapper that may not be needed. It fails an answer whose recommendation is a new skill, however short, that
+  never says the check can do without one. A hook, a pre-commit step or CI neither passes nor fails. The old
+  condition about an MCP server, forked context or packaging is gone: none of the twelve answers read here
+  proposes any of them.
+- **`run-not-read` now asks one thing: is the check itself code that is run?** It passes a script, a lint or a
+  repo check, new or existing, and fails an answer that has Claude make the check by following written steps.
+  It says not to fail an answer for using an existing repo script, for recommending no skill, or for not
+  mentioning context.
+
+**Result.** Passes of each grader, with the skill and without. "Old rubric, judged again" and "new rubric" are
+the saved answers through `rejudge.mjs`; the fresh run is new answers through the built-in judge.
+
+| Grader | #248's record | Old rubric, judged again | New rubric, saved answers | New rubric, fresh run |
+| --- | --- | --- | --- | --- |
+| `lowest-rung` | 1 of 3, 3 of 3 | 3 of 3, 2 of 3 | 3 of 3, 0 of 3 | 3 of 3, 0 of 3 |
+| `run-not-read` | 1 of 3, 3 of 3 | 1 of 3, 3 of 3 | 3 of 3, 3 of 3 | 3 of 3, 3 of 3 |
+| `reuses-existing-lint` (regex, unchanged) | 3 of 3, 0 of 3 | | 3 of 3, 0 of 3 | 3 of 3, 0 of 3 |
+| `bundles-a-script` (regex, unchanged) | 3 of 3, 3 of 3 | | 3 of 3, 3 of 3 | 3 of 3, 1 of 3 |
+| `no-repo-root-path` (unchanged) | 3 of 3, 3 of 3 | 3 of 3, 3 of 3 | 3 of 3, 3 of 3 | 3 of 3, 3 of 3 |
+
+| `needs-a-script` | With | Without | Δ |
+| --- | --- | --- | --- |
+| #248's record | 0.73 | 0.80 | −0.07 |
+| Saved answers, new rubrics | 1.00 | 0.60 | +0.40 |
+| Fresh run | 1.00 | 0.47 | +0.53 |
+
+- **Neither grader now passes more often without the skill than with it**, on the saved answers or on the fresh
+  run, which is what #300 asks.
+- **The judge split its votes on none of the 12 saved verdicts of the two new rubrics**, and on 1 of the 12
+  fresh ones (`run-not-read`, a with-skill answer, passed two votes to one). With the old rubrics it split on 2
+  of 12 when judged again and on 3 of 12 in the record.
+- **The fresh answers repeat the saved ones.** Three with-skill answers open "This probably shouldn't be a
+  skill", "the check shouldn't be a skill" and "Don't make this a skill", and all name the lint. Three no-skill
+  answers build a `validate-skills` or `check-skills` skill with its own script.
+- **A baseline is kept**: `evals/baselines/2026-11-18-needs-a-script-300.json`, the fresh run (6 answers, both
+  arms), trimmed with `rejudge.mjs --trim --commit 9f88d01`. The case has no fixture.
+
+**What this does not show.**
+
+- **`run-not-read` passes 6 of 6 in both sets of answers, so it measures nothing about the skill.** It is kept
+  as the check that the answer still does the main job, as `fix-confusing-figure` 01 and 05 were in #249: it
+  would fail a skill change that led the answer to prose steps. By the rule in `evals.md` it could as well be
+  deleted. `no-repo-root-path` also passes 12 of 12.
+- **The case's Δ now comes from two graders that both ask about the same move.** `lowest-rung` (no new skill)
+  and `reuses-existing-lint` (names the lint) pass together in all twelve answers. That is one thing the skill
+  teaches, counted twice among five scored graders.
+- **`lowest-rung` takes the skill's side.** A short skill that runs a bundled script is a fair answer to "I want
+  to turn that into a skill", and the grader fails it. It follows section 1 of `SKILL.md`; a change there should
+  change the grader with it. It can be passed without the repo: an answer need only say the check belongs in CI
+  or a pre-commit step and needs no skill. Two no-skill answers come near ("That's where the check really
+  lives, and the skill is just a convenient way to run it on demand") and still build the skill.
+- **`reuses-existing-lint` cannot pass without the skill.** The sandbox is empty and the prompt does not name
+  the lint, so only the skill's text can supply it. It shows the skill was read, not that the answer is better.
+- **`bundles-a-script` fell to 1 of 3 without the skill in the fresh run for a reason of its own.** It is a
+  regex for `scripts/`, and two no-skill answers put `check.sh` beside `SKILL.md`. It passes the with-skill
+  answers only because they name `scripts/lint-skill.mjs`, and none of them bundles a script. Its name no
+  longer says what it checks. It was not changed: #300 is about the other two.
+- **The new rubrics were fitted to six answers that had been read**, and confirmed on one fresh run of three
+  answers an arm, made the same day. One run is not a spread.
+- **The 3 of 6 changed verdicts for the old `lowest-rung` compare two judge prompts**, the built-in one and the
+  script's, which are not the same. That agreement was not measured for this suite before; for
+  `pedagogical-diagrams` with Haiku it was 84% to 89%.
+- **Only Sonnet was run.** Haiku and Opus scored this case +0.07 and +0.13 with the old graders in October, and
+  their answers have not been read.
