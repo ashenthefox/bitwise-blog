@@ -149,6 +149,25 @@
     clip: rect(0 0 0 0);
   }
 }
+/* Room for the bar before bh.js builds it (#284). The script is deferred, and it puts the bar (52px)
+   at the top of the body: until then the page was drawn 52px higher, and then pushed down by it.
+   So while there is no bar, an empty box of its height stands in its place, and goes in the same
+   style change that brings the bar. Only where scripts run: (scripting: enabled) is the browser's
+   own answer to whether they will, before the first paint, with no script or attribute on any page.
+   Without JavaScript there will be no bar, so nothing is kept for it and there is no blank strip; a
+   browser that does not know the query, or :has(), keeps nothing either, and the bar arrives as it
+   always did. A page with data-chrome="none" gets no bar, so no room. Not in print, which hides the
+   bar. A page whose scripts run but whose bh.js never arrives keeps the empty box; that is the cost.
+   tests/pre-script-layout.test.mts holds the article's top, and checks that no room is kept without
+   JavaScript. */
+@media screen and (scripting: enabled) {
+  body:not([data-chrome="none"]):not(:has(> .bh-topbar))::before {
+    content: "";
+    display: block;
+    height: var(--topbar-h);
+  }
+}
+
 /* Change highlights for the whole page. The stroke through the icon carries "off" without colour. */
 .bh-changes-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 .bh-changes-btn:not([aria-pressed="false"]) .bh-changes-off { display: none; }
@@ -238,6 +257,28 @@
 }
 .bh-toc a:hover { color: var(--text); background: var(--surface-2); }
 .bh-toc a.is-active { color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
+
+/* Room for the Contents block before bh.js builds it (#284). Below 1100px the table of contents is a
+   collapsed block above the article, and on a phone it pushed the article down a further 60px when
+   the script ran. So, on the same terms as the room kept for the bar above: an empty box sized as
+   the collapsed block is, from the same tokens (its margin and border, and its summary's padding,
+   font size and line height around one line of text). It is not a measured height, so it tracks the
+   reader's default font size and the fluid --step--1. It is kept only where the script will build a
+   block: the same three-heading :has() count as the column rule above, and not on a .no-toc page.
+   It goes when the block arrives. Keep it in step with .bh-toc and .bh-toc > summary.
+   tests/pre-script-layout.test.mts holds the article's top, at a 20px default font size too. */
+@media screen and (scripting: enabled) and (width < 1100px) {
+  .bh-page:not(.no-toc):not(:has(> .bh-toc)):has(> .bh-article > :is(h2, h3):not(.no-toc) ~ :is(h2, h3):not(.no-toc) ~ :is(h2, h3):not(.no-toc))::before {
+    content: "\a0";
+    display: block;
+    margin: var(--space-4) var(--space-4) 0;
+    border: 1px solid transparent;
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--step--1);
+    line-height: var(--leading-snug);
+    font-weight: 600;
+  }
+}
 
 @media (min-width: 1100px) {
   .bh-toc {
