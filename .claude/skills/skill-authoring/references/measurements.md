@@ -46,6 +46,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-18: the two `pedagogical-diagrams` review cases graded on what the skill adds, and three unsteady graders (#301)
 - 2026-11-18: `prompt-opus-explainers` graded on what the skill adds (#317)
 - 2026-11-18: `pedagogical-writing`'s description names one part of a page and planning one (#319)
+- 2026-11-18: `pedagogical-writing`'s effort line reworded: the padding claim had no source (#332)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -2526,3 +2527,55 @@ say "interactive" (#1 and the held-out #21) loaded `anatomy` 3 of 3 each ($0.62)
   left out of the list of parts for that reason, since only #25 asks for one.
 - **#11 and #34** still hunt for the quoted text and pass or fail by the run, as #308 left them.
 - **Output evals were not run**: the body did not change.
+
+## 2026-11-18: `pedagogical-writing`'s effort line reworded: the padding claim had no source (#332)
+
+#317 found that every with-skill answer of `prompt-opus-explainers` repeats the Settings line of
+`drafting-with-models.md` ("draft at `high` or above, where reviewers saw less padding"), and that eight of nine
+no-skill answers say the opposite and cite Anthropic's guide. The line was checked against its sources on
+2026-11-18. **It was reworded, not kept or removed.**
+
+**What the sources say.**
+
+- **Every's Vibe Check on Opus 5.5**, the review the line came from (#150), was read for its writing section. It
+  says "use Opus 5.5 to draft at high effort or above, and give it your own examples", in the paragraph that
+  reports 37 to 39 sentences against the reviewer's 21. It does not say at what effort those drafts were made,
+  and it compares no padding across effort levels. Its one comparison of levels is about 3D scenes ("extra-high
+  adds detail ... without the excess of Opus 5"). So the advice to draft at `high` has a source; "where reviewers
+  saw less padding" does not.
+- **Anthropic's [Effort](https://platform.claude.com/docs/en/build-with-claude/effort) page**: on Opus 5,
+  "Effort controls thinking volume, not visible response length ... changing effort does not reliably shorten
+  responses, so prompt for length instead"; on Fable 5.2, "Effort barely changes how long the model's replies
+  are, so use your prompt to change reply length and tone". Its Opus 5.5 entry says nothing about length. The
+  same page also says effort "affects all tokens in the response", text included, so it is not a claim that
+  effort has no effect on the reply.
+- **[Prompting Claude Opus 5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5)**:
+  its "Calibrate effort" section is about thinking, latency and cost, and says nothing about reply length.
+  [Prompting best practices](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices)
+  has the Opus 5 exception ("raising or lowering effort does not reliably change visible response length").
+- **What the no-skill answers cite.** Their wording ("Per the guide, effort doesn't reliably change visible
+  length") matches the Opus 5 lines above. None of the nine names the model the guide says it for, and the guide
+  does not say it for Opus 5.5.
+
+**What changed.** The Settings line now says the default and that thinking cannot be turned off, that Every's
+reviewers advise `high` or above without comparing padding across levels, that Anthropic says effort barely
+changes visible length for Opus 5 and Fable 5.2 but not for Opus 5.5, and so to cut padding with the prompt and
+treat `high` as a quality setting to test. The sources table gains the Effort page, and Every's row names the
+passage that was read.
+
+**One run of the case, with the skill only.** Claude Code 2.1.318, agent and judge `claude-sonnet-5-5`, three
+runs, `--ablation none`, `--case prompt-opus-explainers`, US$0.97 in all. No run errored, and the skill loaded in
+3 of 3. All three answers give the new reason: "Don't expect it to fix padding, because Anthropic says effort
+barely changes visible reply length. That statement covers other models, and nothing is documented for Opus
+5.5." None repeats "reviewers saw less padding". The graders went as in #317's fresh run except
+`07-keeps-precision`, which failed one answer of three (all three votes): that answer has no check that the
+rewrite kept the claims. The Settings line has nothing to do with that check, so it is run-to-run variation, which
+#317's 9 of 9 did not show.
+
+**What this does not show.**
+
+- **Whether `high` drafts less padding on Opus 5.5.** No source measured it, and neither did this change. The
+  line now says so instead of claiming it.
+- **The no-skill arm was not run.** It was not changed, and nine saved answers of it were read in #317.
+- **No grader checks the reason**, for the reason #317 gave: it would pass the skill's own wording. The case's
+  score did not depend on the line before or after.

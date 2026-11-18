@@ -145,8 +145,11 @@ explanatory prose.
 
 ## Settings
 
-- **Opus 5.5:** effort defaults to `medium`; draft at `high` or above, where reviewers saw less
-  padding. Thinking cannot be turned off.
+- **Opus 5.5:** effort defaults to `medium`, and thinking cannot be turned off. Every's
+  reviewers advise drafting at `high` or above, but they did not compare padding across levels.
+  Anthropic says effort barely changes visible reply length (stated for Opus 5 and Fable 5.2,
+  not for Opus 5.5), so cut padding with the prompt and treat `high` as a quality setting to
+  test, not a fix for length.
 - **Sonnet 5.5:** effort defaults to `high`. Do not draft with `thinking: {type: "between_tools"}`:
   in a request with no tools it answers without thinking first.
 - **Sol and Astra:** use high reasoning effort for drafting; neither accepts `none`. OpenAI's
@@ -172,8 +175,9 @@ Read in full unless marked. Reviews are single outlets with their own prompt set
 | [UNICEF adt-studio #954](https://github.com/unicef/adt-studio/issues/954) | Sol's literal following; appended guidance had no effect, in-place rewrites did |
 | [Thomas Wiegold: GPT-6.1 Sol review](https://thomas-wiegold.com/blog/gpt-6-1-sol-review/) | "does what you write, which isn't always what you mean" |
 | [Anthropic: Prompting Claude Opus 5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5), [Sonnet 5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5), [best practices](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices) | Effort defaults, `between_tools`, `reasoning_extraction`, Opus 5 patterns as the starting point |
+| [Anthropic: Effort](https://platform.claude.com/docs/en/build-with-claude/effort) (its recommended levels for Opus 5, Opus 5.5 and Fable 5.2 read) | Effort controls thinking, not visible length, on Opus 5; it "barely changes how long the model's replies are" on Fable 5.2; nothing on length for Opus 5.5 |
 | Anthropic: Prompting Claude Opus 5, Sonnet 5 and Fable 5.1 (via Anthropic's API skill, summarised) | The Opus 5 conciseness line and "readable versus concise" block, Sonnet 5's literalness, mannered prose and first-turn placement |
-| [Every: Vibe Check on Opus 5.5](https://every.to/vibe-check/vibe-check-opus-5-5-is-pulling-our-codex-converts-back-to-claude) (summarised) | Grade 6.95, 37–39 versus 21 sentences, weak self-editing, Astra as the stronger editor |
+| [Every: Vibe Check on Opus 5.5](https://every.to/vibe-check/vibe-check-opus-5-5-is-pulling-our-codex-converts-back-to-claude) (summarised) | Grade 6.95, 37–39 versus 21 sentences, weak self-editing, Astra as the stronger editor; "draft at high effort or above" (that passage read), with no padding compared across levels |
 | [Arize: Anthropic says it fixed Claude's writing](https://arize.com/blog/anthropic-says-it-fixed-claudes-writing/) (summarised) | Stock-phrase counts per 1,000 words, Opus 5 versus 5.5 |
 | [Novelmage: Sonnet 5.5 for creative writing](https://novelmage.com/blog/claude-sonnet-55-for-creative-writing-reviser-not-muse) (summarised) | Reviser rather than drafter, literal, weaker open-ended judgment |
 | [Intellectual Lead: Astra writing review](https://intellectualead.com/chatgpt-writing-review/), [Forward Future: Astra review](https://signals.forwardfuture.com/astra-review/), [Yiannis Antoniou on Astra](https://yiannisantoniou.substack.com/p/gpt-6-astra-is-excellent-but-way) (summarised) | Abstract nouns, sentence lengths, rule of three, steerability, repetition, underdelivery |
