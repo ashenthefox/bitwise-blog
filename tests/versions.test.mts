@@ -273,6 +273,9 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
   });
 
   await t.test("the page's switch stays true to its button through printing, a page script and a wrapper's switch", async () => {
+    // A phone's width, whatever view the loop above ended on: the icon's size below depends on it.
+    await s("Emulation.setDeviceMetricsOverride", { width: 375, height: 800, deviceScaleFactor: 1, mobile: true });
+    await sleep(200);
     const found = await evaluate(`(async () => {
       const tick = () => new Promise((r) => setTimeout(r, 0));
       const html = document.documentElement;
@@ -287,6 +290,16 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
       out.printing = state();
       await fire("afterprint");
       out.afterTwoBeforeprints = state();
+      // An afterprint that never comes must not leave the switch lifted: the next press of the
+      // button ends the printing state, and so does code that turns the switch on.
+      await fire("beforeprint");
+      page.click(); await tick();
+      page.click(); await tick();
+      out.pressedAfterLostAfterprint = state();
+      await fire("beforeprint");
+      window.bh.showChanges(); await tick();
+      page.click(); await tick();
+      out.shownAfterLostAfterprint = state();
       // While the page prints, nothing puts the switch back: not a class change on <html> ...
       await fire("beforeprint");
       html.classList.add("x-test"); await tick();
@@ -319,6 +332,7 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
     assert.deepEqual(found, {
       icon: [375, 18], // the bar has room for its five buttons on a phone: a flex row would shrink the icons otherwise
       start: ["false", "off"], printing: ["false", null], afterTwoBeforeprints: ["false", "off"],
+      pressedAfterLostAfterprint: ["false", "off"], shownAfterLostAfterprint: ["false", "off"],
       classChangeWhilePrinting: ["false", null], shownWhilePrinting: ["true", null],
       scriptOff: ["false", "off"], clickAfterScript: ["true", null], scriptOn: ["true", null],
       wrapperOff: { ownButtonShown: false, legend: "hidden", highlighted: false },

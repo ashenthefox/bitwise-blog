@@ -354,7 +354,7 @@ test("the diff module marks a live page with what changed since a commit", { ski
     await p.evaluate("document.querySelector('.bh-topbar .bh-changes-btn').focus(); bh.diff.hide()");
     assert.deepEqual(await highlights(p), none);
     assert.equal(await p.evaluate("document.activeElement.className"), await p.evaluate("document.querySelector('.bh-topbar .bh-review-btn').className"), "focus is on the next top-bar control");
-    // Nothing brings the off state back: not leaving the slides, not printing. A part marked later is drawn marked.
+    // Nothing brings the off state back: not leaving the slides, not printing, not a script. A part marked later is drawn marked.
     const later = await p.evaluate(`(async () => {
       const tick = () => new Promise((r) => setTimeout(r, 0));
       const root = document.documentElement, seen = [];
@@ -363,6 +363,9 @@ test("the diff module marks a live page with what changed since a commit", { ski
       seen.push(root.getAttribute("data-changes"));
       window.dispatchEvent(new Event("beforeprint")); window.dispatchEvent(new Event("afterprint")); await tick();
       seen.push(root.getAttribute("data-changes"));
+      // Nor a script that writes the attribute: the button follows it only while it is in the page.
+      root.setAttribute("data-changes", "off"); await tick(); await tick();
+      seen.push(root.getAttribute("data-changes"));
       const node = document.querySelector('#flow [data-id="service"]'), rect = node.querySelector("rect");
       const before = getComputedStyle(rect).stroke;
       node.setAttribute("data-change", "added");
@@ -370,7 +373,7 @@ test("the diff module marks a live page with what changed since a commit", { ski
       node.removeAttribute("data-change");
       return seen;
     })()`);
-    assert.deepEqual(later, [null, null, true]);
+    assert.deepEqual(later, [null, null, null, true]);
     // The next diff brings the switch back, on.
     await p.evaluate(SHOW("{}"));
     assert.deepEqual(await highlights(p), { button: "true", buttons: 1, root: null, own: [], copies: lit(COPIES), trees: [null, null] });

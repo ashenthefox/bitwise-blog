@@ -335,7 +335,7 @@
       class: "btn ghost icon bh-changes-btn", type: "button", "aria-label": "Show change highlights",
       // A square holding + and −; the stroke through it appears only while the highlights are off.
       html: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 9h6M12 6v6M9 16.5h6"/><path class="bh-changes-off" d="M3 21 21 3"/></svg>',
-      onclick: () => { on = !on; apply(); },
+      onclick: () => { endPrint(); on = !on; apply(); },
     });
     const apply = () => {
       // Written only when it differs: writing the same value again is a mutation too, and the
@@ -348,14 +348,16 @@
     };
     // Entering or leaving the slides changes the class on <html>. And a page script may set the
     // attribute on <html> itself: unless the switch is lifted, the button then says what it says.
+    // Not while the button is out of the page (showChanges takes a late-built one out when nothing
+    // is marked): then there is no control, and the switch stays on.
     if ("MutationObserver" in window) {
       new MutationObserver((records) => {
-        if (!changesLifted() && records.some((r) => r.attributeName === "data-changes")) on = root.dataset.changes !== "off";
+        if (btn.isConnected && !changesLifted() && records.some((r) => r.attributeName === "data-changes")) on = root.dataset.changes !== "off";
         apply();
       }).observe(root, { attributes: true, attributeFilter: ["class", "data-changes"] });
     }
     apply();
-    showChanges = () => { on = true; apply(); };
+    showChanges = () => { endPrint(); on = true; apply(); };
     applyPageSwitch = apply;
     return btn;
   }
@@ -368,7 +370,12 @@
     for (const n of doc.querySelectorAll('[data-changes="off"]')) { changesOffBeforePrint.add(n); delete n.dataset.changes; }
     mirrorChanges();
   });
-  addEventListener("afterprint", () => {
+  /**
+   * Printing is over. Also called when the reader presses the page's switch, or code turns it on:
+   * should an afterprint never come, the switch would otherwise stay lifted until the page reloads.
+   */
+  function endPrint() {
+    if (!printing) return;
     printing = false;
     // The page's switch goes back to what its button says now, which code may have changed meanwhile
     // (a diff that finished loading). Without a button, <html> is restored like any other element.
@@ -376,7 +383,8 @@
     changesOffBeforePrint.clear();
     if (applyPageSwitch) applyPageSwitch();
     mirrorChanges();
-  });
+  }
+  addEventListener("afterprint", endPrint);
 
   // ---- Auto meta (from <meta name="bh:*">) into <dl class="bh-meta" data-auto> ------
 
