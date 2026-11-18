@@ -1,0 +1,342 @@
+{
+ "format": "bh-eval-baseline/1",
+ "startedAt": "2026-11-18T08:03:22.515Z",
+ "claudeVersion": "2.1.318",
+ "models": {
+  "agent": "claude-sonnet-5-5",
+  "judge": "claude-sonnet-5-5"
+ },
+ "ablation": "with-without",
+ "commit": "9f88d01",
+ "cases": [
+  {
+   "name": "needs-a-script",
+   "graders": [
+    {
+     "name": "bundles-a-script",
+     "type": "regex"
+    },
+    {
+     "name": "lowest-rung",
+     "type": "llm",
+     "criteria": "This is about whether the answer builds a new skill at all.\nPASS if the answer says the check does not need a new skill: it belongs in a check the repo runs (a lint or check script, an npm script, CI, a pre-commit step or a hook), and a skill is unnecessary, or at most an optional thin wrapper that the answer says may not be needed.\nFAIL if what the answer recommends building is a new skill (a SKILL.md, with or without a script of its own), even a short one that only runs a script, and it never says the check can do without a new skill.\nMentioning a hook, a pre-commit step or CI neither passes nor fails the answer."
+    },
+    {
+     "name": "no-repo-root-path",
+     "type": "llm",
+     "criteria": "PASS if any path to a bundled file is relative to the skill directory (or uses ${CLAUDE_SKILL_DIR}), or no path is given.\nFAIL if it names the script by a repo-root path such as `.claude/skills/<name>/scripts/x`."
+    },
+    {
+     "name": "reuses-existing-lint",
+     "type": "regex"
+    },
+    {
+     "name": "run-not-read",
+     "type": "llm",
+     "criteria": "This is about where the check's logic lives, whatever the answer builds around it.\nPASS if the answer says the check itself (does each directory have a SKILL.md, does the name match the directory) is code that gets run: a script, a lint or a repo check, new or existing. Any instructions it writes for Claude only say to run that code and act on what it reports.\nFAIL if the answer has Claude do the check by following written steps (list the directories, open each SKILL.md, compare the names), or leaves open whether the check is code or instructions.\nDo not fail an answer for putting the check in an existing repo script and not in one bundled with a skill, for recommending no skill at all, or for not mentioning context or tokens."
+    },
+    {
+     "name": "skill-fired",
+     "type": "tool_used"
+    }
+   ],
+   "arms": {
+    "with": [
+     {
+      "score": 1,
+      "answer": "**This probably shouldn't be a skill. The check should be a script.**\n\nThe repo's rule is that anything that must hold every time goes in a repo check, not in a skill or prose. Your check is deterministic: the directory has a `SKILL.md`, and `name` equals the directory name. A skill would put a description in every session's context. It would also depend on Claude choosing to run it, and the check would then be probabilistic.\n\n**Where the check lives**\n\n- `npm run lint-skills` already runs `scripts/lint-skill.mjs` on every skill. The authoring skill says it checks the name (reserved words, directory match), description length and body length. I haven't opened the script, so I haven't confirmed it also flags a directory with no `SKILL.md`.\n- If it doesn't, add that check to `lint-skill.mjs` and fail with a clear message.\n- To make it automatic, run `lint-skills` from a hook or pre-commit. `npm run check` is the existing model for this.\n- `claude plugin validate .claude/skills` is a second check that the frontmatter parses.\n\n**If you still want a skill**\n\nMake it a thin wrapper that only says *when* to run the lint. For example, after adding or renaming a skill directory, run `npm run lint-skills`, read the failures and fix them. Don't put the rules in the skill, because the script already holds them.\n\nIf the skill carries a command, write it as `<skill-dir>/scripts/x`, not a repo-root path.\n\nI'd start by running `npm run lint-skills` against a deliberately broken skill directory. If it catches both cases, you're done and need no new skill.",
+      "graders": [
+       {
+        "name": "bundles-a-script",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "lowest-rung",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "no-repo-root-path",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "reuses-existing-lint",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "run-not-read",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "**Short answer: the check shouldn't be a skill. Put it in a script, and make the skill (if you want one) a thin wrapper.**\n\nThis repo's rule is that anything that must hold every time belongs in a repo check or hook, not in prose. Your check is deterministic, so it fits that rule.\n\n**Where the check lives**\n\n- It already exists in part. `npm run lint-skills` runs `scripts/lint-skill.mjs` on every skill. It checks name format, the reserved words `claude` and `anthropic`, directory match, description length and body length.\n- I haven't read the script, so I'm not sure it flags a skill directory with no `SKILL.md` at all. Check that first. If it doesn't, add it there. Also, per the skill's own notes, the lint reads files but doesn't parse YAML. `claude plugin validate .claude/skills` is the check that frontmatter actually parses.\n- To run it automatically, hook it in rather than relying on memory. Options are a pre-commit hook, CI, or a Claude Code hook (the `update-config` skill sets those up).\n\n**What a skill would add**\n\nI'd skip a new skill. A new skill puts a description in every session's context, and the repo advises growing an existing one first. `skill-authoring` already covers this, and step 6 of its workflow already says to run the lint. The useful change is a line there: \"run `npm run lint-skills` and `claude plugin validate`, and fix what they report\".\n\nIf you still want a standalone skill, keep `SKILL.md` to a few lines:\n\n- Trigger: \"after adding or renaming a skill\".\n- Body: run the two commands, report failures with a fix for each.\n- No logic in the prose.\n\nPer the repo's own rules, measure first. Run the task without the skill, and write it only if Claude gets something wrong.",
+      "graders": [
+       {
+        "name": "bundles-a-script",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "lowest-rung",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "no-repo-root-path",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "reuses-existing-lint",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "run-not-read",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         false,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "**Don't make this a skill. Make it a script, and run it from a check.** This is a rule that must hold every time, and it's deterministic. The repo guidance puts that in a check or hook, not in prose. A skill would put a description in every session's context and ask the model to redo something a script does exactly.\n\n**Where the check lives**\n\n- A script, e.g. `scripts/check-skills.mjs`, that walks `.claude/skills/*/`. For each directory it:\n  - fails if `SKILL.md` is missing;\n  - parses the frontmatter and fails if `name` doesn't equal the directory name.\n- Wire it into `npm run lint-skills`, or into `npm run check`. Run it there so it fires whether or not you remember.\n- Optionally add a pre-commit hook, or a Claude Code hook on edits under `.claude/skills/`, so you get feedback the moment you add a skill.\n\n**Check first**\n\n`npm run lint-skills` already runs `scripts/lint-skill.mjs` on every skill. It may already cover both checks. The guidance says it checks the directory match and, I believe, the missing-file case, but I haven't read the script. If a gap remains, extend that lint rather than adding a second script.\n\n**If you still want a skill**\n\nAdd one only for the judgment part: what to do with failures, or the checklist for a new skill. Keep it short and have it run `npm run lint-skills`. It shouldn't reimplement the check. Per the repo's rule, measure first: if Claude already runs the lint unprompted, the skill adds nothing.\n\nDo you want me to read `scripts/lint-skill.mjs` and see what it already covers?",
+      "graders": [
+       {
+        "name": "bundles-a-script",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "lowest-rung",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "no-repo-root-path",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "reuses-existing-lint",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "run-not-read",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     }
+    ],
+    "without": [
+     {
+      "score": 0.4,
+      "answer": "**Put the check in a script, and keep the skill thin.** Judgment-free checks should be deterministic code, not instructions Claude re-interprets each time.\n\n**Layout**\n```\n.claude/skills/validate-skills/\n├── SKILL.md\n└── check.sh        (or check.py)\n```\n\n**check.sh** does the real work. For each directory under your skills root:\n1. Fail if `SKILL.md` is missing.\n2. Parse the frontmatter `name:` field.\n3. Fail if it differs from the directory name.\n4. Print one line per problem, and exit non-zero if any were found.\n\n**SKILL.md** contains:\n- Frontmatter: `name: validate-skills`, and a `description` such as \"Use after adding or renaming a skill to verify every skill directory has a SKILL.md whose frontmatter name matches its directory.\" The description is what triggers it, so make it specific.\n- Body: run `check.sh` with the skills root as an argument, report the output verbatim, and offer to fix mismatches (usually renaming the frontmatter value, not the directory). Don't have Claude re-implement the check.\n\n**Optional extras**\n- Also check that `description:` exists, since a missing one means the skill never triggers.\n- Add `disable-model-invocation: true` if you only want it run manually via `/validate-skills`.\n- For enforcement rather than convenience, call the same script from a pre-commit hook or CI, so the skill and the guardrail share one implementation.\n\nWant me to write it? I'd need to know where your skills live. I don't see a skills directory in the current repo.",
+      "graders": [
+       {
+        "name": "bundles-a-script",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "lowest-rung",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "no-repo-root-path",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "reuses-existing-lint",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "run-not-read",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       }
+      ]
+     },
+     {
+      "score": 0.6,
+      "answer": "**Put the check in a script, and keep the skill thin.** A deterministic check shouldn't depend on Claude re-reading directories and reasoning about them each time.\n\n**Layout**\n\n```\n.claude/skills/check-skills/\n├── SKILL.md\n└── scripts/check_skills.py\n```\n\n(Use `~/.claude/skills/` instead if your skills live at user level. The check can still point at any skills root.)\n\n**`scripts/check_skills.py`** takes the skills root as an argument. For each subdirectory it:\n- fails if `SKILL.md` is missing\n- parses the frontmatter and fails if `name` is missing or differs from the directory name\n- prints one line per problem and exits non-zero if there are any\n\nOptionally it also checks that `description` is present, since skills without one rarely trigger. Use Python with `-I`, or plain bash, and no dependencies.\n\n**`SKILL.md`** holds only:\n- Frontmatter: `name: check-skills`, plus a description such as \"Use after adding or renaming a skill, to validate that every skill directory has a SKILL.md whose frontmatter name matches the directory.\"\n- One instruction: run `python3 -I scripts/check_skills.py <skills-root>`.\n- How to report: list failures, and propose fixes but don't apply them without asking. Renaming the directory vs. the `name` field is your call.\n\n**Enforcement.** A skill only runs when someone invokes it. To catch mistakes automatically, call the same script from a pre-commit hook or CI job. That's where the check really lives, and the skill is just a convenient way to run it on demand. I can set up either one if you want.",
+      "graders": [
+       {
+        "name": "bundles-a-script",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "lowest-rung",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "no-repo-root-path",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "reuses-existing-lint",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "run-not-read",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       }
+      ]
+     },
+     {
+      "score": 0.4,
+      "answer": "**Put the check in a script, and have the skill call it.** Deterministic validation belongs in code. The skill only tells Claude when to run it and what to do with the output.\n\n**Layout**\n```\n.claude/skills/validate-skills/\n  SKILL.md\n  check.sh   (or check.py)\n```\n\n**check.sh does the work:**\n- Loop over each directory under `.claude/skills/`.\n- Fail if `SKILL.md` is missing.\n- Parse the frontmatter `name:` and compare it to the directory name.\n- Print one line per problem, then exit non-zero if any were found.\n- Optionally also check that `description:` is present, since skills need it to be triggered.\n\n**SKILL.md contains:**\n- Frontmatter: `name: validate-skills`, plus a `description` like \"Use after adding or editing a skill to verify every skill directory has a SKILL.md whose frontmatter name matches its directory.\"\n- Body: run `bash ${CLAUDE_SKILL_DIR}/check.sh`, report each failure with its path, and offer to fix mismatches (rename the directory or the `name:` field, and ask which). Don't auto-fix.\n\n**Optional automation:** if you'd rather not remember to run it, add a hook (via `/update-config`) that runs `check.sh` after Write or Edit on `**/SKILL.md`. A skill is only invoked when you or Claude decide to, but a hook runs every time.\n\nI can write the script and SKILL.md if you'd like. Tell me whether your skills live in `.claude/skills/` or in a plugin, since that changes the path.",
+      "graders": [
+       {
+        "name": "bundles-a-script",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "lowest-rung",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "no-repo-root-path",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "reuses-existing-lint",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "run-not-read",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}
