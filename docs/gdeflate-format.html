@@ -18,7 +18,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="bh:sealed" content="aes-256-gcm+gzip">
   <meta name="bh:sealed-digest" content="9c058c7c665683574e9dd7b8216504aa111a47726475f89f7d022fe224e18c63">
-  <meta name="bh:sealed-shell" content="d7f105bb59e43f92">
+  <meta name="bh:sealed-shell" content="b45db8774fc0c462">
   <title>Private page</title>
   <link rel="icon" type="image/svg+xml" href="../theme/logo/mark-tile.svg">
   <link rel="apple-touch-icon" href="../theme/logo/apple-touch-icon.png">
@@ -145,6 +145,9 @@ async function unseal(fromStorage) {
     try { sessionStorage.setItem(store, key); } catch {}
     // Keep the key out of the address bar, copied section links and screenshots.
     history.replaceState(null, "", location.pathname + location.search + (anchor ? "#" + anchor : ""));
+    // Tells the theme this is a private page, so it offers no review (an exported review quotes the page).
+    // document.open() replaces the document, not the window, so the flag is in place before the page's first script.
+    window.bhSealed = true;
     document.open();
     document.write(html);
     document.close();
