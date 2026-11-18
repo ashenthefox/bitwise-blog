@@ -41,7 +41,8 @@ clone of this repo). Git worktrees don't share ignored files, so run it, and `np
 `node_modules` blocks the push with a line saying so, rather than skipping the check. It is a local guard: `git push --no-verify` and merges made elsewhere skip it. The `Leak check` workflow repeats it in CI (the key and plaintext part with no secret, the corpus part against keyed hashes, `corpus/leak-hashes.txt`): regenerate them with `npm run advisor -- leak-hashes` when `leak-check` says they are stale.
 
 Run `npm run index` after **any** change to a document. It regenerates the catalogue, the
-social meta block and feed autodiscovery link in every page's `<head>`, `feed.xml`, `sitemap.xml`,
+social meta block and feed autodiscovery link in every page's `<head>`, the hero's facts list and a
+superseded page's banner (`scripts/hero-meta.mts`), `feed.xml`, `sitemap.xml`,
 `robots.txt`, `404.html`, `theme/glossary.js`, `theme/site.js` (backlinks),
 `theme/search-index.js`, `theme/unlisted-pages.js`, `theme/unlisted-slugs.js` and
 `theme/unlisted-reviews.js`. `check` fails while any of these are stale. Never edit the
@@ -108,7 +109,11 @@ Some rules in those contracts guard what this public repo reveals, and no check 
   - the feed autodiscovery `<link rel="alternate" type="application/atom+xml">` after the icon
     links, and the "Subscribe" link in the footer (both in the templates; see [Atom feed](contracts/feed.md))
   - the inline theme script that prevents a flash of the wrong theme
-- Use exactly one `<h1>`, inside `.bh-hero`.
+- Use exactly one `<h1>`, inside `.bh-hero`. Keep the template's `<dl class="bh-meta" data-auto>` in it:
+  `index` writes the status, date, authors, reading time, tags and decision links into it (and the
+  "Superseded" banner after the hero), so they read without JavaScript and nothing moves when `bh.js`
+  arrives. Leave both alone; a private page gets them from `npm run seal`. `bh.js` fills the list only
+  when it is empty (a page diff, which compares versions without it).
 - Content lives as **direct children** of `<article class="bh-article">`. Don't wrap
   sections in `<section>` or `<div>`. The TOC, eyebrows and breakout grid all rely on this.
 - **Everything a reader might want to share must be linkable.** That means each of these
@@ -130,7 +135,7 @@ Some rules in those contracts guard what this public repo reveals, and no check 
     target, scrolls to it and briefly highlights it.
 - **Decisions are never deleted, only superseded.** Link a replacement both ways in
   the `<head>`: `bh:supersedes` on the new ADR, and `bh:superseded-by` plus
-  `bh:status` "superseded" on the old one. The old page then shows a banner, and the
+  `bh:status` "superseded" on the old one. The old page then shows a banner (written by `index`), and the
   index marks it with a dashed border and a struck-through title. `check` fails if the links don't agree.
 - **Ids are permanent once published.** Pick ids that name the concept, not the wording:
   `#rollout`, not `#how-we-plan-to-roll-this-out`. If you must rename one, keep the old

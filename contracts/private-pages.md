@@ -15,6 +15,11 @@ carries its key.
   after the key to link to a section. `seal -- --show-links` prints the full links. The key
   is in the URL fragment, which browsers never send to the server. Opened without it, the
   page shows only a notice.
+- **`seal` writes the hero's facts first.** `index` leaves a private page alone (editing it would make
+  its seal stale), so `seal` writes the hero's list and any "Superseded" banner into
+  `docs/<slug>.private.html` before it encrypts it, as `index` does for a public page
+  (`scripts/hero-meta.mts`). The sealed copy and the digest then cover them, and `unseal` gives them
+  back. `check` asks for `npm run seal` while they are stale.
 - **Keys live in 1Password**, never on disk: one Password item per page, titled
   `beautiful-html private page: <slug>`, in the vault `$BH_OP_VAULT` (default `Private`).
   `seal` creates the item the first time and reads it back to confirm it was stored. The

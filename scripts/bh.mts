@@ -2,7 +2,7 @@
 // beautiful-html CLI — no runtime dependencies, Node ≥ 22.18.
 //
 //   node scripts/bh.mts new [--private] [--example] [--unlisted] <template> <slug> "<Title>" ["<description>"]
-//   node scripts/bh.mts index                 regenerate index.html list, social meta (with JSON-LD), feed.xml, sitemap.xml, robots.txt, 404.html, theme/{glossary,site,search-index,unlisted-pages,unlisted-slugs}.js
+//   node scripts/bh.mts index                 regenerate index.html list, social meta (with JSON-LD), each hero's facts and banner, feed.xml, sitemap.xml, robots.txt, 404.html, theme/{glossary,site,search-index,unlisted-pages,unlisted-slugs}.js
 //   node scripts/bh.mts check [--skip-keys]   lint docs/ and index.html (--skip-keys: no 1Password lookups)
 //   node scripts/bh.mts cards                 render docs/assets/og/<slug>.png and record it in social-cards.txt (needs Chrome; see scripts/cards.mts)
 //   node scripts/bh.mts bundle <page|--all>   inline theme → dist/<name>.html (single file)
@@ -34,6 +34,7 @@ import { arrowTipFindings, diagramLabelFindings } from "./check/diagram-geometry
 import { contrastFindings } from "./check/contrast.mts";
 import { linkTargetFindings } from "./check/link-targets.mts";
 import { feedContent, feedInteractives } from "./feed-content.mts";
+import { HERO_META_RE, EMPTY_HERO_META, SUPERSEDED_RE, HERO_RE, withoutHeroMeta, heroMetaList, supersededBanner, readingTime, articleWords, type HeroMetaRow } from "./hero-meta.mts";
 import { hiddenPages, hiddenHrefs, HIDDEN_RULE, type HiddenKind } from "./hidden-pages.mts";
 import { LEAK_ALLOWED } from "./leak-allowed.mts";
 import { trackedPrivatePlaintext } from "./private-leaks.mts";
@@ -606,7 +607,8 @@ const SECTION_TEXT_MAX = 4000;
 /** The article split at h2/h3 ids: [{ id, heading, html, text }]. The part before the
     first heading (hero, TL;DR) has id "". */
 function extractSections(html: string): { id: string; heading: string; html: string; text: string }[] {
-  const art = stripComments(html).match(/<article\b[^>]*class="[^"]*\bbh-article\b[^"]*"[^>]*>([\s\S]*)<\/article>/);
+  // The generated list and banner are the page's metas again, not its words: no search text, no backlink.
+  const art = stripComments(withoutHeroMeta(html)).match(/<article\b[^>]*class="[^"]*\bbh-article\b[^"]*"[^>]*>([\s\S]*)<\/article>/);
   if (!art) return [];
   const body = art[1]
     .replace(/<(script|style|svg)\b[\s\S]*?<\/\1>/gi, " ")
@@ -866,6 +868,84 @@ function discussProblems(file: string, raw: string): string[] {
   return out;
 }
 
+// ---- The hero's facts and the "Superseded" banner (scripts/hero-meta.mts) ---------------------
+//
+// `npm run index` writes the list in each public page's hero, and the banner after the hero of a page that
+// has been superseded, from the page's own bh:* metas, as bh.js used to build them on load; `npm run seal`
+// does the same for a private page before it encrypts it. `check` fails when either is stale. bh.js builds
+// them only into a list left empty (a page diff, or a page from before this was generated).
+
+/** Every public page, by root-relative path: the pages a decision link may name. Read once (`index` changes no meta). */
+let publicDocsByHref: Map<string, Doc> | null = null;
+const publicDoc = (href: string): Doc | undefined => (publicDocsByHref ??= new Map(docFiles().map((f) => { const d = readDoc(f); return [d.href, d] as const; }))).get(href);
+
+/** A meta's value as text in the page: decoded, as the browser reads the attribute, then escaped. */
+const metaText = (v: string) => escapeHtml(decodeHtml(v));
+
+/**
+ * The link to the page that `d` supersedes or is superseded by: `value` as the author wrote it, `target` the
+ * page it names. Its text is that page's title when everyone who may read `d` may also see that title: a
+ * listed page's, and an example's only on another example (the published site has no examples, so a post
+ * would show a title no reader can follow). Otherwise it is the path as written, which is what bh.js showed
+ * without data for the page, and `data-untitled` asks bh.js for the title where the reader's data has it
+ * (an unlisted chain with #unlisted=true, an example with ?examples). See docs/visibility-threat-model.html.
+ */
+function lifecycleLink(d: Doc, value: string, target: string): string {
+  const t = publicDoc(target);
+  const titled = !!t && !t.unlisted && (!t.example || d.example);
+  return `<a href="${attr(value)}"${titled ? "" : " data-untitled"}>${metaText(titled ? t!.title : value)}</a>`;
+}
+
+/** The rows of `file`'s list, in bh.js's order: Status, Updated, Authors, Reading time, Tags, Supersedes, Superseded by. */
+function heroMetaRows(file: string, raw: string): HeroMetaRow[] {
+  const html = stripComments(raw), d = readDoc(file);
+  const rows: HeroMetaRow[] = [];
+  const status = getMeta(html, "bh:status"), date = getMeta(html, "bh:date"), authors = getMeta(html, "bh:authors"), tags = getMeta(html, "bh:tags");
+  if (status) rows.push({ term: "Status", html: `<span class="badge ${escapeHtml(decodeHtml(status).toLowerCase())}">${metaText(status)}</span>` });
+  if (date) rows.push({ term: "Updated", html: `<time datetime="${metaText(date)}">${metaText(date)}</time>` });
+  if (authors) rows.push({ term: "Authors", html: metaText(authors) });
+  const reading = readingTime(articleWords(raw));
+  if (reading) rows.push({ term: "Reading time", html: reading });
+  if (tags) rows.push({ term: "Tags", html: metaText(tags) });
+  const supersedes = getMeta(html, "bh:supersedes"), supersededBy = getMeta(html, "bh:superseded-by");
+  if (supersedes) rows.push({ term: "Supersedes", html: lifecycleLink(d, supersedes, d.supersedes) });
+  if (supersededBy) rows.push({ term: "Superseded by", html: lifecycleLink(d, supersededBy, d.supersededBy) });
+  return rows;
+}
+
+/** `raw` with its list written: each generated list, filled. A template's stays empty: `new` copies it and `index` fills it. */
+function withHeroList(raw: string, file: string): string {
+  if (file.startsWith(TEMPLATES + path.sep)) return raw.replace(new RegExp(HERO_META_RE.source, "g"), EMPTY_HERO_META);
+  const rows = heroMetaRows(file, raw);
+  return raw.replace(new RegExp(HERO_META_RE.source, "g"), (_m, at: number) => {
+    const line = raw.slice(raw.lastIndexOf("\n", at - 1) + 1, at);
+    return heroMetaList(rows, /^[ \t]*$/.test(line) ? line : "");
+  });
+}
+
+/** `raw` with its banner written after the hero when the page is superseded, and every other copy removed. */
+function withSupersededBanner(raw: string, file: string): string {
+  const bare = raw.replace(new RegExp(SUPERSEDED_RE.source, "g"), "");
+  if (file.startsWith(TEMPLATES + path.sep)) return bare;
+  const html = stripComments(raw), value = getMeta(html, "bh:superseded-by");
+  if (!value) return bare;
+  const d = readDoc(file);
+  return bare.replace(HERO_RE, (hero, indent: string) => hero + supersededBanner(lifecycleLink(d, value, d.supersededBy), getMeta(html, "bh:kind") === "decision", indent));
+}
+
+const withHeroMeta = (raw: string, file: string) => withSupersededBanner(withHeroList(raw, file), file);
+
+/** Everything `check` says about the generated list and banner on one page (or template, or private source). */
+function heroMetaProblems(file: string, raw: string): string[] {
+  const run = isPrivateSource(file) ? "run `npm run seal`, which writes them into the private page before it encrypts it" : "run `npm run index`";
+  const out: string[] = [];
+  const lists = (stripComments(raw).match(new RegExp(HERO_META_RE.source, "g")) || []).length;
+  if (lists > 1) out.push(`has ${lists} <dl class="bh-meta" data-auto> lists; the hero holds one`);
+  if (withHeroList(raw, file) !== raw) out.push(file.startsWith(TEMPLATES + path.sep) ? `the <dl class="bh-meta" data-auto> list must be empty in a template: \`new\` and \`index\` fill it` : `the hero's <dl class="bh-meta" data-auto> list is stale or edited by hand: ${run}`);
+  if (withSupersededBanner(raw, file) !== raw) out.push(`the "Superseded" banner after the hero is stale, misplaced or edited by hand: ${run}`);
+  return out;
+}
+
 /** `raw` with its autodiscovery link written (replacing any other feed link, after the icon links). */
 function withFeedLink(raw: string, file: string): string {
   const tag = `  ${feedLinkTag(feedPrefix(file))}\n`;
@@ -1053,6 +1133,15 @@ function cmdIndex(): void {
     if (next !== raw) { fs.writeFileSync(file, next); social++; }
   }
   console.log(c.green(`Social meta written for ${docFiles().length + 1} pages`) + c.dim(` (${social} updated)`));
+
+  // The hero's facts and the "Superseded" banner, on every public page; templates keep an empty list.
+  // Private sources are left alone, as below: `seal` writes theirs.
+  let heroes = 0;
+  for (const file of [...docFiles(), ...(fs.existsSync(TEMPLATES) ? fs.readdirSync(TEMPLATES).filter((f) => f.endsWith(".html")).map((f) => path.join(TEMPLATES, f)) : [])]) {
+    const raw = fs.readFileSync(file, "utf8"), next = withHeroMeta(raw, file);
+    if (next !== raw) { fs.writeFileSync(file, next); heroes++; }
+  }
+  console.log(c.green(`Hero facts written for ${docFiles().length} pages`) + c.dim(` (${heroes} updated)`));
 
   // The feed, and the autodiscovery link every public page carries.
   const posts = feedPosts(), feedText = buildFeed(posts);
@@ -1427,6 +1516,8 @@ function cmdCheck(skipKeys = false): void {
     // "Discuss this post": generated by `npm run index` on each post, and on nothing else.
     if (file === INDEX && discussConfigProblem()) err(discussConfigProblem());
     for (const p of discussProblems(file, raw)) err(p);
+    // The hero's facts and the "Superseded" banner: generated by `npm run index` (`seal` for a private page).
+    if (file !== INDEX) for (const p of heroMetaProblems(file, raw)) err(p);
 
     // Example pages are shown or hidden by theme/examples.js, which must run in <head> before first paint.
     {
@@ -2185,6 +2276,10 @@ function cmdSeal(argv: string[] = []): void {
         console.warn(c.yellow(`⚠ ${slug}: its key changed (${why}). The page is re-encrypted, so every old #k= link to ${rel} stops working: share the new link.`));
       }
       const key = Buffer.from(keyText, "base64url");
+      // The hero's facts and banner go into the plaintext first, as `index` writes them into a public page:
+      // the sealed page then reads as one does, and the digest covers them.
+      const text = fs.readFileSync(src, "utf8"), filled = withHeroMeta(text, src);
+      if (filled !== text) { fs.writeFileSync(src, filled); console.log(c.green(`Wrote the hero's facts into ${path.relative(ROOT, src)}`)); }
       const plain = fs.readFileSync(src);
       const digest = sealDigest(key, plain);
       // Re-sealing unchanged plaintext would only change the IV, so leave the file alone.

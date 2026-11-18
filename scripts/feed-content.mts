@@ -46,7 +46,7 @@ const VOID = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input"
 /** Left out with everything inside them: they need a script or the page to mean anything. */
 const DROP = new Set(["script", "style", "template", "button", "input", "select", "textarea", "form", "label", "canvas", "iframe", "object", "embed", "dialog", "meta", "link", "base", "area", "param", "h1"]);
 /** Classes of theme furniture that a feed entry already has, or does not need. */
-const DROP_CLASSES = ["eyebrow", "bh-meta", "bh-footer", "bh-hero-mark"];
+const DROP_CLASSES = ["eyebrow", "bh-meta", "bh-superseded", "bh-footer", "bh-hero-mark"];
 /** Controls a reader cannot run: reported by `check` on a `full` page. */
 const CONTROLS = new Set(["button", "input", "select", "textarea", "form", "canvas", "iframe", "object", "embed", "dialog"]);
 /** The only attributes that reach the feed. */

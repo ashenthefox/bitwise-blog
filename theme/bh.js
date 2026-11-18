@@ -405,10 +405,18 @@
   addEventListener("afterprint", endPrint);
 
   // ---- Auto meta (from <meta name="bh:*">) into <dl class="bh-meta" data-auto> ------
+  //  `npm run index` writes the list into the page (scripts/hero-meta.mts builds the same rows), so it
+  //  reads without JavaScript and nothing below the hero moves when this script arrives. It is built
+  //  here only when it is empty: on a page diff, which compares its versions without it, or on a page
+  //  written before it was generated. `check` keeps a published page's list current.
+
+  /** Whether this script built the list (and so also adds its decision rows, see buildLifecycle). */
+  let metaBuilt = false;
 
   function buildMeta() {
     const dl = doc.querySelector("dl.bh-meta[data-auto]");
-    if (!dl) return;
+    if (!dl || dl.firstElementChild) return;
+    metaBuilt = true;
     const article = doc.querySelector(".bh-article");
     // A page diff's copies and its list of changes (a diff page has them when this runs) are not the page's words.
     const count = (n) => n.textContent.trim().split(/\s+/).filter(Boolean).length;
@@ -1209,7 +1217,7 @@
     "input", "select", "textarea", "label", "summary", "script", "style", "[data-term]",
     ".term", ".no-glossary", ".bh-hero", ".bh-footer", ".bh-toc", ".bh-tablist",
     ".code-block", ".mermaid", ".badge", ".eyebrow", "dl.glossary > dt", "[data-ref]",
-    ".sidenote", DIFF_COPY,
+    ".sidenote", ".bh-superseded", DIFF_COPY,
   ].join(",");
 
   const splitList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
@@ -1636,12 +1644,19 @@
       const rel = decodeURIComponent(url.pathname.slice(SITE_ROOT.pathname.length));
       return el("a", { href: url.href, text: (pages.get(rel) || {}).title || value });
     };
+    // A link the index wrote with the path for its text (a page not every reader of this one may see):
+    // its title, where this reader's data has the page.
+    for (const a of doc.querySelectorAll(".bh-article a[data-untitled][href]")) {
+      const t = link(a.getAttribute("href"));
+      if (t && t.textContent !== a.getAttribute("href")) { a.textContent = t.textContent; delete a.dataset.untitled; }
+    }
     const by = link(meta("bh:superseded-by")), sup = link(meta("bh:supersedes"));
-    const dl = doc.querySelector("dl.bh-meta[data-auto]");
+    // The index wrote these rows into the list it wrote: only a list built here lacks them.
+    const dl = metaBuilt && doc.querySelector("dl.bh-meta[data-auto]");
     if (dl && sup) dl.append(el("div", {}, [el("dt", { text: "Supersedes" }), el("dd", {}, [sup])]));
     if (dl && by) dl.append(el("div", {}, [el("dt", { text: "Superseded by" }), el("dd", {}, [by.cloneNode(true)])]));
     const hero = doc.querySelector(".bh-article > .bh-hero");
-    if (by && hero) {
+    if (by && hero && !doc.querySelector(".bh-article > .bh-superseded")) {
       hero.after(el("aside", { class: "callout warn bh-superseded", role: "note" }, [
         el("p", { class: "callout-title", text: "Superseded" }),
         // A decision is kept as a record; any other page (an explainer rewritten as a series) as an archive.

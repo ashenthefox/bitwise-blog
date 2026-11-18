@@ -261,3 +261,140 @@ test("the reading column is in place before bh.js runs, and without JavaScript",
   assert.ok(seen.none > 0, "a page without a table of contents was measured");
   assert.ok(seen.stacked > 0, "a page with the Contents block above its article was measured");
 });
+
+// ---- The hero (#298) ---------------------------------------------------------------------------
+//
+// `npm run index` writes the hero's list of facts and a superseded page's banner into the page
+// (scripts/hero-meta.mts). bh.js used to build both on load, and everything below the hero moved down
+// by the list's height (48px at 1280px, 148px at 390px) and the banner's. Measured from the hero's own
+// top, so the top bar and the table of contents, which bh.js also builds above it, do not count.
+
+/** The public pages with a generated list: what the hero test measures. */
+const heroDocs = docs.filter((f) => /<dl class="bh-meta" data-auto>/.test(readFileSync(join(root, "docs", f), "utf8")));
+const metaOf = (html: string, name: string) => (html.replace(/<!--[\s\S]*?-->/g, "").match(new RegExp(`<meta name="${name}" content="([^"]*)"`)) || [])[1] || "";
+
+/**
+ * The hero and what follows it: its height, the top of the first block after it that is not the banner
+ * (the TL;DR) and of the banner, both from the hero's top, the list's rows, and the article's words
+ * without the list and the banner (what bh.js counted for the reading time, before it changed anything).
+ */
+const heroProbe = `(async () => {
+  do { document.body.getBoundingClientRect(); await document.fonts.ready; } while (document.fonts.status !== "loaded");
+  const round = (v) => Math.round(v * 100) / 100;
+  const article = document.querySelector(".bh-article"), hero = article && article.querySelector(":scope > .bh-hero");
+  if (!hero) return null;
+  const top = hero.getBoundingClientRect().top;
+  const after = [...article.children].filter((c) => hero.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING);
+  const first = after.find((c) => !c.matches(".bh-superseded")), banners = article.querySelectorAll(".bh-superseded");
+  const words = (n) => (n ? n.textContent.trim().split(/\\s+/).filter(Boolean).length : 0);
+  const dl = hero.querySelector("dl.bh-meta[data-auto]");
+  return {
+    hero: round(hero.getBoundingClientRect().height),
+    first: first ? round(first.getBoundingClientRect().top - top) : null,
+    banner: banners.length ? round(banners[0].getBoundingClientRect().top - top) : null,
+    banners: banners.length,
+    eyebrow: (hero.querySelector(".eyebrow") || { textContent: "" }).textContent.trim(),
+    rows: dl ? [...dl.children].map((d) => [d.querySelector("dt").textContent, d.querySelector("dd").textContent]) : [],
+    words: words(article) - words(dl) - [...banners].reduce((n, b) => n + words(b), 0),
+  };
+})()`;
+interface Hero { hero: number; first: number | null; banner: number | null; banners: number; eyebrow: string; rows: [string, string][]; words: number }
+
+test("the hero is as tall before bh.js runs as after, and reads without JavaScript", { skip, timeout: 170000 }, async (t) => {
+  const { articleWords, readingTime } = await import("../scripts/hero-meta.mts");
+  assert.ok(heroDocs.length > 0, "found pages with a generated list");
+  const server = await serveStatic(root);
+  t.after(() => new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); }));
+  let hold = false, held = 0, release = () => {};
+  const serve = server.listeners("request")[0] as (req: http.IncomingMessage, res: http.ServerResponse) => void;
+  server.removeAllListeners("request");
+  server.on("request", (req: http.IncomingMessage, res: http.ServerResponse) => {
+    if (!hold || !/\/theme\/bh\.js(?:\?|$)/.test(req.url || "")) serve(req, res);
+    else { held++; const before = release; release = () => { before(); serve(req, res); }; }
+  });
+  t.after(() => release());
+  const address = server.address();
+  assert.ok(address && typeof address !== "string", "the server is listening");
+  const base = `http://127.0.0.1:${address.port}`;
+  const chrome = await launchChrome();
+  t.after(() => chrome.close());
+  const { targetId } = await chrome.send("Target.createTarget", { url: "about:blank" });
+  const { sessionId } = await chrome.send("Target.attachToTarget", { targetId, flatten: true });
+  t.after(() => chrome.send("Target.closeTarget", { targetId }).catch(() => {}));
+  const s = (method: string, params?: object) => chrome.send(method, params, sessionId);
+  await s("Page.enable");
+  await s("Page.bringToFront");
+  await s("Network.enable");
+  await s("Network.setCacheDisabled", { cacheDisabled: true });
+  await s("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
+  const evaluate = async (expression: string) => {
+    const r = await s("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
+    if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
+    return r.result.value;
+  };
+  const until = async (expression: string, what: string) => {
+    let ok = false;
+    for (let i = 0; i < 150 && !ok; i++) { await sleep(50); ok = await evaluate(expression).catch(() => false); }
+    assert.ok(ok, `${what} within 7.5 seconds`);
+  };
+  const measure = async (what: string): Promise<Hero> => {
+    let h: Hero | null = await evaluate(heroProbe);
+    for (let i = 0; i < 40; i++) {
+      await sleep(50);
+      const again: Hero | null = await evaluate(heroProbe);
+      const same = JSON.stringify(again) === JSON.stringify(h);
+      h = again;
+      if (same) break;
+    }
+    assert.ok(h, `${what}: the page has a hero`);
+    return h;
+  };
+
+  const seen = { toc: 0, none: 0 };
+  for (const width of [DESKTOP, PHONE]) {
+    for (const f of heroDocs) {
+      await t.test(`/docs/${f} at ${width}px`, async () => {
+        const html = readFileSync(join(root, "docs", f), "utf8");
+        await s("Emulation.setDeviceMetricsOverride", { width, height: width < 640 ? 800 : 900, deviceScaleFactor: 1, mobile: width < 640 });
+        const url = `${base}/docs/${f}?examples`;
+
+        hold = true; held = 0;
+        await s("Emulation.setScriptExecutionDisabled", { value: false });
+        await s("Page.navigate", { url });
+        await until(`document.readyState === "interactive" && performance.getEntriesByType("paint").length > 0`, "the page painted");
+        assert.equal(held, 1, "bh.js was requested and is held");
+        const waiting = await measure("bh.js held");
+        release(); release = () => {}; hold = false;
+        await until("document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')", "the page settled");
+        const settled = await measure("settled");
+        if (width === DESKTOP) seen[(await evaluate("!!document.querySelector('.bh-toc')")) ? "toc" : "none"]++;
+
+        await s("Emulation.setScriptExecutionDisabled", { value: true });
+        await s("Page.navigate", { url });
+        await until(`document.readyState === "complete" && !document.documentElement.classList.contains("js")`, "the page loaded without JavaScript");
+        const off = await measure("no JavaScript");
+        await s("Emulation.setScriptExecutionDisabled", { value: false });
+
+        assert.ok(settled.first !== null, "a block follows the hero");
+        assert.equal(waiting.hero, settled.hero, "the hero is as tall while bh.js loads as after it runs");
+        assert.equal(waiting.first, settled.first, "the TL;DR is as far below the hero's top while bh.js loads as after it runs");
+        assert.equal(waiting.banner, settled.banner, "so is the Superseded banner, where there is one");
+        assert.equal(settled.banners, metaOf(html, "bh:superseded-by") ? 1 : 0, "one banner on a superseded page, none on any other");
+        assert.deepEqual(settled.rows, waiting.rows, "bh.js leaves the written list as it is: nothing added twice");
+        assert.equal(off.hero, settled.hero, "the hero is as tall without JavaScript");
+        assert.equal(off.first, settled.first, "the TL;DR is in the same place without JavaScript");
+        // The reading time is the page's: the index counts the words as bh.js did, on this page as the browser parsed it.
+        assert.equal(articleWords(html), waiting.words, "the index counts the article's words as the browser does");
+        // Without JavaScript the hero still says what the page is (its eyebrow) and the facts from its metas.
+        assert.ok(off.eyebrow, "the hero names the page's kind");
+        const row = (term: string) => off.rows.find(([dt]) => dt === term)?.[1];
+        for (const [term, name] of [["Status", "bh:status"], ["Updated", "bh:date"], ["Authors", "bh:authors"], ["Tags", "bh:tags"]]) {
+          if (metaOf(html, name)) assert.equal(row(term), metaOf(html, name).replace(/&amp;/g, "&"), `${term} reads without JavaScript`);
+        }
+        assert.equal(row("Reading time"), readingTime(waiting.words) || undefined, "and the reading time");
+      });
+    }
+  }
+  assert.ok(seen.toc > 0, "a page with a table of contents was measured");
+  assert.ok(seen.none > 0, "a page without a table of contents was measured");
+});

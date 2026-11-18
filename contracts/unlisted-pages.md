@@ -58,7 +58,10 @@ private.
   by default. An unlisted page (and the glossary) may link to one freely; on an unlisted page
   links to other unlisted pages stay live, so a series can be shared as one. Without JavaScript
   every `href` still works: the neutralising is script-only. A decision chain
-  (`bh:supersedes` / `bh:superseded-by`) must be all listed or all unlisted.
+  (`bh:supersedes` / `bh:superseded-by`) must be all listed or all unlisted. The hero's list and
+  banner that `index` writes name the other page of a chain by its title only when that page is
+  listed; an unlisted one is named by its path (`data-untitled`), and `bh.js` puts in the title
+  when the reader has the flag on. So no unlisted title is written into a page.
 - **The published site.** `scripts/publish.mts` keeps unlisted pages and their cards, and applies
   the same rules when it rebuilds the index, search, backlinks and the two data files.
 - **Prefer a non-guessable slug** (for example a random suffix) for a page meant to be shared by
