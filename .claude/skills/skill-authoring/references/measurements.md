@@ -39,6 +39,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-18: every output suite with the Sonnet judge, both arms, and what it costs (#248)
 - 2026-11-18: `fix-confusing-figure` graded on what the skill adds, and the two dropped conditions (#249)
 - 2026-11-18: why `needs-a-script` scored lower with the skill on two graders (#300)
+- 2026-11-18: six `pedagogical-writing` graders that rejected correct answers or passed in no arm (#299)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -1689,3 +1690,165 @@ the saved answers through `rejudge.mjs`; the fresh run is new answers through th
   `pedagogical-diagrams` with Haiku it was 84% to 89%.
 - **Only Sonnet was run.** Haiku and Opus scored this case +0.07 and +0.13 with the old graders in October, and
   their answers have not been read.
+## 2026-11-18: six `pedagogical-writing` graders that rejected correct answers or passed in no arm (#299)
+
+Claude Code 2.1.318, agent and judge `claude-sonnet-5-5`, three runs per case per arm, `-j 4`. No change to the
+skill: four grader files changed and two were deleted, so the suite has 59 `llm` graders, not 61. US$9.31 in all:
+$2.17 for judging saved answers again with `rejudge.mjs` and $7.14 for a fresh run of five cases, both arms
+(`claude plugin eval --case`, three times, on commit `7affb26`). No run errored, and the skill loaded in every
+with-skill run (15 of 15).
+
+The answers read are those of #248's run, kept in `pedagogical-writing/evals/baselines/2026-11-18.json`: all
+three with-skill answers of each of the four cases, and the no-skill answers of the same cases, read or searched
+for the thing each grader asks. The run does not record why the built-in judge voted as it did. `rejudge.mjs --out`
+gives a Sonnet judge's reasoning on the same answers, but its prompt is not the built-in one, and here it
+disagreed with the record often (below), so the diagnoses rest on the answers.
+
+**What the answers showed, and the decision, per grader.**
+
+- **`prompt-opus-explainers` `05-effort`: loosened.** #248 found the fault: the regex wanted `effort` and `high`
+  in one sentence, and the three with-skill answers put a full stop between them ("Raise effort. The default is
+  `medium`. Reviewers saw less padding at `high` or above."). Widening the window alone is wrong in two ways.
+  Every answer quotes the user's "high-level summary" line, so `high` is always near something. And one no-skill
+  answer says "Try `high` only if the reasoning in the drafts is thin, not to fix padding", which is not advice to
+  raise it. The pattern now has five alternatives: the old same-sentence one in both orders; a verb of raising
+  (`raise`, `increase`, `bump`, `turn up`, `higher`) before `effort`, then the level within 200 characters across
+  sentences; `effort`, then "`high` or above" within 200 characters, the skill's own wording ("draft at `high` or
+  above"); and `effort`, then "try" or "test" and the level, unless "only" follows. `high-level` no longer counts
+  as `high`. The last alternative was added after the fresh run, whose no-skill answers said "Try `high` on a few
+  drafts and compare" in a sentence after the one with `effort`.
+- **`plan-rank-select-series` 03 (prerequisites named by title or slug, not by page number): reworded.** The skill
+  teaches it ("Link prerequisites by title, never by number", `long-pages-and-series.md`), and all three
+  with-skill plans say it: "Pages are linked by title or slug, never by number", "Pages link to each other by
+  slug, not by number", "link to page 1 by title". All three also call their pages "Page 1", "Page 2" and "p1"
+  in their own headings and ledgers, as any plan does, and the old rubric ("named by title or slug, not by page
+  number") reads as a claim about the plan's own text. No no-skill plan says how pages name each other: they
+  have "links to page 1", previous and next links and a "Part N of 3" banner. The rubric now asks whether the
+  plan says the pages link or refer to one another by title or slug, says that the plan's own "page 1" labels
+  must not fail it, and fails a plan that only has links back or a banner.
+- **`plan-rank-select-series` 07 (optional or formal material is skippable, with what a skipper keeps): reworded
+  to its first half.** Two conditions in one rubric. All three with-skill plans set formal material apart: "a
+  `details.disclosure` titled 'What this skips' holds the o(n) space proof", "Put the proof in a fold", "a fold
+  for rigour". Only one comes near the second half (an "essence checkpoint" after which a step "changes speed,
+  not what it returns"). The skill does teach "Say what the skipper keeps", but as a sentence in the page's main
+  text before a fold, which a three-page plan does not reach. No no-skill plan sets anything apart: "proofs
+  sketched and pointers to papers", "If you want full proofs ... the series would become four pages". The rubric
+  now asks only that some formal or optional material is moved to a place a reader can skip on at least one
+  page, says the plan need not say what a skipper keeps, and fails "proofs are sketched", "the papers are
+  linked" and "full proofs could be a further page". The second half is dropped, as #83 dropped the halves a
+  judge could not decide from a plan.
+- **`outline-bloom-filters` 05 (one running example throughout, small numbers that come out clean): deleted.** The
+  prompt asks for "the running example", and every answer in both arms gives one of the same kind: a username
+  check on a 12, 16 or 20-bit array with three names (`ada`, `grace`, `alan` with the skill; `alice`, `bob`,
+  `carol` without). Every answer also leaves it at some point (a sizing section at 1 million or 1 billion keys,
+  a playground task at `m=64, n=8`, a "10 bits per item" table), so "throughout" and "come out clean" fail all
+  six on a strict reading and pass all six on a loose one: the `rejudge.mjs` judge passed 3 of 3 in each arm
+  where the record has 0 of 3. Neither reading tells the arms apart.
+- **`outline-bloom-filters` 06 ("false positive" or the formula only after the reader has seen a collision):
+  deleted.** The with-skill outlines fail it in the TL;DR: "more hash functions always means fewer false
+  positives" (the common-mistake bullet), "false positives yes, false negatives never" (the result). The skill
+  asks for exactly that, a TL;DR that states the result and holds back the mechanism, and grader 08 checks it.
+  In the body all three show a collision first (`linus` lands on a bit `grace` set) and bring the formula two or
+  three sections later. So do the no-skill outlines: a shared bit in section 3, the false positive in section 4
+  or 5, the formula in section 5 or 6. A rubric limited to the body would pass both arms. What the skill adds to
+  this part of an outline is the named failure of the naive attempt, which 03 already asks.
+- **`outline-consistent-hashing` 03 (applications ordered by a stated principle): reworded.** The three with-skill
+  outlines say nearly the same thing: "applications ordered by one stated principle. Each is the same ring under
+  a bigger or harder setting, and each adds one new thing", "Principle, stated up front: each step raises the
+  cost of moving a key", "the same ring under bigger or harder conditions, each adding one new thing". The
+  record passed the first, three votes to none, and failed the other two, none to three. The old rubric lists
+  "virtual nodes, replication, bounded loads, named systems" as the things to be ordered, and in all three
+  outlines virtual nodes and the implementation have sections of their own before the list of uses, so a judge
+  that takes the list literally can fail any of them. It also asks three things: an order, a principle of a
+  given kind, and that the principle is said. The rubric now asks one thing of the list of uses only (what
+  orders it), gives two phrasings that count, and says that earlier sections on virtual nodes or replication and
+  a closing "where not to use it" must not fail it. No no-skill outline states an order: each has "Where it's
+  used in practice" as a list by kind of system.
+
+**Counts on the saved answers** (#248's baseline), passes with the skill and without. The `rejudge.mjs` columns
+are a Sonnet judge with that script's prompt, three votes; it split its votes on 5 of the 30 verdicts under the
+old rubrics and on none of the 18 under the new.
+
+| Grader | Record, old wording | `rejudge.mjs`, old wording | New wording |
+| --- | --- | --- | --- |
+| `prompt-opus-explainers` `05-effort` (regex) | 0 of 3, 1 of 3 | | 3 of 3, 1 of 3 |
+| `plan-rank-select-series` 03 | 0 of 3, 0 of 3 | 2 of 3, 0 of 3 | 3 of 3, 0 of 3 |
+| `plan-rank-select-series` 07 | 0 of 3, 0 of 3 | 1 of 3, 0 of 3 | 3 of 3, 0 of 3 |
+| `outline-bloom-filters` 05 | 0 of 3, 0 of 3 | 3 of 3, 3 of 3 | deleted |
+| `outline-bloom-filters` 06 | 0 of 3, 0 of 3 | 1 of 3, 2 of 3 | deleted |
+| `outline-consistent-hashing` 03 | 1 of 3, 0 of 3 | 3 of 3, 0 of 3 | 3 of 3, 0 of 3 |
+
+- **The `rejudge.mjs` judge gave the recorded verdict on 16 of 30 answers under the old wording.** `evals.md`
+  says to run it first with the judge the record used, and that this agreement is the ceiling. Here the ceiling
+  is low: on `outline-bloom-filters` 05 it reversed all six. So the "new wording" column for the three `llm`
+  graders says the rewording did not break them, and no more. The fresh run is the evidence.
+- **`05-effort` was also run on four answers written for it** that do not say to raise the effort: one that
+  never mentions effort (and says "Keep max_tokens high enough"), one that says the default is `medium` and to
+  leave it, one that says to lower it to `low`, and the saved no-skill answer quoted above. It fails all four.
+  The one saved no-skill answer it passes says "Set `output_config.effort` explicitly and try `high` on the
+  drafts".
+
+**The fresh run**, three commands (`--case 'outline-*'`, `plan-rank-select-series`, `prompt-opus-explainers`), with
+#248's scores beside it:
+
+| Case | With | Without | Δ | With, #248 | Without, #248 | Δ, #248 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `outline-amortised-append` | 0.83 | 0.67 | +0.17 | 0.92 | 0.67 | +0.25 |
+| `outline-bloom-filters` | 0.94 | 0.11 | +0.83 | 0.71 | 0.13 | +0.58 |
+| `outline-consistent-hashing` | 1.00 | 0.00 | +1.00 | 0.50 | 0.00 | +0.50 |
+| `plan-rank-select-series` | 0.72 | 0.17 | +0.56 | 0.44 | 0.11 | +0.33 |
+| `prompt-opus-explainers` | 1.00 | 0.93 | +0.07 | 0.80 | 0.87 | −0.07 |
+
+`outline-amortised-append` did not change; it ran because `--case 'outline-*'` matches it. `outline-bloom-filters`
+has six scored graders now, not eight, so its score moves by construction.
+
+| Grader | With, fresh run | Without, fresh run |
+| --- | --- | --- |
+| `prompt-opus-explainers` `05-effort`, as run | 3 of 3 | 2 of 3 |
+| `prompt-opus-explainers` `05-effort`, final pattern on the same answers | 3 of 3 | 3 of 3 |
+| `plan-rank-select-series` 03 | 2 of 3 | 0 of 3 |
+| `plan-rank-select-series` 07 | 3 of 3 | 0 of 3 |
+| `outline-consistent-hashing` 03 | 3 of 3 | 0 of 3 |
+
+- **The three reworded rubrics pass 8 of 9 with the skill and 0 of 9 without, on answers they were not fitted
+  to.** The judge split its votes on none of those 18 verdicts. Over the whole fresh run it split on 2 of 66
+  with-skill verdicts and 1 of 66 without.
+- **No grader in the five cases passed 0 answers in both arms.** The lowest with-skill counts are 1 of 3:
+  `outline-amortised-append` 02 (3 of 3 without) and `plan-rank-select-series` 04 and 06 (0 of 3 without). For
+  the eight cases not run again, #248's baseline has no grader at 0 in both arms: the four above were the only
+  ones.
+- **`05-effort` no longer tells the arms apart, and the case scores 1.00 in both arms with the final pattern.**
+  All three fresh with-skill answers used the skill's sentence ("Draft at `high` or above, where reviewers saw
+  less padding"). All three fresh no-skill answers also say to try `high`: "so test `high`", "Try `high` on a few
+  drafts and compare", "Try `high` for drafting and compare". The pattern as run passed two of them and failed
+  the middle one only because `effort` was in the sentence before, which is the fault this section set out to
+  remove, so the pattern got the "try" alternative and the six fresh answers were scored again by running it.
+  In #248's baseline one of three no-skill answers said it.
+- **Cost.** $3.70 (`outline-*`, 174 s), $1.89 (plan, 95 s) and $1.55 (prompt, 62 s): $7.14, of which the judge
+  was $4.38. Judging again cost $1.42 for the five `llm` graders as recorded (90 votes) and $0.75 for the three
+  reworded ones (54 votes): about $0.015 a vote, where `evals.md` says about $0.01.
+- **Baselines kept**, trimmed with `rejudge.mjs --trim --commit 7affb26`: `2026-11-18-299-outline.json` (18
+  answers), `2026-11-18-299-plan.json` (6) and `2026-11-18-299-opus.json` (6), beside `2026-11-18.json` in
+  `pedagogical-writing/evals/baselines/`. None of the five cases has a fixture. The `05-effort` verdicts in the
+  last file are from the pattern as run, one alternative short of the committed one.
+
+**What this does not show.**
+
+- **`prompt-opus-explainers` measures almost nothing about the skill.** Its other four graders passed 3 of 3 in
+  both arms in #248 and again here, and `05-effort` now passes most no-skill answers too. By the rule in
+  `evals.md` the case should be made harder or deleted. That was not done: #299 is about the graders.
+- **The reworded `plan` 03 passes a plan for saying the rule.** It does not check that the plan's own
+  cross-references use titles, which no plan's did. The one fresh with-skill answer that failed it has no sentence about titles, slugs or numbers (searched, not read through).
+- **`plan` 07 no longer asks what a skipper keeps**, so nothing in the suite asks whether an answer applies that
+  rule of the skill. A case that drafts or reviews a page with a fold could.
+- **One fresh run, on the day the rubrics were written, by the person who read the answers.** `plan` 03 passed
+  2 of 5 and 1 of 5 with the skill in #97 under its old wording and 0 of 3 in #248, so it moves; 2 of 3 here is
+  not a rate.
+- **Why the built-in judge failed the old wordings is inferred, not read.** The record keeps votes, not reasons,
+  and the judge whose reasons were read disagrees with it on 14 of 30 of these verdicts.
+- **The eight other cases were not run.** "No grader passes 0 in both arms" is fresh for five cases and taken
+  from #248's baseline for eight. That baseline also shows graders that pass 3 of 3 in both arms (four of
+  `review-deflate-page`'s, three of `design-rank-interactive`'s among them), which measure nothing either and
+  were not in scope.
+- **`05-effort` is a regex about advice.** An answer that says "do not raise the effort to `high`" in one sentence
+  passes it, as it did before. No saved or fresh answer says that.

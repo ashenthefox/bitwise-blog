@@ -1,0 +1,469 @@
+{
+ "format": "bh-eval-baseline/1",
+ "startedAt": "2026-11-18T08:07:35.869Z",
+ "claudeVersion": "2.1.318",
+ "models": {
+  "agent": "claude-sonnet-5-5",
+  "judge": "claude-sonnet-5-5"
+ },
+ "ablation": "with-without",
+ "commit": "7affb26",
+ "cases": [
+  {
+   "name": "plan-rank-select-series",
+   "graders": [
+    {
+     "name": "02-the-first-page-starts-from-a-naive-approach-scan",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: The first page starts from a naive approach (scanning and counting, or storing every answer) and measures its cost.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "03-prerequisites-between-pages-are-named-by-title-o",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: The plan says that the pages of the series link or refer to one another by title or by slug, and not by page or part number. One sentence that says so is enough, for example \"pages link to each other by slug, not by number\" or \"the recap links to the first page by title\". The plan's own headings and working notes may call the pages \"page 1\", \"page 2\" and \"page 3\": that must not fail it.\nFAIL if the plan never says how one page names or links another, or says only that the pages link back, have previous and next links, or carry a \"part N of 3\" banner."
+    },
+    {
+     "name": "04-each-page-after-the-first-opens-by-restating-the",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: Each page after the first opens by restating the one earlier idea it needs.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "05-at-least-one-simplification-made-on-an-early-pag",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: At least one simplification made on an early page is named and scheduled to be closed on a later page.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "06-a-single-measure-space-overhead-in-bits-or-query",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: A single measure (space overhead in bits, or query time) is carried across all three pages.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "07-optional-or-formal-material-is-identified-as-ski",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: For at least one page, the plan moves formal or optional material (a proof, a bound, a derivation, hardware tricks) out of the main line into a place a reader can skip: a fold or disclosure, a \"What this skips\" block, a part labelled optional or as detail after the core idea, or a skip line. The plan need not say what a reader who skips it still keeps.\nFAIL if the plan sets no material apart as skippable. It also fails if it says only that proofs are sketched, that the papers are linked, or that full proofs could become a further page."
+    },
+    {
+     "name": "skill-fired",
+     "type": "tool_used"
+    }
+   ],
+   "arms": {
+    "with": [
+     {
+      "score": 0.8333333333333334,
+      "answer": "# Plan: a three-page series on rank and select over bit vectors\n\nThe working directory has no blog files (no CLAUDE.md, templates or glossary). I planned from the pedagogical-writing skill's house rules. Check the plan against your real templates before drafting.\n\n## The series question\n\n**\"A bit vector of 1 billion bits takes 125 MB. Can you answer 'how many ones are before position i?' and 'where is the k-th one?' in constant time, for only a few percent more space?\"**\n\nThe hub page opens with this question and a pipeline map. Each page reuses the map with its own stage lit.\n\n## Page 1: Rank: counting ones without scanning\n\n**Takeaway headline:** You can answer a counting query in constant time by storing a few well-chosen running totals.\n\n- **Need:** \"How many ones before position i?\" is the question behind everything later. Open with the 1-billion-bit vector and the cost of a scan.\n- **Naive attempt (labelled):** Scan from 0. This is O(n), and it stays in the series as the **oracle** that every faster version is checked against.\n- **Crack and fix, as a ladder:**\n  1. Store a rank for every position. This is fast, but it costs 32× the original space.\n  2. Store it only every B bits (the **block** totals), then scan within the block. Name the property the fix needs: \"few totals, short scan\".\n  3. Add a second level (**superblock**, then block), so each stored count needs fewer bits.\n  4. Finish inside a **word** with **popcount**. Introduce popcount early as a handle.\n- **Result:** About 25% overhead for the simple version, shrinking to o(n) with two levels. Show the overhead in bits per stage.\n- **Predictions (one or two):** \"How many bits does one total need if it's stored per 512-bit block?\" A second one asks for the overhead as a percentage.\n- **Interactive:** `<bh-playground>` on the reader's own bit string. It shows the directory being built and a rank(i) lookup stepping through superblock, block and word. The default state already shows a worked query.\n- **Ends with:** The teaser, \"rank goes from position to count. Can we go back?\"\n\n## Page 2: Select: finding the k-th one\n\n**Takeaway headline:** Select is rank run backwards, but the ones are unevenly spread, so the structure has to adapt to the data.\n\n- **Recap:** One clause on rank and the directory from page 1, with a link by title.\n- **Need:** \"Where is the 1000th one?\" The reader needs this to jump to an item.\n- **Naive attempt 1:** Binary search using rank. This is O(log n) rank calls and correct, so it becomes the select oracle. Say what is slow about it.\n- **Naive attempt 2:** Store every k-th one's position (**samples**). The crack is that when ones are sparse, the gap between samples can span huge empty stretches, which makes the scan unbounded.\n- **Fix:** Sample by ones, not by position. Handle **dense** and **sparse** regions separately: sparse regions store positions explicitly, and dense ones scan within a short span. Name this as \"the structure depends on the data\".\n- **Misconception to refute:** \"Select is symmetric to rank, so the same directory works.\" Use a skewed bit vector to show it failing.\n- **Prediction:** \"Which of these bit vectors makes sampling every 512th position worst?\"\n- **Interactive:** An ablation switch. The reader turns the sparse/dense handling off and watches the worst-case scan grow on a skewed vector.\n- **Essence checkpoint:** After the sampling idea, mark where a reader could stop. The remaining details (select0, exact constants) go in disclosures or a later section.\n- **Ends with:** The identity rank(select(k)) = k and the tally of overhead so far. Teaser: \"so what do you build with them?\"\n\n## Page 3: Using rank and select: a sorted set in a few bits per element\n\n**Takeaway headline:** Rank and select turn a bit vector into an index. Elias–Fano shows this by storing n sorted integers in about n(2 + log(u/n)) bits.\n\n- **Why this application:** It uses both operations and makes the space saving measurable. It also lets the opening's promise to name a real use be paid off.\n- **Principle ordering the uses:** Each use is the same mechanism under a harder setting. Open with the Elias–Fano set, then use the same pattern for a short second use, such as the parentheses encoding of a tree. State that principle where the applications begin.\n- **Need:** A sorted set of 1 million numbers from a universe of 2^32, stored without 32 bits per number.\n- **Naive attempt (labelled):** Store a length-u bit vector with a one at each member. The crack is that u is 4 billion, far bigger than n.\n- **Fix:** Split each number into high and low parts. Keep the low bits in a plain array and the high bits in a unary bit vector. Then `get(i)` is `select1(i)` on the high vector, and `contains(x)` and predecessor queries use rank and select together.\n- **Closes the series:**\n  - Run the combined structure on the benchmark.\n  - Close every open simplification.\n  - Revisit the question from the hub page and answer it with the final tally.\n  - Add a \"what this skips\" disclosure covering compressed bit vectors, dynamic bit vectors (insert one bit and every rank shifts), and the word-RAM assumption.\n\n## How the pages connect\n\n1. **Rank** produces a counting directory.\n2. **Select** inverts it, which needs a data-dependent structure.\n3. **Application** uses both in one concrete system.\n\nEach page opens by restating one earlier idea. Each ends by posing the next page's question. Page 3 returns to the hub question. Link pages by title, never by number.\n\n## What stays consistent\n\n| Item | Convention |\n|---|---|\n| Definitions | Choose once and use everywhere. For example, `rank1(i)` counts ones in positions [0, i) and `select1(k)` is the position of the k-th one, with k starting at 0. Then `rank1(select1(k)) = k`. Put this on the hub page and in the glossary. |\n| Names | One name per thing: bit vector, word, block, superblock, sample, directory, popcount. Prose, code, figure labels and glossary all match. |\n| Running example | The same 64-bit string (a real one, not a toy) appears on pages 1 and 2. Page 3's set is derived from it where possible. Clean numbers first. |\n| Benchmark and oracle | The same n (e.g. 2^30 bits) on every page. The naive scan and binary search stay as the checkers that every faster version is shown to agree with. |\n| Running tally | One `.metrics` row repeated on every page, giving the extra bits per structure with the current page's contribution lit. It ends at a stated total, for example \"under 5% extra\". |\n| Visual encoding | Declared once on the hub page: ones, zeros, and each directory level keep fixed `c1`–`c6` colours. Explain any departure. |\n| Open simplifications | Keep a series-wide list and close each by name: \"constant time\" assumes a word-RAM, \"popcount is one instruction\", the choice of B, \"select is symmetric\", and the select0 and dynamic cases. |\n| Page shape | `.tldr` right after the hero, with the transferable takeaway first and the common mistake as a bullet. One idea per `h2`. One or two `details.predict`. Depth in `details.disclosure`. |\n\n## Order of work\n\n1. Write the hub page and the definitions.\n2. Write the name table, the promise list and the running example.\n3. Draft the three pages in order. If page 2 forces a change to page 1, rewrite page 1 rather than patching it.\n4. Write each opening and TL;DR last.\n5. Run `page-stats.mjs` and the cold-read review on each page.\n\n## Decisions for you\n\n- Is Elias–Fano the right application, or would you prefer succinct trees or wavelet trees? Those would make page 3 heavier.\n- Do you want select0 and the dynamic case in the main line or only in the skips disclosure? I assumed the disclosure.\n- Is there a hub page already, or should the series index be the first deliverable?",
+      "graders": [
+       {
+        "name": "02-the-first-page-starts-from-a-naive-approach-scan",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-prerequisites-between-pages-are-named-by-title-o",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-each-page-after-the-first-opens-by-restating-the",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "05-at-least-one-simplification-made-on-an-early-pag",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "06-a-single-measure-space-overhead-in-bits-or-query",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "07-optional-or-formal-material-is-identified-as-ski",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 0.6666666666666666,
+      "answer": "The working directory is empty, so I couldn't match the blog's existing templates. This plan follows the pedagogical-writing skill's conventions (TL;DR, one idea per `h2`, predictions, a promise ledger). Check it against your CLAUDE.md and templates.\n\n## Series: Rank and select on bit vectors\n\n**Series question:** How do you answer \"how many 1s before position i?\" and \"where is the k-th 1?\" in constant time, with only a sliver of extra space on top of the bits?\n\n**Reader:** Someone comfortable with arrays and Big-O who has not seen succinct data structures.\n\n### Page 1: Rank: counting ones without scanning\n\n- **Opening:** Name the use up front, a tree stored in about 2 bits per node that you can still navigate. Promise that page 3 delivers it.\n- **Need:** A query that repeats over a fixed bit vector.\n- **Naive attempt (labelled provisional):** Scan and count, O(n).\n- **Fix 1:** Store rank at every position. It is O(1), but the table costs n·log n bits, many times the vector itself.\n- **Crack:** The extra space is the problem. Name the property the fix must have: *sublinear overhead*.\n- **Fix 2:** Superblock counts, then block counts relative to the superblock, then an in-word popcount for the last few bits. Tune the sizes by working out the bit cost of each level.\n- **Close:** Final overhead is o(n) bits and the query time is constant. Show a measured table of overhead for the three versions.\n- **Prediction:** \"How many bits does the table for 1 billion positions take: kilobytes, megabytes or gigabytes?\" Wrong options: assume n bits, assume log n bits per entry is \"small\".\n\n### Page 2: Select: finding the k-th one\n\n- **Opening:** Restate rank in one clause. Pose the inverse question, \"where is the 5th 1?\"\n- **Naive attempt (labelled):** Binary search on rank. It reuses page 1 directly, so the reader can guess it. It costs O(log n), not constant.\n- **Crack:** Rank is cheap, but each probe halves only the range, so a log n factor remains.\n- **Fix:** Sample the position of every k-th one. The sample tells you which region holds your answer. Handle regions two ways:\n  - Sparse regions: store the answers outright.\n  - Dense regions: finish inside a word with an in-word select.\n- **Boundary:** Say that the sampling is by count of ones, not by position, and why that matters. Expose the load-bearing assumption that a few regions can be huge.\n- **Prediction:** Which vector is worst for position-based sampling: all ones, or one 1 every million bits?\n- **Close:** The reader writes `select` by passing the test `rank(select(k)+1) == k`.\n\n### Page 3: Using them: navigating a tree in 2n + o(n) bits\n\n- **Opening:** Return to page 1's promise.\n- **Reformulation to defend:** A tree as a bit string (LOUDS). \"Haven't we just moved the problem?\" The answer is that parent and child become rank and select calls.\n- **Order of uses, with one principle:** Each use is the same two primitives under a harder setting.\n  - First child, then parent, then a node's degree.\n  - Then the cost: what \"succinct\" buys against a pointer-based tree, measured on one real tree.\n- **Edge cases:** Updates break the load-bearing assumption (insert one bit and every rank shifts). This points to dynamic variants and Elias-Fano as further reading, kept in a fold.\n- **Ending:** Teach the trigger: \"static, huge, read-mostly, and the pointers cost more than the data\".\n\n### How the pages connect\n\n- **Page 1 to page 2:** \"rank is fast, but can we invert it?\" The naive select is built from page 1's rank, so the crack is visible.\n- **Page 2 to page 3:** The first two pages build two tools. Page 3 uses both together.\n- **Opening of each page:** Restates the one earlier idea it needs, in a clause.\n- **Skip links:** Include a \"skip to\" link for experts at each page's start.\n\n### What stays consistent\n\n- **Definitions, fixed once:**\n  - `rank(i)` counts ones in positions [0, i), half-open and 0-indexed.\n  - `select(k)` is the position of the k-th one, with k starting at 1.\n  - Identity: `rank(select(k) + 1) = k`.\n  - Put these in a shared sidenote or the glossary, and never vary them.\n- **Names:** word, block, superblock, popcount, sample. Each means one thing and matches the code, figures and glossary. Introduce \"popcount\" early as a handle, on a labelled figure.\n- **Running example:** One 64-bit vector, drawn the same way on every page. Page 1 makes it the reader's own input in a `<bh-playground>`.\n- **Benchmark:** Every version is measured on the same two numbers, query time and extra bits, starting from the naive version, which stays as the oracle.\n- **Figures:** One colour for blocks, one for superblocks and one for samples, shared across pages.\n- **Page template:** TL;DR first, with the transferable takeaway as its first bullet and the page's common mistake as another. Then orientation, mental model, mechanism, hands-on, details and edge cases.\n\n### Promise ledger\n\n| Promise | Made | Paid |\n|---|---|---|\n| Tree navigation in ~2 bits per node | P1 opening | P3 |\n| \"o(n) overhead\" is just a few percent | P1 | P1 table |\n| In-word popcount and select are O(1) | P1 and P2 | Fold: hardware instruction or a lookup table |\n| Binary-search select is not constant | P2 naive | P2 fix |\n| Static vectors only | P1 | P3 edge cases |\n\n### Open decisions for you\n\n1. Page 3's application: LOUDS tree (my pick, because it uses both primitives symmetrically) or Elias-Fano sorted integer sets.\n2. Whether pages 1 and 2 each get a playground, or whether the playground waits for page 2, where the dense/sparse contrast is most useful.",
+      "graders": [
+       {
+        "name": "02-the-first-page-starts-from-a-naive-approach-scan",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-prerequisites-between-pages-are-named-by-title-o",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "04-each-page-after-the-first-opens-by-restating-the",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-at-least-one-simplification-made-on-an-early-pag",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "06-a-single-measure-space-overhead-in-bits-or-query",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "07-optional-or-formal-material-is-identified-as-ski",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 0.6666666666666666,
+      "answer": "The working directory has no blog files, so I haven't seen your existing pages, CLAUDE.md or templates. This plan uses the repo conventions from the pedagogical-writing skill (the `.tldr`, one idea per `h2`, `details.predict`, `bh-playground`). Please check it against your templates.\n\n## The arc\n\n**One question runs through the series: how can we answer \"how many 1s so far?\" and \"where is the k-th 1?\" in constant time, while the index costs only a sliver of the bit vector's own size?**\n\nThe pivot idea is that rank samples by position and select samples by count. Page 1 plants it, page 2 makes the reader discover it, and page 3 relies on it.\n\n## Page 1: Rank: counting the 1s before position i in constant time, using a tiny index\n\n- **Opening:** a 1-billion-bit vector and the question `rank(i)`. A scan costs about 125 MB of reads per query.\n- **Naive attempt, labelled as such:** precompute every answer. This is O(1), but the table has n entries of log n bits each, 30 to 60 times the vector. The crack is space.\n- **Prediction:** \"How big is the full table for 10^9 bits: MB, GB or tens of GB?\" The wrong options come from forgetting that each entry is 30 bits wide.\n- **Fix, built by successive repairs:**\n  1. Store a count only every 512 bits (the superblock).\n  2. Add small relative counts per 64-bit word (the block).\n  3. Finish with `popcount` on one word.\n- **Handle introduced early on a labelled figure:** word and popcount.\n- **Centrepiece:** a `bh-playground` where the reader types their own bits and clicks a position. The page shows rank assembled as superblock + block + popcount. Its default state already teaches.\n- **Plants and promises:**\n  - The sampling is every 512 *positions*.\n  - Assume the vector never changes.\n  - Assume popcount is one instruction.\n  - Assume an array lookup costs one unit.\n- **Ending:** a teaser. \"Now ask the opposite question: where is the 1000th 1?\"\n\n## Page 2: Select: sampling by position fails, so sample by count (the keystone)\n\n- **Recap:** one idea from page 1, the rank directory, with a link back.\n- **Need and first try:** `select(k)` is rank run backwards. Binary-search on rank. It works, but it costs log n directory probes, which is the naive version and the oracle for everything after it.\n- **Second try:** sample every 512th *1*, mirroring page 1. The crack is that the span between samples is uneven. A clustered vector gives tiny spans, and a sparse one gives spans of millions of bits.\n- **Prediction, aimed at this step:** \"With this vector, how wide can one span get?\" Offer the reader's own input in the playground as a diagnostic view of the uneven spans.\n- **Fix:** dense spans are finished by scanning words. Sparse spans store their answers explicitly. Say why the explicit storage is affordable: few spans can be long. The full o(n) proof goes in a `details.disclosure`, with the one-line upshot before the fold.\n- **New handle:** select-in-word. Popcount does not give it, which closes page 1's \"popcount is one instruction\" promise.\n- **Essence checkpoint** at the end of the mechanism. Details follow it: the constants and the log n vs O(1) trade.\n- **Ending:** a teaser. \"What is this good for? A whole tree in 2n bits.\"\n\n## Page 3: Rank and select turn a bit vector into a navigable structure\n\n- **Opening:** one named system and a cost in numbers (a tree or a set of integers stored in 2 bits or fewer per element).\n- **Applications ordered by one stated principle:** each is the same pair under a harder setting, and each adds one new thing.\n  1. Elias-Fano, a sorted integer set. Select gives the i-th element.\n  2. LOUDS, a tree. Parent and child become rank and select.\n  3. Wavelet tree, a sequence over a larger alphabet. It stacks bit vectors, one per level.\n- **Load-bearing assumption exposed:** insert one bit and every rank shifts. Close the \"static vector\" promise and point to dynamic variants with search terms.\n- **Close:** the compressed version as an `ol.steps` of about five lines, then revisit page 1's opening question with the final tally.\n\n## What stays consistent\n\n| Thing | Fixed choice |\n|---|---|\n| Conventions | `rank(i)` counts 1s in positions [0, i). `select(k)` is the 0-indexed position of the k-th 1, with k starting at 1. So `rank(select(k)+1) = k`. Show this with a tiny example on page 1 and bridge to the papers' inclusive and 1-indexed forms in a flagged section on page 3. |\n| Name table | bit vector `B`, `n`, word (64 bits), block, superblock, directory, popcount. No drift between prose, code, figure labels and the glossary. |\n| Running example | one 32-to-64-bit vector on every page, with the reader's own input as the main case. Page 2's vector has a dense cluster and a long empty stretch. |\n| Visual encoding, declared on page 1 | 1s and 0s in fixed colours, and directory counts in a third colour. Use the repo's `c1`–`c6` meanings. |\n| Map | one pipeline figure (query → superblock → block → word) on every page, with that page's stage lit through `data-ref`. |\n| Running tally | the same `.metrics` row on each page: extra bits as a percentage of n, and memory reads per query. The target is a small overhead and constant time, and each page adds its part. |\n| Open-simplification ledger | static vector, popcount is one instruction, lookups cost the same, and the sparse-span bound. Each is flagged where made and closed by name: page 2 closes popcount, page 3 closes static. |\n| Page shape | each page has a `.tldr` right after the hero, with the transferable takeaway first. The first `h2` is a numbered question ledger, and later sections cite \"Question 2\". Link prerequisites by title, not number. |\n| Skipping | an expert fast path after each TL;DR, and proofs in `details.disclosure` folds. |\n\nEach page should run about 2,500 to 3,000 words. If page 2 grows past that, move the sparse-span proof into a fold rather than adding a fourth page.\n\n## Before drafting\n\nFor each page, run the skill's steps 1 to 6. Write the name table and the promise list first. Read two or three standard treatments of rank and select and mark where you stall. I expect that to be the jump from \"sample every 512\" to the select-in-word trick, and it is what makes page 2 the keystone.\n\nTwo things would change this plan. If your existing posts already define rank or popcount, page 1 can shrink. If you'd rather have a fourth, optional formal page for the space proofs, tell me.",
+      "graders": [
+       {
+        "name": "02-the-first-page-starts-from-a-naive-approach-scan",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-prerequisites-between-pages-are-named-by-title-o",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-each-page-after-the-first-opens-by-restating-the",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "05-at-least-one-simplification-made-on-an-early-pag",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "06-a-single-measure-space-overhead-in-bits-or-query",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "07-optional-or-formal-material-is-identified-as-ski",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     }
+    ],
+    "without": [
+     {
+      "score": 0,
+      "answer": "The working directory has no posts, config or templates, so I couldn't match existing conventions. The plan below is self-contained, and I've flagged the places where you'll need to adapt it to your blog's format.\n\n# Series plan: Succinct rank and select over bit vectors\n\n**Series premise:** Store a bit vector of n bits in n + o(n) bits and still answer `rank` and `select` in O(1) time. Each page adds one capability on top of the last, so a reader can stop after any page and still have something that works.\n\n## Shared definitions (fixed across all three pages)\n\n- **Bit vector:** `B[0..n-1]`, 0-indexed.\n- **`rank₁(i)`:** the number of 1s in `B[0..i-1]`. It is exclusive of position `i`, which makes `rank(0) = 0` and `rank(n) = popcount`. Pick this convention once and never change it.\n- **`select₁(k)`:** the position of the k-th 1, with k 1-indexed, so `rank₁(select₁(k)) = k-1` and `B[select₁(k)] = 1`. Say explicitly that k is 1-indexed while positions are 0-indexed, since that mismatch is the most common source of off-by-one errors.\n- **Symbols:** n is the length, m is the number of 1s, w is the machine word size (w = Θ(log n)), and log means log₂.\n- **Space notation:** write costs as `n + o(n)`, and always give the concrete constants of the implementation next to the asymptotics.\n- **Running example:** one 64-bit-ish toy vector, drawn the same way on every page, with the same block boundaries highlighted. Each page adds layers to the same picture.\n- **Reference implementation:** one language, with the same function signatures on every page: `rank1(i)` and `select1(k)`.\n- **Cost model:** a word-RAM model, with `popcount` treated as O(1).\n\n## Page 1: Rank in constant time\n\n**Goal:** Build the rank directory and show why it uses o(n) extra space.\n\n- **Motivation:** why n + o(n) matters, using wavelet trees, FM-indexes and succinct trees as examples.\n- **Naive baselines:** a prefix-sum array (O(1) time, n log n bits) and a scan (n bits, O(n) time). Present these as the two ends the directory sits between.\n- **Two-level directory:**\n  - Superblocks of size log²n store absolute counts.\n  - Blocks of size ½ log n store counts relative to their superblock.\n  - A final in-block step uses `popcount` on a masked word. Mention the lookup-table alternative from the theory papers in a sidebar.\n- **Space accounting:** a short table giving the bits spent per level, summing to o(n). Then the practical variant: a 512-bit block plus a 64-bit counter, about 12.5% overhead (adjust to the values you choose).\n- **Code:** `rank1` in about 10 lines, plus a test against a naive scan.\n- **Ends with:** \"rank answers *how many* 1s come before i. The inverse question, *where is the k-th 1*, is select, and it is harder.\"\n\n## Page 2: Select in constant time\n\n**Goal:** Solve the inverse problem and explain why it needs a different structure from rank.\n\n- **Why rank's layout doesn't carry over:** the 1s are not evenly spaced, so fixed-size blocks in *position* space don't work. The blocks have to be defined by *count of 1s*.\n- **Binary search over rank:** an O(log n) baseline that reuses page 1's directory. This is the first use of page 1 and shows the series building on itself.\n- **Constant-time select (Clark / Munro style):**\n  - Sample every L-th 1, with L around log²n.\n  - Classify each resulting range as sparse or dense by its span.\n  - Sparse ranges store their answers explicitly.\n  - Dense ranges recurse into smaller blocks, down to a lookup table or in-word select.\n- **In-word select:** a short treatment of broadword or `pdep`-based select for the final step.\n- **Space accounting:** show why the sparse case stays within o(n). Sparse ranges are large, so there are few of them, and listing their answers is cheap.\n- **Code:** `select1(k)`, with an invariant test `rank1(select1(k)) == k-1`.\n- **Ends with:** \"Both operations work, but the layout assumes a dense, arbitrary bit vector. What if the vector is sparse, with m ≪ n?\"\n\n## Page 3: Practice, variants and where the theory bends\n\n**Goal:** Turn the theory into something a reader would use, and point to what lies beyond it.\n\n- **Putting the two together:** interleave the rank and select metadata, and discuss cache behavior. The theory counts bits, and real speed counts cache lines.\n- **`select₀` and `rank₀`:** `rank₀(i) = i - rank₁(i)` is free. `select₀` needs its own sampling or a reuse trick.\n- **Sparse vectors:** Elias-Fano with m log(n/m) + O(m) bits, and its `select` and `rank` costs. This answers the question left open at the end of page 2.\n- **Benchmarks:** compare against a library such as sdsl-lite or a Rust succinct crate. Report space overhead and ns/query across densities (1%, 10%, 50%).\n- **Pitfalls:** off-by-one conventions, word-size assumptions, unaligned loads, and the big-endian vs little-endian bit order that determines which end `popcount` counts from.\n- **Further reading:** wavelet trees, balanced-parentheses trees, the RRR compressed bit vector, and the Pătraşcu lower-bound work.\n\n## How the pages connect\n\n| Link | Mechanism |\n|---|---|\n| Page 1 → 2 | The closing question \"how do I invert rank?\" leads into select. Page 2's baseline calls page 1's `rank1`. |\n| Page 2 → 3 | The dense-vector assumption in select leads into sparse and compressed variants. |\n| All pages | The same toy bit vector, the same signatures and the same test invariant, `rank1(select1(k)) == k-1`. |\n\nEach page opens with a three-line recap of definitions and a link back, and closes with a one-line teaser and a link forward. Each page should be readable alone through its recap box.\n\n## Consistency checklist for drafting\n\n1. **Conventions:** use the same rank, select and indexing conventions everywhere, with a boxed \"Conventions\" block on every page.\n2. **Figures:** reuse the same colors for the same structures, such as superblock, block and sample, so a color means one thing across the series.\n3. **Space claims:** always show the arithmetic, and give both the asymptotic bound and the concrete implementation overhead.\n4. **Code:** one language and one file layout, with each page extending the previous page's code rather than rewriting it.\n5. **Terminology:** pick one term each for \"block\" vs \"chunk\" and \"directory\" vs \"index\", and keep it.\n6. **Length:** about 1,500–2,200 words per page, with Page 2 allowed to run longest.\n7. **Series navigation:** a \"Part N of 3\" label, a shared tag or series slug, and prev/next links.\n\n## Decisions for you\n\n- **Implementation language:** I'd suggest Rust or C++ because of `popcount` and `pdep` access. Python would be easier to read but would make the benchmarks meaningless.\n- **Theory vs practice balance:** the plan above leans on practical variants (12.5% overhead directories). If your readers want proofs, move the formal sparse/dense analysis into Page 2 and shorten Page 3.\n- **Blog format:** I found no existing posts or config here. If the blog is in another directory, tell me where and I'll adapt front matter, series linking and file naming to match, and can scaffold the three draft files.",
+      "graders": [
+       {
+        "name": "02-the-first-page-starts-from-a-naive-approach-scan",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         true,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "03-prerequisites-between-pages-are-named-by-title-o",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "04-each-page-after-the-first-opens-by-restating-the",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "05-at-least-one-simplification-made-on-an-early-pag",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "06-a-single-measure-space-overhead-in-bits-or-query",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "07-optional-or-formal-material-is-identified-as-ski",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       }
+      ]
+     },
+     {
+      "score": 0.3333333333333333,
+      "answer": "The working directory has no existing posts or config, so I couldn't match any conventions. The plan below is self-contained, and you can adjust it to your front matter and style.\n\n# Series: Succinct Rank and Select over Bit Vectors\n\n**Series goal:** A reader who knows arrays and binary search finishes able to implement a bit vector with O(1) `rank` and fast `select` using about 3–25% extra space. They should also understand why that bound is the right one.\n\n## What stays consistent across all three pages\n\n**Definitions (stated identically on every page)**\n- Bit vector `B[0..n)`, 0-indexed.\n- `rank1(i)` is the number of 1s in `B[0..i)`, so it is exclusive of `i`. Pick this convention once and never switch.\n- `select1(k)` is the position of the k-th 1, with `k` starting at 1 or 0. Decide now. I suggest 1-indexed `k` so that `rank1(select1(k)) = k - 1` and `rank1(select1(k) + 1) = k`.\n- `rank0` and `select0` are mentioned as symmetric, but only the 1 versions are developed.\n\n**Running example**\n- One 64-bit string, shown on every page. Choose one with uneven density, for example a dense run, then a long gap, then scattered 1s. That way, page 3 can show why sparse regions are hard.\n- The same string is annotated with a different layer on each page: superblocks, then blocks, then sampled select positions.\n\n**Notation and parameters**\n- `n` for length, `m` for the number of 1s.\n- Fixed names for the structure: superblock size `S`, block size `b`, with word size `w = 64`.\n- One space table at the end of each page: \"Overhead so far\" in bits and as a % of `n`. It grows as the series proceeds.\n\n**Code**\n- One language (Rust or C++, your choice) and one `struct BitVector` that gains fields page by page.\n- Same function signatures throughout: `rank1(&self, i: usize) -> usize`, `select1(&self, k: usize) -> usize`.\n- Use `popcount` and `select-in-word` as named primitives from page 1 onward.\n- Every page includes a small property test: `rank1(select1(k)+1) == k` and a comparison against the naive scan.\n\n**Tone and layout**\n- Same section skeleton on every page: Problem, Idea, Structure (with diagram), Code, Cost, Pitfalls, \"Next\".\n- Diagrams in one visual style, with colors tied to layers (superblock, block, sample). If you make charts for the benchmarks, I can load the dataviz skill.\n\n## Page 1: Rank in O(1) with o(n) extra bits\n\n**Covers**\n- Motivation: why succinct structures exist, where rank and select are used (wavelet trees, FM-index, compressed tries, Elias-Fano).\n- The naive baselines: an O(n) scan, and a full prefix-sum array costing n·log n bits.\n- The two-level directory:\n  - Superblocks of size `S = w²` store absolute counts.\n  - Blocks of size `b = w` store counts relative to their superblock.\n  - A query is one superblock lookup, one block lookup, then a masked `popcount` within a word.\n- Space analysis showing that the overhead is o(n). Then the practical variant: 64-bit words with 512-bit superblocks, giving roughly 25% overhead, or less with interleaving.\n- Code: build and `rank1`, with tests.\n\n**Ends with:** \"Rank gives us position → count. Select needs the inverse.\" This is the hook for page 2.\n\n## Page 2: Select, built on top of rank\n\n**Covers**\n- Why select isn't just binary search over rank: it works, but costs O(log n), and with cache misses it is slower in practice. Show that version first as the baseline.\n- The select-in-word primitive: `pdep` and `tzcnt`, and a portable fallback.\n- Sampling approach: store the position of every `L`-th 1, so the answer lies between two samples.\n- Reuse of page 1's rank directory to finish the search inside the located region, with a short binary search over superblocks.\n- The first look at the density problem: when two consecutive samples are far apart, the region is large. Show this on the running example's gap and **leave it unresolved on purpose**.\n- Code: `select1` v1, with the invariant test tying it to `rank1`.\n\n**Ends with:** \"Worst case is still bad on sparse inputs. Fixing that is where the theory comes in.\"\n\n## Page 3: Making select worst-case fast, and the whole picture\n\n**Covers**\n- The Clark / Munro-style fix, in two regimes:\n  - If the span between samples is large (sparse), store the 1-positions explicitly.\n  - If the span is small (dense), recurse or use lookup tables over sub-blocks.\n- Why the total overhead stays o(n).\n- The assembled structure: final struct, final space table (rank + select1 + select0), and a note on practical alternatives such as select hints (the \"sdsl / Vigna broadword\" approach).\n- Benchmarks: ns per query across densities of 1%, 10%, 50%. Compare naive, page-1/2 version, and final version. Use the same machine, `n`, and query distribution as stated on the page.\n- Limits and pointers: RRR/compressed bit vectors, Elias-Fano, further reading.\n\n## How the pages connect\n\n| Link | Mechanism |\n|---|---|\n| 1 → 2 | Page 1's directory is reused unchanged by select. Page 2 begins by importing its structure and reusing the same `BitVector`. |\n| 2 → 3 | Page 2 deliberately leaves a worst case open, and page 3 resolves it. |\n| Space table | Rows are added each page, so page 3's table is the full series summary. |\n| Running example | Same bit string with layers added, so readers can trace one query end to end. |\n| Navigation | Each page has \"Previous / Next\" links and a short \"Series so far\" box listing the definitions. |\n\n## Open decisions for you\n\n1. **Language** for the code (Rust, C++, or pseudocode plus Python)?\n2. **Depth of theory** on page 3: full proof of the o(n) bound, or a sketch with references?\n3. **Benchmarks**: include real measurements, or keep the page analytical? If real, they need to be run before drafting.\n4. **Select indexing** (0- or 1-based `k`) and rank exclusivity, as above. I recommend the defaults listed.\n\nOnce you confirm these, I can draft page 1 or set up the post files, though I'd need to know the blog's format since the directory is empty.",
+      "graders": [
+       {
+        "name": "02-the-first-page-starts-from-a-naive-approach-scan",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-prerequisites-between-pages-are-named-by-title-o",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "04-each-page-after-the-first-opens-by-restating-the",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "05-at-least-one-simplification-made-on-an-early-pag",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "06-a-single-measure-space-overhead-in-bits-or-query",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "07-optional-or-formal-material-is-identified-as-ski",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       }
+      ]
+     },
+     {
+      "score": 0.16666666666666666,
+      "answer": "The working directory has no existing posts or config, so this plan doesn't follow any blog conventions. Here is the plan.\n\n# Series: Rank and Select over Bit Vectors\n\n**Premise:** Start with the two operations, then build a rank structure, then build select on top of it. Every page uses the same notation, the same running example and the same cost table.\n\n## Page 1: The problem and rank\n\n**Goal:** The reader can state what rank and select are, and can build an O(1) rank structure with o(n) extra bits.\n\n- **Definitions:** `rank₁(B, i)` is the number of 1s in `B[0..i)`, and `select₁(B, k)` is the position of the k-th 1. Pick one indexing convention and state it. Mention rank₀/select₀ briefly.\n- **Why it matters:** Wavelet trees, succinct trees (LOUDS, BP), FM-indexes, Elias-Fano. Keep this to a short motivating section.\n- **Naive baselines:** A plain scan costs O(n) time and no extra space. A full prefix-sum array costs O(1) time and n log n bits. This frames the space/time tradeoff.\n- **Two-level directory (Jacobson):**\n  - Superblocks of size ~log²n store absolute counts.\n  - Blocks of size ~½ log n store counts relative to their superblock.\n  - A lookup table, or popcount, handles the within-block remainder.\n- **Space analysis:** Total overhead is O(n log log n / log n) bits, which is o(n).\n- **Practical note:** A word-aligned layout with hardware `popcnt` (512-bit blocks plus 64-bit counters). Include a short code sketch.\n- **Ends with:** An exercise and a teaser: \"Rank gave us counting. Can we invert it?\"\n\n## Page 2: Select\n\n**Goal:** The reader understands why select is harder than rank and can build an O(1) or near-O(1) structure.\n\n- **Why rank doesn't give select for free:** Binary search over rank gives O(log n). It is a useful baseline, and it reuses the Page 1 structure directly.\n- **Clark/Munro-style construction:**\n  - Sample every k-th 1 (k ≈ log² n).\n  - Classify each chunk by span. Sparse chunks store explicit positions. Dense chunks recurse with a smaller structure.\n  - Finish with a table lookup or in-word select.\n- **In-word select:** Show a naive loop, then a PDEP/`pdep`+`tzcnt` trick, and note the portable fallback.\n- **Space analysis:** Show why the total is still o(n), and why the constants are worse than for rank.\n- **Practical variants:** Sampling plus binary search (as in sdsl's `select_support_mcl`) or a \"hinted\" search. Say what real libraries do and why.\n- **Ends with:** A comparison against Page 1 and the teaser: \"What if the bit vector is sparse or compressed?\"\n\n## Page 3: Beyond the basics: compression, practice, and applications\n\n**Goal:** Connect the structures to real use, and show how the space bounds change when the data isn't incompressible.\n\n- **Entropy-compressed vectors:** RRR (Raman–Raman–Rao) blocks with class/offset encoding, and the nH₀ + o(n) bound.\n- **Sparse vectors:** Elias-Fano, where select is natural and rank needs a small extra structure.\n- **Interleaving and cache behaviour:** Put rank counters inline with the data, and put rank and select in the same cache line.\n- **Benchmarks:** Compare plain, RRR and Elias-Fano on dense, sparse and clustered inputs. Report bits per element and ns per query. Use the `dataviz` skill for the charts.\n- **Applications:** A short worked example, such as a wavelet-tree access, a LOUDS child lookup or an FM-index backward step, showing rank and select as primitives.\n- **Further reading:** Jacobson 1989, Clark 1996, Munro 1996, Raman et al. 2002, Vigna's broadword select, Navarro's *Compact Data Structures*, and the sdsl-lite and Succinct libraries.\n\n## How the pages connect\n\n- **Page 1 → 2:** The select section reuses the rank directory, since binary search over rank is the baseline. It also reuses the superblock/block vocabulary and the same cost table.\n- **Page 2 → 3:** The \"dense vs. sparse\" split in select leads naturally to the sparse and compressed variants, which are the same idea applied to the whole vector.\n- **Navigation:** Each page opens with a \"previously\" line and closes with a \"next\" teaser. Every page has a series box listing all three, and a short glossary link that points back to Page 1's definitions.\n\n## What stays consistent\n\n- **Notation:** `B` for the bit vector, `n` for its length, `m` for the number of 1s, and `rank₁`/`select₁` with the half-open `[0, i)` convention. Declare 0-indexed select (or 1-indexed), and stick to it.\n- **Running example:** One 32–64 bit vector, displayed identically in each page's figures. Each page marks the structure it adds on top of it.\n- **Diagrams:** Same colour for each level of the directory across pages. Superblock, block and bit-level are always the same colours.\n- **Cost table:** One table with columns for query time, extra space and assumptions (word-RAM, w = Θ(log n)). It gains a row on each page, and Page 3 shows the complete table.\n- **Code:** One language (C++ or Rust), with the same `BitVector`, `Rank` and `Select` interfaces across pages. Snippets are short and compile on their own.\n- **Tone and level:** Assumes comfort with big-O and bit operations, but not prior succinct-structures knowledge. Each proof is a sketch followed by a \"why it works\" paragraph.\n- **Exercises:** Two or three per page, with answers in a collapsible block.\n\n## Open decisions for you\n\n1. **Language for code:** C++, Rust or pseudocode?\n2. **Depth of proofs:** Sketch only, or full space-bound derivations?\n3. **Blog format:** I found no posts in this directory. Tell me the framework and front-matter conventions (Jekyll, Hugo, etc.) and I'll draft the pages to match.\n\nI can start with an outline file or a full draft of Page 1 once you answer these.",
+      "graders": [
+       {
+        "name": "02-the-first-page-starts-from-a-naive-approach-scan",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-prerequisites-between-pages-are-named-by-title-o",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "04-each-page-after-the-first-opens-by-restating-the",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "05-at-least-one-simplification-made-on-an-early-pag",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "06-a-single-measure-space-overhead-in-bits-or-query",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "07-optional-or-formal-material-is-identified-as-ski",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}
