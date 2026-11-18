@@ -28,7 +28,11 @@ just never runs, or runs on the wrong task.
   Sonnet fires without it, so test on both ([measurements](measurements.md)). This rests on one
   skill and one model, with one or two queries of run-to-run movement, so treat it as a default
   to test, not a rule for every skill: it forces a load on every matching prompt, which costs
-  context for a skill whose answers rarely need the body.
+  context for a skill whose answers rarely need the body. After adding it, run the neighbours'
+  quiet queries on Sonnet and count which skills load: "or reading any file" in
+  `pedagogical-writing`'s description made Sonnet load `pedagogical-diagrams` on one of that
+  skill's quiet queries (#233), and the same words in `skill-authoring`'s changed no load on 71
+  quiet queries (#306). "Load it before answering" alone is the safer start.
 - **Name the near misses.** End with "Not for …", naming the neighbouring skill or tool
   that owns each, so the two descriptions divide the territory between them.
 - **At most 1,024 characters** (the cross-surface limit, and pi's). Claude Code accepts

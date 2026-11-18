@@ -40,6 +40,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-18: `fix-confusing-figure` graded on what the skill adds, and the two dropped conditions (#249)
 - 2026-11-18: why `needs-a-script` scored lower with the skill on two graders (#300)
 - 2026-11-18: six `pedagogical-writing` graders that rejected correct answers or passed in no arm (#299)
+- 2026-11-18: "or reading any file" in `skill-authoring`'s description does not make Sonnet load other skills (#306)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -1853,3 +1854,76 @@ has six scored graders now, not eight, so its score moves by construction.
   were not in scope.
 - **`05-effort` is a regex about advice.** An answer that says "do not raise the effort to `high`" in one sentence
   passes it, as it did before. No saved or fresh answer says that.
+
+## 2026-11-18: "or reading any file" in `skill-authoring`'s description does not make Sonnet load other skills (#306)
+
+Claude Code 2.1.318, agent `claude-sonnet-5-5`, three runs per query, `--max-turns 3`, `--keep`. No change to any
+skill. US$31.96 in all, $15.97 and $15.99 for the two arms.
+
+**The question.** In #233, "Load it before answering or reading any file." in `pedagogical-writing`'s description made
+Sonnet load `pedagogical-diagrams` on that skill's quiet query #23 in 5 of 6 runs. `skill-authoring`'s description
+has carried the same phrase since #86. Does it cause loads of other skills today?
+
+**Design.** Two arms that differ in one sentence of `skill-authoring`'s description: A is the description on `main`
+("Load it before answering or reading any file."), B has "Load it before answering." Each arm is a copy of
+`.claude/skills` in its own scratch git repository, and `run-trigger-evals.mjs` was run from inside it, so the
+temporary plugin held all five skills with that arm's description. The two arms of a suite ran at the same time.
+The queries are the `should_trigger: false` ones of all five suites, chosen with `--only`. There are 77. Five were
+left out because another suite asks the same thing in the same or nearly the same words (`anatomy` #11 and #13,
+`pedagogical-writing` #14, #29 and #30), which leaves 72. The script's PASS says only whether the suite's own skill
+loaded, so every `Skill` call in every kept trace was counted by skill name.
+
+**Result.** Runs that loaded each skill, of the runs made. No run loaded two skills.
+
+| Suite (quiet queries run) | Arm | Runs | `pedagogical-writing` | `pedagogical-diagrams` | `anatomy` | `dataviz` | `claude-api` | `update-config` | `skill-authoring` | `advisors` | No skill |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `advisors` (8) | A | 24 | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 18 |
+| | B | 24 | 6 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 18 |
+| `anatomy` (13) | A | 39 | 21 | 3 | 0 | 9 | 0 | 0 | 0 | 0 | 6 |
+| | B | 39 | 21 | 2 | 0 | 9 | 0 | 0 | 0 | 0 | 7 |
+| `pedagogical-diagrams` (10) | A | 30 | 6 | 0 | 3 | 9 | 0 | 0 | 0 | 0 | 12 |
+| | B | 30 | 6 | 0 | 3 | 9 | 0 | 0 | 0 | 0 | 12 |
+| `pedagogical-writing` (26) | A | 78 | 0 | 15 | 0 | 3 | 10 | 0 | 0 | 0 | 50 |
+| | B | 78 | 0 | 15 | 0 | 3 | 10 | 0 | 0 | 0 | 50 |
+| `skill-authoring` (15) | A | 44 | 9 | 0 | 0 | 3 | 3 | 6 | 0 | 0 | 23 |
+| | B | 42 | 9 | 0 | 0 | 3 | 3 | 6 | 0 | 0 | 21 |
+| All (72) | A | 215 | 42 | 18 | 3 | 24 | 13 | 6 | 0 | 0 | 109 |
+| | B | 213 | 42 | 17 | 3 | 24 | 13 | 6 | 0 | 0 | 108 |
+
+- **The phrase causes no cross-skill load that these runs can see.** 68 of the 71 queries run three times in both arms
+  gave the same loads in both: the same skill in 3 of 3 runs, or none in 3 of 3. The other three moved by one run
+  each, and not in one direction: `anatomy` #15 (the TLS sequence diagram) loaded `pedagogical-diagrams` 3 of 3 with
+  A and 2 of 3 with B; `pedagogical-writing` #42 loaded `claude-api` 3 of 3 with A and 2 of 3 with B; and
+  `pedagogical-writing` #40 loaded it 1 of 3 with A and 2 of 3 with B. One run in three is the step #233 and the
+  note at the top of this file call noise, and none of the three was run again.
+- **The query of #233's observation stayed quiet in both arms.** `pedagogical-diagrams` #23 ("convert the mermaid
+  flowchart in the rate limiting ADR into inline SVG…") made no `Skill` call in 3 of 3 runs with A and 3 of 3 with
+  B. Each run searched four or five times with `Grep` and `Glob`, found nothing and said so.
+- **Every suite's own skill stayed quiet**: 72 of 72 queries passed with A and 71 of 71 with B. `skill-authoring`
+  and `advisors` loaded in no run of either arm.
+- **Every load was of the skill the query belongs to**: `pedagogical-writing` on prose and page-clarity queries,
+  `pedagogical-diagrams` on figure-design queries, `anatomy` on the isometric figure, `dataviz` on charts,
+  `claude-api` on API and model queries, `update-config` on `settings.json` queries. So a quiet query that loads a
+  neighbour is the neighbour firing as its own suite asks, and about half the runs do (106 of 215 with A).
+- **The description stays as it is.** Shortening it would give up the wording #86 measured on Haiku for no measured
+  gain on Sonnet. `skill-authoring`'s Haiku suite was not run again, because nothing changed.
+
+**What this does not show.**
+
+- **It is not a repeat of #233's observation.** There the phrase was in `pedagogical-writing`'s description, a skill
+  whose territory (pages, explainers) is close to the query that moved. Here it is in `skill-authoring`'s, whose
+  territory is far from every quiet query but its own. So the result is that this sentence in this description is
+  harmless today, not that the phrase is safe in any description. Why it moved a neighbour in #233 is still not
+  known.
+- **Three runs a query, one day, one model and one Claude Code version.** An effect the size of #233's (5 of 6
+  against 0 of 3) on any one of the 71 queries would have shown. An effect of one run in three on a few queries
+  would not.
+- **`skill-authoring` #34 was not compared.** Both arms of that suite stopped at the `--max-cost 5` ceiling ($5.19
+  and $5.24): A ran #34 twice, with no `Skill` call, and B not at all. That suite cost about $0.35 a query, twice
+  the $0.17 of `pedagogical-diagrams`, which the estimate was taken from. That is also why the whole measurement cost
+  $31.96 against a $30 budget, and why no query was run a second time.
+- **The should-fire queries were not run.** A phrase that made Sonnet load the wrong skill on a query that should
+  load another one would not show here unless that query is also some suite's quiet query.
+- **The sandbox is empty and the cap is three turns.** A run that hunts for a file finds nothing. In a real repo the
+  hunt succeeds, and what Sonnet does after reading a file was not measured. User-level skills are not loaded
+  either.
