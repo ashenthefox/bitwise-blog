@@ -192,7 +192,9 @@
 
     const home = doc.body.dataset.home;
     const site = doc.body.dataset.site || "Bitwise Engineering";
-    const brandChildren = [el("span", { class: "bh-brand-mark", "aria-hidden": "true", html: LOGO_SVG }), el("span", { text: site })];
+    // The name is its own element so layout.css can hide it from sight below 375px, where the bar has
+    // no room for it beside five buttons. It stays in the page as the link's accessible name.
+    const brandChildren = [el("span", { class: "bh-brand-mark", "aria-hidden": "true", html: LOGO_SVG }), el("span", { class: "bh-brand-name", text: site })];
     const brand = home && !root.hasAttribute("data-bundled")
       ? el("a", { class: "bh-brand", href: home, title: "Back to index" }, brandChildren)
       : el("span", { class: "bh-brand" }, brandChildren);

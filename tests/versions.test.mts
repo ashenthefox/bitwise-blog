@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { findChrome, launchChrome, serveStatic, sleep } from "../scripts/chrome.mts";
+import { findChrome, launchChrome, serveStatic, sleep, FONT_FILES } from "../scripts/chrome.mts";
 
 // <bh-versions> highlights the parts marked data-change. "Show changes" turns the highlights and
 // their legend off and on again: off, a marked part must look exactly like an unmarked one, and
@@ -364,6 +364,142 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
       wrapperOff: { ownButtonShown: false, legend: "hidden", highlighted: false },
       wrapperOn: { ownButtonShown: true, legend: "visible", highlighted: true },
     });
+  });
+
+  // The top bar's buttons and their icons never shrink (#273): a flex row with no room shrank them, to
+  // 8px icons in 22px buttons at 320px. The title gives way first, then the brand's name (cut short
+  // with an ellipsis), and below 375px the brand is its mark alone.
+  await t.test("the top bar's buttons and icons keep their size from 320px to 390px, with a sixth button and without the theme's fonts", async () => {
+    interface Bar {
+      innerWidth: number; scrollWidth: number; barRight: number; fontsLoaded: boolean;
+      brand: { tag: string; href: string | null; name: string; nameWidth: number; nameFull: number; nameInTree: boolean; width: number; height: number; left: number; right: number; markRight: number };
+      buttons: { label: string; left: number; right: number; width: number; height: number; icon: number; drawn: number }[];
+    }
+    const bar = (): Promise<Bar> => evaluate(`(() => {
+      const top = document.querySelector(".bh-topbar"), brand = top.querySelector(".bh-brand"), name = brand.querySelector(".bh-brand-name");
+      const box = (n) => n.getBoundingClientRect();
+      const b = box(brand), style = getComputedStyle(name);
+      return {
+        innerWidth, scrollWidth: document.documentElement.scrollWidth, barRight: box(top).right,
+        fontsLoaded: document.fonts.check('600 16px "IBM Plex Sans"'),
+        brand: {
+          tag: brand.localName, href: brand.getAttribute("href"), name: brand.textContent.trim(),
+          nameWidth: box(name).width, nameFull: name.scrollWidth,
+          nameInTree: style.display !== "none" && style.visibility !== "hidden" && !name.closest("[aria-hidden='true'], [hidden]"),
+          width: b.width, height: b.height, left: b.left, right: b.right, markRight: box(brand.querySelector(".bh-brand-mark")).right,
+        },
+        buttons: [...top.querySelectorAll(".bh-topbar-actions > button")].map((button) => {
+          const r = box(button), svg = button.querySelector("svg");
+          return { label: button.getAttribute("aria-label"), left: r.left, right: r.right, width: r.width, height: r.height, icon: box(svg).width, drawn: Number(svg.getAttribute("width")) };
+        }),
+      };
+    })()`);
+    /** The brand's name: all of it, cut short with an ellipsis, or out of sight. */
+    type Name = "whole" | "cut short" | "out of sight";
+    const holds = (found: Bar, width: number, count: number, name: Name, when: string, fits = true) => {
+      assert.equal(found.innerWidth, width, `nothing widens the viewport ${when}`);
+      assert.equal(found.scrollWidth, width, `nothing overflows the page ${when}`);
+      assert.equal(found.buttons.length, count, `the bar has ${count} buttons ${when}`);
+      assert.ok(found.brand.markRight <= found.buttons[0]!.left, `the brand's mark is clear of the first button ${when}`);
+      let edge = found.brand.right;
+      for (const b of found.buttons) {
+        assert.equal(b.icon, b.drawn, `"${b.label}": the icon is the ${b.drawn}px it is drawn at ${when}`);
+        assert.ok(b.width >= 30 && b.height >= 30, `"${b.label}": its full size ${when}, not ${b.width} by ${b.height}`);
+        assert.ok(b.left >= edge, `"${b.label}": clear of what is before it ${when}`);
+        edge = b.right;
+      }
+      assert.equal(found.barRight, width, `the bar is as wide as the viewport ${when}`);
+      assert.equal(edge <= found.barRight, fits, `the last button is ${fits ? "inside" : "past the edge of"} the bar ${when}`);
+      // What gave way is the brand's name: it is still a link home with its name.
+      assert.equal(found.brand.tag, "a", "the brand is a link");
+      assert.ok(found.brand.href, "the brand links home");
+      assert.equal(found.brand.name, "Bitwise Engineering", `the brand keeps its name ${when}`);
+      assert.ok(found.brand.nameInTree, `the brand's name is still read out ${when}`);
+      assert.ok(found.brand.left >= 0, `the brand is inside the viewport ${when}`);
+      const shown = found.brand.nameWidth > 1;
+      const seen: Name = !shown ? "out of sight" : found.brand.nameWidth < found.brand.nameFull - 1 ? "cut short" : "whole";
+      assert.equal(seen, name, `the brand's name is ${name} ${when} (${found.brand.nameWidth}px of ${found.brand.nameFull}px)`);
+      if (name === "out of sight") assert.ok(found.brand.width >= 24 && found.brand.height >= 24, `the brand is a 24px target ${when}`);
+    };
+    const load = async () => {
+      await s("Page.navigate", { url: base + "edge-rate-limiting-design.html?examples" });
+      let ready = false;
+      for (let i = 0; i < 150 && !ready; i++) {
+        await sleep(100);
+        ready = await evaluate("document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')").catch(() => false);
+      }
+      assert.ok(ready, "the page settled within 15 seconds");
+      // As above: a style read in the same task as a change is the old value while a transition runs.
+      await evaluate(`document.head.append(Object.assign(document.createElement("style"), { textContent: "*, *::before, *::after { transition: none !important; }" }))`);
+    };
+    // Media queries follow a new width on the next frame, not when the override returns: wait for one
+    // (or 250 ms, should the tab's frames be throttled), not for a fixed time.
+    const size = async (width: number) => {
+      await s("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: true });
+      await evaluate(`new Promise((done) => { requestAnimationFrame(() => requestAnimationFrame(done)); setTimeout(done, 250); })`);
+    };
+    /** Add buttons to the bar, as a later feature might. */
+    const add = (n: number) => evaluate(`(() => {
+      const actions = document.querySelector(".bh-topbar-actions");
+      for (let i = 0; i < ${n}; i++) {
+        const more = actions.lastElementChild.cloneNode(true);
+        more.setAttribute("aria-label", "One more button");
+        more.dataset.test = "more";
+        actions.append(more);
+      }
+    })()`);
+    const removeAdded = () => evaluate(`document.querySelectorAll(".bh-topbar-actions [data-test=more]").forEach((b) => b.remove())`);
+    const widths: [number, Name, Name][] = [[390, "whole", "cut short"], [375, "whole", "cut short"], [360, "out of sight", "out of sight"], [320, "out of sight", "out of sight"]];
+
+    await size(375);
+    await load();
+    assert.deepEqual((await bar()).buttons.map((b) => b.drawn), [16, 18, 18, 18, 18], "the page has all five buttons: search, changes, review, present, theme");
+    assert.ok((await bar()).fontsLoaded, "the theme's fonts are loaded");
+    for (const scheme of ["light", "dark"]) {
+      await s("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }, { name: "prefers-reduced-motion", value: "reduce" }] });
+      for (const [width, five, six] of widths) {
+        await size(width);
+        holds(await bar(), width, 5, five, `at ${width}px (${scheme})`);
+        // A sixth button: the next feature that adds one must not bring the shrink back, at any of these widths.
+        await add(1);
+        holds(await bar(), width, 6, six, `at ${width}px with a sixth button (${scheme})`);
+        await removeAdded();
+      }
+    }
+    // More buttons than can fit: they keep their size and the bar clips the last, rather than widen the viewport.
+    await add(3);
+    holds(await bar(), 320, 8, "out of sight", "at 320px with eight buttons", false);
+    await removeAdded();
+
+    // A wider name than the web font's, as a fallback font is before the web font loads. At 375px the
+    // five-button row has about 5px to spare, so a slightly wider face is cut short, and nothing shrinks.
+    await size(375);
+    await evaluate(`document.querySelector(".bh-brand-name").style.letterSpacing = "0.5px"`);
+    holds(await bar(), 375, 5, "cut short", "at 375px with a wider name");
+    await evaluate(`document.querySelector(".bh-brand-name").style.letterSpacing = ""`);
+
+    // The real thing: the theme's font files blocked, so the system fonts draw the bar. How wide they
+    // are depends on the machine, so the name may be whole or cut short; the buttons may not change.
+    await s("Network.enable");
+    await s("Network.setCacheDisabled", { cacheDisabled: true });
+    await s("Network.setBlockedURLs", { urls: [FONT_FILES] });
+    try {
+      for (const width of [390, 375]) {
+        await size(width);
+        await load();
+        const found = await bar();
+        assert.equal(found.fontsLoaded, false, "the theme's fonts are blocked");
+        holds(found, width, 5, found.brand.nameWidth < found.brand.nameFull - 1 ? "cut short" : "whole", `at ${width}px without the theme's fonts`);
+        await add(1);
+        holds(await bar(), width, 6, "cut short", `at ${width}px without the theme's fonts, with a sixth button`);
+      }
+    } finally {
+      await s("Network.setBlockedURLs", { urls: [] });
+      await s("Network.setCacheDisabled", { cacheDisabled: false });
+    }
+    await size(375);
+    await load();
+    assert.ok((await bar()).fontsLoaded, "the theme's fonts are back");
   });
 
   await t.test("a component with no marked part gets no button", async () => {

@@ -90,6 +90,55 @@
   .bh-topbar { gap: var(--space-2); }
   .bh-search-btn { padding-inline: 0.45em; }
 }
+/* What gives way when the row is too narrow (#273). A flex row with no room shrinks everything in
+   it, and it shrank the buttons and their icons: 8px icons in 22px buttons at 320px. At a 16px
+   root font and 375px wide, a five-button row is
+     32 (padding) + 147 (brand: mark and name) + 2 x 8 (gaps beside the title) + 174.5 (buttons:
+     30.1 + 4 x 32.1, and 4 gaps of 4) = 369.5px,
+   so it shrank below about 370px, and a four-button row below about 333px.
+   Now the buttons and their icons never shrink, at any width (the three flex: none rules below).
+   What gives way instead, in this order:
+   1. The title: it only ever takes the room left over (flex: 1 from nothing, min-width: 0).
+   2. The brand's name, which is cut short with an ellipsis. This is what happens at 375px to 390px
+      when the row is a little too wide: a wider fallback font before the web font loads (the name
+      is 4.7px wider in macOS's system font, and 375px has 5.3px to spare), or a sixth button.
+      The mark is never cut: the brand's min-width is the mark's.
+   3. Below 375px (23.4375em) the name is out of sight and the brand is its mark alone. The name is
+      the widest thing in the bar and the only part that repeats what the page says elsewhere (the
+      footer and the home page name the site). The row is then 32 + 19.2 + 16 + 174.5 = 241.7px,
+      so five buttons fit down to 242px and seven fit at 320px. Every page changes at the same
+      width, whatever its buttons, so the brand does not come and go between pages.
+   The breakpoint is in em because the row is sized in rem: an em in a media query is the
+   reader's default font size, which is also the rem here (the theme sets no font-size on html).
+   So a reader whose default is 20px gets the mark alone below 469px, where their wider row needs it
+   (measured with Chrome's default font size set to 20px).
+   The name is hidden from sight only, as .visually-hidden does: it is still the link's accessible
+   name. The mark's negative margins move to the brand's leading edge, so the link is the mark's
+   whole 24px square (its focus ring and its target) and the glyph stays on the text's left edge.
+   The width the name frees goes to the title.
+   Past all that (narrower than 242px, or an eighth button at 320px) the row cannot fit. The bar
+   then clips what runs past its right edge, the last button first, rather than widen a phone's
+   viewport, which would zoom the whole page out.
+   With the theme's fonts, 375px and wider renders as it did before.
+   tests/versions.test.mts holds the sizes from 320px to 390px, with a sixth button and with the
+   fonts blocked. */
+.bh-topbar { overflow-x: clip; }
+.bh-topbar-actions, .bh-topbar-actions > *, .bh-topbar-actions svg { flex: none; }
+.bh-brand { min-width: 0.9rem; }   /* the mark, less its margins: the name may go, the mark stays whole */
+.bh-brand-mark { flex: none; }
+/* The last letter's antialiasing runs a fraction of a pixel past the name's box, and overflow: hidden
+   would shave it: a pixel of padding, taken back by the margin, keeps the whole name as it was drawn. */
+.bh-brand-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-inline-end: 1px; margin-inline-end: -1px; }
+@media (max-width: 23.43em) {
+  .bh-brand { margin-inline-start: -0.3rem; min-width: 1.5rem; }
+  .bh-brand-mark { margin-inline: 0; }
+  .bh-brand-name {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    clip: rect(0 0 0 0);
+  }
+}
 /* Change highlights for the whole page. The stroke through the icon carries "off" without colour. */
 .bh-changes-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 .bh-changes-btn:not([aria-pressed="false"]) .bh-changes-off { display: none; }
