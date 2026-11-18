@@ -370,7 +370,7 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
   // The top bar's buttons and their icons never shrink (#273): a flex row with no room shrank them, to
   // 8px icons in 22px buttons at 320px. The title gives way first, then the brand's name (cut short
   // with an ellipsis), and below 375px the brand is its mark alone.
-  await t.test("the top bar's buttons and icons keep their size from 320px to 390px, with a sixth button and without the theme's fonts", async () => {
+  await t.test("the top bar's buttons and icons keep their size from 320px to 390px, and its title is shown whole enough or not at all, with a sixth button and without the theme's fonts", async () => {
     interface Bar {
       innerWidth: number; scrollWidth: number; barRight: number; fontsLoaded: boolean;
       brand: { tag: string; href: string | null; name: string; nameWidth: number; nameFull: number; nameInTree: boolean; width: number; height: number; left: number; right: number; markRight: number };
@@ -422,8 +422,8 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
       assert.equal(seen, name, `the brand's name is ${name} ${when} (${found.brand.nameWidth}px of ${found.brand.nameFull}px)`);
       if (name === "out of sight") assert.ok(found.brand.width >= 24 && found.brand.height >= 24, `the brand is a 24px target ${when}`);
     };
-    const load = async () => {
-      await s("Page.navigate", { url: base + "edge-rate-limiting-design.html?examples" });
+    const load = async (page = "edge-rate-limiting-design.html") => {
+      await s("Page.navigate", { url: base + page + "?examples" });
       let ready = false;
       for (let i = 0; i < 150 && !ready; i++) {
         await sleep(100);
@@ -450,6 +450,51 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
       }
     })()`);
     const removeAdded = () => evaluate(`document.querySelectorAll(".bh-topbar-actions [data-test=more]").forEach((b) => b.remove())`);
+    // The title (#282): once the h1 has scrolled away the bar names the page in whatever width the brand
+    // and the buttons leave, which can be 5px. A sliver of a letter with no ellipsis says nothing, so
+    // the title is either at least 60px wide, cut short with an ellipsis when it does not fit, or out of sight.
+    interface Boxes { brand: number[]; buttons: number[][] }
+    const boxes = (): Promise<Boxes> => evaluate(`(() => {
+      const top = document.querySelector(".bh-topbar"), box = (n) => { const r = n.getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; };
+      return { brand: box(top.querySelector(".bh-brand")), buttons: [...top.querySelectorAll(".bh-topbar-actions > button")].map(box) };
+    })()`);
+    interface Title { room: number; shown: boolean; width: number; cutShort: boolean; ellipsis: boolean; ariaHidden: boolean; text: string }
+    /** Scroll so the title shows, and read how much room the bar left it and what is drawn there. */
+    const scrolled = async (): Promise<{ title: Title; boxes: Boxes }> => {
+      await evaluate(`window.scrollTo({ top: 1800, behavior: "instant" })`);
+      let on = false;
+      for (let i = 0; i < 40 && !on; i++) {
+        await sleep(50);
+        on = await evaluate(`document.querySelector(".bh-topbar").classList.contains("show-title")`);
+      }
+      assert.ok(on, "the title is showing once the h1 has scrolled away");
+      const title: Title = await evaluate(`(() => {
+        const t = document.querySelector(".bh-topbar-title"), text = t.firstElementChild || t, style = getComputedStyle(text);
+        const shown = style.display !== "none" && style.visibility !== "hidden", room = t.getBoundingClientRect().width;
+        return { room, shown, width: shown ? text.getBoundingClientRect().width : 0, cutShort: shown && text.scrollWidth > text.clientWidth + 1,
+          ellipsis: style.textOverflow === "ellipsis" && style.overflow === "hidden", ariaHidden: t.getAttribute("aria-hidden") === "true", text: text.textContent };
+      })()`);
+      return { title, boxes: await boxes() };
+    };
+    const unscrolled = () => evaluate(`window.scrollTo({ top: 0, behavior: "instant" })`);
+    /** The title when the bar is scrolled: shown at 60px or more and cut short with an ellipsis, or out of sight; nothing else moves. */
+    const titleHolds = async (when: string, expect?: "shown" | "out of sight") => {
+      await unscrolled();
+      const before = await boxes();
+      const { title, boxes: after } = await scrolled();
+      assert.ok(title.ariaHidden, `the title is still hidden from assistive technology ${when}`);
+      assert.ok(title.text.length > 10, `the title has the page's name ${when}`);
+      if (title.shown) {
+        assert.ok(title.room >= 60 && title.width >= 60, `the title shown has 60px or more ${when}, not ${title.width}px of the ${title.room}px left`);
+        assert.ok(!title.cutShort || title.ellipsis, `a title cut short ends in an ellipsis ${when}`);
+      } else {
+        assert.ok(title.room < 60, `the title is out of sight only when under 60px is left ${when}, not ${title.room}px`);
+      }
+      if (expect) assert.equal(title.shown ? "shown" : "out of sight", expect, `the title is ${expect} ${when} (${title.room}px left)`);
+      // The title only takes what is left over: the brand and the buttons are where they were before it showed.
+      assert.deepEqual(after, before, `the brand and the buttons do not move when the title shows ${when}`);
+      await unscrolled();
+    };
     const widths: [number, Name, Name][] = [[390, "whole", "cut short"], [375, "whole", "cut short"], [360, "out of sight", "out of sight"], [320, "out of sight", "out of sight"]];
 
     await size(375);
@@ -472,6 +517,18 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
     holds(await bar(), 320, 8, "out of sight", "at 320px with eight buttons", false);
     await removeAdded();
 
+    // The title, on the five-button page: 5px is left at 375px and 20px at 390px, which is out of sight now.
+    // 360px leaves 118px, which shows. A sixth button leaves nothing at any of these widths. Both themes.
+    for (const scheme of ["light", "dark"]) {
+      await s("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }, { name: "prefers-reduced-motion", value: "reduce" }] });
+      for (const [width, shown] of [[390, "out of sight"], [375, "out of sight"], [360, "shown"]] as const) {
+        await size(width);
+        await titleHolds(`at ${width}px (${scheme})`, shown);
+        await add(1);
+        await titleHolds(`at ${width}px with a sixth button (${scheme})`, shown === "shown" ? undefined : "out of sight");
+        await removeAdded();
+      }
+    }
     // A wider name than the web font's, as a fallback font is before the web font loads. At 375px the
     // five-button row has about 5px to spare, so a slightly wider face is cut short, and nothing shrinks.
     await size(375);
@@ -491,8 +548,10 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
         const found = await bar();
         assert.equal(found.fontsLoaded, false, "the theme's fonts are blocked");
         holds(found, width, 5, found.brand.nameWidth < found.brand.nameFull - 1 ? "cut short" : "whole", `at ${width}px without the theme's fonts`);
+        await titleHolds(`at ${width}px without the theme's fonts`);
         await add(1);
         holds(await bar(), width, 6, "cut short", `at ${width}px without the theme's fonts, with a sixth button`);
+        await titleHolds(`at ${width}px without the theme's fonts, with a sixth button`, "out of sight");
       }
     } finally {
       await s("Network.setBlockedURLs", { urls: [] });
@@ -501,6 +560,16 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
     await size(375);
     await load();
     assert.ok((await bar()).fontsLoaded, "the theme's fonts are back");
+
+    // A page with four buttons: 56px is left at 390px, which is out of sight, and 80px at 414px, which shows.
+    await load("how-deflate-works.html");
+    assert.equal((await bar()).buttons.length, 4, "this page has four buttons");
+    for (const [width, shown] of [[390, "out of sight"], [414, "shown"]] as const) {
+      await size(width);
+      await titleHolds(`on a four-button page at ${width}px`, shown);
+    }
+    await size(375);
+    await load();
   });
 
   await t.test("a component with no marked part gets no button", async () => {

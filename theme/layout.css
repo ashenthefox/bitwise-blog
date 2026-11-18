@@ -68,9 +68,7 @@
 .bh-topbar-title {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  container-type: inline-size;   /* so the text can ask how much room the bar left it: see below */
   font-family: var(--font-display);
   font-weight: 600;
   color: var(--text-muted);
@@ -79,6 +77,18 @@
   transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
 }
 .bh-topbar.show-title .bh-topbar-title { opacity: 1; transform: none; }
+.bh-topbar-title-text { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* The title takes what the brand and the buttons leave (flex: 1 from nothing), which can be a few
+   pixels: 5px on a five-button page at 375px, 20px at 390px. A sliver of one letter with no ellipsis
+   says nothing (#282), so under 60px (3.75rem: three or four letters and an ellipsis, in rem like the
+   rest of the row) the text is out of sight, and from there up it is cut short with an ellipsis.
+   A media query cannot know the width, which is what is left over; a container query can, because the
+   title is its own container. It has to be: size containment (inline-size) makes the title's
+   content size nothing, so it can neither push the buttons and the brand nor change what is left
+   for it, and the answer is the same before the web fonts load and with a sixth button. The text is
+   a child because a container cannot style itself. The title is aria-hidden, so nothing is lost
+   to a screen reader. Without container queries the title is drawn as it was. */
+@container (width < 3.75rem) { .bh-topbar-title-text { display: none; } }
 
 .bh-topbar-actions { display: flex; gap: var(--space-1); margin-left: auto; }
 /* At 480px and below the title has no width, yet still costs a gap on each side. With five buttons
