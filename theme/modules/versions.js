@@ -14,8 +14,8 @@
      on this element, which the change-mark rules in diagrams.css read. The attribute is the
      state: the button follows it however it is set. It is kept across versions and Compare,
      and is not part of a link. The top bar's button is the page's switch (the same attribute
-     on <html>): while it is off no mark is highlighted and this button is hidden, and this
-     component's own choice comes back with it. bh.js lifts both while the page prints.
+     on <html>). It starts off, and while it is off no mark is highlighted and this button is
+     hidden; this component's own choice comes back with it. bh.js lifts both while the page prints.
    - A link to a version's figure id selects that version (see revealTarget in bh.js).
    Without JS the figures simply stack, each labelled.
    ========================================================================== */

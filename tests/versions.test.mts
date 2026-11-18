@@ -80,7 +80,7 @@ const probe = `(() => [...document.querySelectorAll("bh-versions.is-ready")].fil
     index: v.index,
     comparing: !!v.comparing,
     innerWidth,
-    buttonInView: !!r && r.left >= 0 && r.right <= document.documentElement.clientWidth,
+    buttonInView: !!r && r.width > 0 && r.left >= 0 && r.right <= document.documentElement.clientWidth,
   };
 }))()`;
 
@@ -126,8 +126,18 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
         // (under reduced motion the theme gives every transition a token duration, not none). So none run.
         await evaluate(`document.head.append(Object.assign(document.createElement("style"), { textContent: "*, *::before, *::after { transition: none !important; }" }))`);
 
+        // The page's switch starts off: nothing is highlighted and no figure shows its own button.
+        const first = await states();
+        assert.ok(first.length > 0, "the page has an enhanced <bh-versions> with marked parts");
+        assert.equal(await evaluate(`document.documentElement.getAttribute("data-changes")`), "off", "the page's switch starts off");
+        for (const v of first) {
+          assert.ok(!v.buttonInView, "a figure's own button is hidden while the page's switch is off");
+          assert.equal(v.legendVisibility, "hidden");
+          for (const p of v.parts) assert.equal(p.looks, p.plain, `${p.id} (${p.kind}) is not highlighted when the page opens`);
+        }
+        await evaluate(`document.querySelector(".bh-topbar .bh-changes-btn").click()`);
+
         const on = await states();
-        assert.ok(on.length > 0, "the page has an enhanced <bh-versions> with marked parts");
         for (const v of on) {
           assert.equal(v.label, "Show changes", "the button is labelled");
           assert.equal(v.pressed, "true", "the highlights start on");
@@ -213,7 +223,7 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
       document.querySelector(".bh-article").append(lone);
       const stroke = (n) => getComputedStyle(n).stroke;
       const inside = v.querySelector('.bh-version.is-current .node[data-change] rect, .node[data-change] rect');
-      const marked = [stroke(lone.querySelector("rect")), stroke(inside)];
+      const marked = ["", ""];
       const shown = (n) => getComputedStyle(n).display !== "none";
       const read = () => ({
         page: page.getAttribute("aria-pressed"), root: document.documentElement.getAttribute("data-changes"),
@@ -222,14 +232,24 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
         loneHighlighted: stroke(lone.querySelector("rect")) === marked[0], insideHighlighted: stroke(inside) === marked[1],
         slash: shown(page.querySelector(".bh-changes-off")), buttonInView: page.getBoundingClientRect().right <= document.documentElement.clientWidth,
       });
+      // Read what a highlighted part looks like with the page's switch on, then start over from off.
+      // (The subtests before this one left the switch on.)
+      if (page.getAttribute("aria-pressed") !== "true") { page.click(); await tick(); }
+      marked[0] = stroke(lone.querySelector("rect")); marked[1] = stroke(inside);
+      page.click(); await tick();
       const out = { label: page.getAttribute("aria-label"), start: read() };
-      page.click(); await tick(); out.pageOff = read();
+      // The slides hide the top bar, so the marks show there whatever the switch says.
+      document.documentElement.classList.add("bh-presenting"); await tick();
+      out.presenting = [document.documentElement.getAttribute("data-changes"), stroke(lone.querySelector("rect")) === marked[0]];
+      document.documentElement.classList.remove("bh-presenting"); await tick();
+      out.afterPresenting = read();
       window.dispatchEvent(new Event("beforeprint")); await tick(); out.printing = read();
       window.dispatchEvent(new Event("afterprint")); await tick(); out.afterPrint = read();
       page.click(); await tick(); out.pageOn = read();
       // A figure's own choice is kept while the page's switch is off, and comes back with it.
       own.click(); await tick(); out.figureOff = read();
-      page.click(); await tick(); page.click(); await tick(); out.figureStillOff = read();
+      page.click(); await tick(); out.pageOffAgain = read();
+      page.click(); await tick(); out.figureStillOff = read();
       own.click(); await tick();
       lone.remove();
       return out;
@@ -237,7 +257,12 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
     const on = { page: "true", root: null, ownButtonShown: true, own: "true", compareShown: true, legend: "visible", loneHighlighted: true, insideHighlighted: true, slash: false, buttonInView: true };
     const off = { ...on, page: "false", root: "off", ownButtonShown: false, legend: "hidden", loneHighlighted: false, insideHighlighted: false, slash: true };
     const figureOff = { ...on, own: "false", legend: "hidden", insideHighlighted: false };
-    assert.deepEqual(found, { label: "Show change highlights", start: on, pageOff: off, printing: on, afterPrint: off, pageOn: on, figureOff, figureStillOff: figureOff });
+    assert.deepEqual(found, {
+      label: "Show change highlights", start: off, presenting: [null, true], afterPresenting: off,
+      // Printing lifts the switch on the page, though the button still says what the reader chose.
+      printing: { ...on, page: "false", slash: true }, afterPrint: off,
+      pageOn: on, figureOff, pageOffAgain: { ...off, own: "false" }, figureStillOff: figureOff,
+    });
   });
 
   await t.test("a component with no marked part gets no button", async () => {

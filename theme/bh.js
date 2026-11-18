@@ -262,27 +262,30 @@
   // and each <bh-versions> hides its own "Show changes" button. On a <bh-versions> it is that
   // component's switch, which its button sets and which only shows while the page's is on. A
   // component keeps its own choice while the page's switch is off.
+  //
+  // The page's switch starts off: a page reads as it will look, and the reader asks for the marks.
+  // Where there is no button to ask with, the marks show: without JavaScript, on paper, and in
+  // the slides (the top bar is hidden while presenting).
 
   /** The top bar's switch for the whole page, or null when the page marks no change. */
   function changesButton() {
     if (!doc.querySelector("main [data-change]")) return null;
+    let on = false;
     const btn = el("button", {
       class: "btn ghost icon bh-changes-btn", type: "button", "aria-label": "Show change highlights",
       // A square holding + and −; the stroke through it appears only while the highlights are off.
       html: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 9h6M12 6v6M9 16.5h6"/><path class="bh-changes-off" d="M3 21 21 3"/></svg>',
-      onclick: () => {
-        if (root.dataset.changes === "off") delete root.dataset.changes;
-        else root.dataset.changes = "off";
-      },
+      onclick: () => { on = !on; apply(); },
     });
-    // The attribute is the state, so the button follows it however it is set.
-    const sync = () => {
-      const on = root.dataset.changes !== "off";
+    const apply = () => {
+      if (on || root.classList.contains("bh-presenting")) delete root.dataset.changes;
+      else root.dataset.changes = "off";
       btn.setAttribute("aria-pressed", String(on));
       btn.title = "Change highlights: " + (on ? "on" : "off");
     };
-    if ("MutationObserver" in window) new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ["data-changes"] });
-    sync();
+    // Entering or leaving the slides changes the class on <html>.
+    if ("MutationObserver" in window) new MutationObserver(apply).observe(root, { attributes: true, attributeFilter: ["class"] });
+    apply();
     return btn;
   }
 
