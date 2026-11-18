@@ -1855,7 +1855,6 @@ has six scored graders now, not eight, so its score moves by construction.
 - **`05-effort` is a regex about advice.** An answer that says "do not raise the effort to `high`" in one sentence
   passes it, as it did before. No saved or fresh answer says that.
 
-
 ## 2026-11-18: "or reading any file" in `skill-authoring`'s description does not make Sonnet load other skills (#306)
 
 Claude Code 2.1.318, agent `claude-sonnet-5-5`, three runs per query, `--max-turns 3`, `--keep`. No change to any
