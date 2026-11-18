@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 import { main, type Output } from "../scripts/advisor.mts";
 import { dataDir } from "../scripts/advisor/corpus.mts";
-import { LEAK_RUN_WORDS, describeSources, findRuns, jsonlRuns, leakCheck, leakCheckHistory, leakCheckPushed, parsePushUpdates, postRuns, quoteRuns } from "../scripts/advisor/guards.mts";
+import { GIT_TIMEOUT_MS, LEAK_RUN_WORDS, describeSources, gitOut, runGit, findRuns, jsonlRuns, leakCheck, leakCheckHistory, leakCheckPushed, parsePushUpdates, postRuns, quoteRuns } from "../scripts/advisor/guards.mts";
 import { preparePublishedSite } from "../scripts/publish.mts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -87,7 +87,7 @@ test("no tracked file of the consulting layer holds a post title from the privat
   const tracked = git(ROOT, "ls-files", ".claude/agents", ".claude/skills/advisors").split("\n").filter(Boolean);
   assert.ok(tracked.includes(".claude/agents/advisor-duncan-sabien.md"), "the check is looking in the right place");
   const index = path.join(dataDir("duncan-sabien"), "INDEX.md");
-  if (!fs.existsSync(index)) return t.skip("no private data linked: run `npm run advisor -- link <path>`");
+  if (!fs.existsSync(index)) return t.skip("no private data linked: run `npm run advisor -- link <path-to-data-clone>` in this checkout");
   const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   // One-word titles would match ordinary prose, so only titles of two or more words are looked for.
   const titles = [...fs.readFileSync(index, "utf8").matchAll(/\| \[(.+?)\]\(posts\//g)].map((m) => words(m[1]!)).filter((s) => s.split(" ").length >= 2);
@@ -530,4 +530,23 @@ test("the fixtures hold only made-up writers", () => {
   assert.match(readme, /Everything here is invented/);
   const goldens = JSON.parse(fs.readFileSync(path.join(ROOT, "tests", "fixtures", "advisor", "goldens.json"), "utf8"));
   assert.ok(goldens.posts.every((p: { author: string }) => p.author === "Wren Talavera"), "the only writer in the goldens is the made-up one");
+});
+
+// ---- git calls have a timeout (#334) -----------------------------------------------------
+
+test("git calls the checks make stop at a timeout, with an error that says the check did not run (#334)", (t) => {
+  assert.ok(GIT_TIMEOUT_MS >= 60_000, "long enough for a whole-history scan");
+  // A git that never answers, first on PATH.
+  const bin = tmp(t);
+  fs.writeFileSync(path.join(bin, "git"), "#!/bin/sh\nexec sleep 30\n", { mode: 0o755 });
+  const saved = process.env["PATH"];
+  t.after(() => { process.env["PATH"] = saved; });
+  process.env["PATH"] = `${bin}${path.delimiter}${saved}`;
+  const started = Date.now();
+  assert.throws(() => runGit(ROOT, ["ls-files"], { timeout: 300 }), /`git ls-files` in .* did not finish within 0\.3 s and was stopped, so the check did not run/);
+  assert.ok(Date.now() - started < 10_000, "it did not wait for git");
+  process.env["PATH"] = saved;
+  // A git that fails says so, with git's own message.
+  assert.throws(() => gitOut(ROOT, ["cat-file", "-p", "no-such-object"]), /`git cat-file` in .* failed: fatal: /);
+  assert.equal(gitOut(ROOT, ["rev-parse", "--is-inside-work-tree"]).toString("utf8").trim(), "true");
 });
