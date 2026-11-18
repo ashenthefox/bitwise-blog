@@ -321,8 +321,12 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
   article was once 224px wide at 1280px for exactly this reason: auto-placement put it in the
   column kept for the table of contents. Place grid items explicitly, and when the script decides
   something from the markup (fewer than three headings means no table of contents), make CSS reach the
-  same answer from the same markup (`:has()` in `layout.css`). `tests/pre-script-layout.test.mts`
-  compares every public page with `bh.js` held, with JavaScript off and settled.
+  same answer from the same markup (`:has()` in `layout.css`). The same goes for height: the top bar
+  and a phone's collapsed Contents block pushed the article down 52px and 112px when the script ran, so
+  `layout.css` keeps room for each until it arrives, sized from the same tokens, only under
+  `@media (scripting: enabled)` (no blank strip without JavaScript) and only where the script will build
+  it. `tests/pre-script-layout.test.mts` compares every public page with `bh.js` held, with JavaScript
+  off and settled, across and down.
 - **Don't set up state only in observer callbacks.** `IntersectionObserver` and
   `ResizeObserver` fire on rendering frames, which can be throttled. Create observers and
   initial state synchronously during setup, and let callbacks refine them. A walkthrough
