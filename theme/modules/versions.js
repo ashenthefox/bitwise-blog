@@ -10,6 +10,9 @@
    - With exactly two versions, "Compare" overlays them with a draggable divider
      (also a range input, so it works by keyboard).
    - Parts marked data-change="added|changed|removed" are highlighted, with a legend.
+     "Show changes" turns the highlights and the legend off and on: it sets data-changes="off"
+     on this element, which the change-mark rules in diagrams.css read. The state is kept
+     across versions and Compare, and is not part of a link.
    - A link to a version's figure id selects that version (see revealTarget in bh.js).
    Without JS the figures simply stack, each labelled.
    ========================================================================== */
@@ -59,10 +62,20 @@
         this.tabs[this.index].focus();
       });
       const bar = el("div", { class: "bh-versions-bar" }, [list]);
+      const kinds = ["added", "changed", "removed"].filter((k) => this.querySelector(`[data-change="${k}"]`));
+      const actions = [];
+      // Change highlights on or off, only if any part is marked. The label stays the same and
+      // aria-pressed carries the state; the tick shows it without relying on colour.
+      if (kinds.length) {
+        this.changesBtn = el("button", { type: "button", class: "btn ghost bh-versions-changes", "aria-pressed": "true", onclick: () => this.setChanges(!this.changesOn) },
+          [el("span", { class: "bh-versions-tick", "aria-hidden": "true", text: "✓" }), "Show changes"]);
+        actions.push(this.changesBtn);
+      }
       if (this.figures.length === 2) {
         this.compareBtn = el("button", { type: "button", class: "btn ghost bh-versions-compare", "aria-pressed": "false", text: "⇆ Compare", onclick: () => this.setCompare(!this.comparing) });
-        bar.append(this.compareBtn);
+        actions.push(this.compareBtn);
       }
+      if (actions.length) bar.append(el("div", { class: "bh-versions-actions" }, actions));
       this.prepend(bar);
 
       // Shared caption (each figure's own caption is hidden while enhanced).
@@ -70,7 +83,6 @@
       this.stage.after(this.caption);
 
       // Change legend, only if any part is marked.
-      const kinds = ["added", "changed", "removed"].filter((k) => this.querySelector(`[data-change="${k}"]`));
       if (kinds.length) {
         this.caption.after(el("ul", { class: "legend bh-versions-legend" }, kinds.map((k) =>
           el("li", {}, [el("span", { class: `swatch change-${k}` }), k[0].toUpperCase() + k.slice(1)]))));
@@ -100,6 +112,7 @@
       }
 
       this.classList.add("is-ready");
+      this.setChanges(this.dataset.changes !== "off");
       const initial = Math.max(0, this.figures.findIndex((f) => f.hasAttribute("data-selected")));
       this.show(initial);
       if (this.getAttribute("mode") === "compare") this.setCompare(true);
@@ -125,6 +138,14 @@
       this.panels.forEach((p, j) => p.toggleAttribute("inert", !on && j !== this.index));
       if (on) this.setPos(this.range ? +this.range.value : 50);
       this.renderCaption();
+    }
+
+    /** Show or hide the change highlights and their legend. Independent of the version and of Compare. */
+    setChanges(on) {
+      this.changesOn = !!on;
+      if (on) delete this.dataset.changes;
+      else this.dataset.changes = "off";
+      if (this.changesBtn) this.changesBtn.setAttribute("aria-pressed", String(this.changesOn));
     }
 
     setPos(pct) {

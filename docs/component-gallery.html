@@ -313,7 +313,7 @@ impl TokenBucket {
     </bh-stepper>
 
     <h3 id="current-vs-proposed">Current vs proposed</h3>
-    <p>Wrap two versions of a diagram in <code>&lt;bh-versions&gt;</code> to switch between them, or press <strong>Compare</strong> and drag the divider. Mark parts with <code>data-change="added|changed|removed"</code> to show what the proposal changes.</p>
+    <p>Wrap two versions of a diagram in <code>&lt;bh-versions&gt;</code> to switch between them, or press <strong>Compare</strong> and drag the divider. Mark parts with <code>data-change="added|changed|removed"</code> to show what the proposal changes. When any part is marked, the bar gets a <strong>Show changes</strong> button: it turns the highlights and their legend off, so a version can be judged as it will look, and on again. The choice holds while you switch versions or compare, and a link to a figure always opens with the highlights on.</p>
     <bh-versions class="wide">
       <figure class="diagram" id="limits-current" data-label="Current">
         <svg viewBox="-16 -16 672 222" role="img" aria-label="Current: each service runs its own rate limiter behind the gateway">
