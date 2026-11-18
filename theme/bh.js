@@ -377,10 +377,11 @@
   function endPrint() {
     if (!printing) return;
     printing = false;
-    // The page's switch goes back to what its button says now, which code may have changed meanwhile
-    // (a diff that finished loading). Without a button, <html> is restored like any other element.
-    for (const n of changesOffBeforePrint) if (n !== root || !applyPageSwitch) n.dataset.changes = "off";
+    for (const n of changesOffBeforePrint) n.dataset.changes = "off";
     changesOffBeforePrint.clear();
+    // With a button, <html> then says what the button says now, whatever was just restored on it:
+    // code may have changed the switch meanwhile (a diff that finished loading). This runs before
+    // the button's observer sees either write, so the restored value never reaches the button.
     if (applyPageSwitch) applyPageSwitch();
     mirrorChanges();
   }

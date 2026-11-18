@@ -282,24 +282,48 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
       const page = document.querySelector(".bh-topbar .bh-changes-btn");
       const state = () => [page.getAttribute("aria-pressed"), html.getAttribute("data-changes")];
       const fire = async (name) => { window.dispatchEvent(new Event(name)); await tick(); }; // one task each, as a real print is
+      // A figure's own switch: <html> is put back from the page's button when printing ends, so only
+      // another element shows what the print handlers themselves remembered.
+      const v = [...document.querySelectorAll("bh-versions.is-ready")].find((x) => x.querySelector("[data-change]"));
+      const own = v.querySelector(".bh-versions-changes"), rect = v.querySelector(".node[data-change] rect");
+      const figure = () => [own.getAttribute("aria-pressed"), v.getAttribute("data-changes")];
       const out = { icon: [innerWidth, page.querySelector("svg").getBoundingClientRect().width] };
       if (page.getAttribute("aria-pressed") === "true") { page.click(); await tick(); }
       out.start = state();
-      // A second beforeprint must not forget what the first one lifted.
       await fire("beforeprint"); await fire("beforeprint");
       out.printing = state();
       await fire("afterprint");
       out.afterTwoBeforeprints = state();
+      // A second beforeprint must not forget what the first one lifted. The page's switch is on and
+      // the figure is switched off on its own; the second beforeprint finds nothing off any more.
+      page.click(); await tick();
+      own.click(); await tick();
+      out.figureOff = [state(), figure()];
+      await fire("beforeprint"); await fire("beforeprint");
+      out.figureWhilePrinting = figure();
+      await fire("afterprint");
+      out.figureAfterTwoBeforeprints = [state(), figure()];
+      page.click(); await tick(); // the page's switch off again; the figure keeps its own choice, off
       // An afterprint that never comes must not leave the switch lifted: the next press of the
       // button ends the printing state, and so does code that turns the switch on.
       await fire("beforeprint");
       page.click(); await tick();
       page.click(); await tick();
       out.pressedAfterLostAfterprint = state();
+      // Read before any press of the button, whose own handler would end the printing state too.
+      // Lifted or not, the page's switch reads the same once it is on: the figure's own off state
+      // coming back, and a page script's off being followed again, are what show that printing ended.
       await fire("beforeprint");
+      out.lostAfterprint = [state(), figure()];
       window.bh.showChanges(); await tick();
+      out.shownAfterLostAfterprint = [state(), figure()];
+      html.setAttribute("data-changes", "off"); await tick();
+      out.scriptOffAfterShown = state();
+      // The figure's own switch back on, and the page's switch off, as the steps below expect.
       page.click(); await tick();
-      out.shownAfterLostAfterprint = state();
+      own.click(); await tick();
+      page.click(); await tick();
+      out.figureOnAgain = [state(), figure()];
       // While the page prints, nothing puts the switch back: not a class change on <html> ...
       await fire("beforeprint");
       html.classList.add("x-test"); await tick();
@@ -318,8 +342,6 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
       html.removeAttribute("data-changes"); await tick();
       out.scriptOn = state();
       // A switch on a wrapper other than <html> acts like the page's for what is inside it.
-      const v = [...document.querySelectorAll("bh-versions.is-ready")].find((x) => x.querySelector("[data-change]"));
-      const own = v.querySelector(".bh-versions-changes"), rect = v.querySelector(".node[data-change] rect");
       const lit = getComputedStyle(rect).stroke;
       const read = () => ({ ownButtonShown: getComputedStyle(own).display !== "none", legend: getComputedStyle(v.querySelector(".bh-versions-legend")).visibility, highlighted: getComputedStyle(rect).stroke === lit });
       const main = document.querySelector("main");
@@ -332,7 +354,11 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
     assert.deepEqual(found, {
       icon: [375, 18], // the bar has room for its five buttons on a phone: a flex row would shrink the icons otherwise
       start: ["false", "off"], printing: ["false", null], afterTwoBeforeprints: ["false", "off"],
-      pressedAfterLostAfterprint: ["false", "off"], shownAfterLostAfterprint: ["false", "off"],
+      figureOff: [["true", null], ["false", "off"]], figureWhilePrinting: ["true", null],
+      figureAfterTwoBeforeprints: [["true", null], ["false", "off"]],
+      pressedAfterLostAfterprint: ["false", "off"],
+      lostAfterprint: [["false", null], ["true", null]], shownAfterLostAfterprint: [["true", null], ["false", "off"]],
+      scriptOffAfterShown: ["false", "off"], figureOnAgain: [["false", "off"], ["true", null]],
       classChangeWhilePrinting: ["false", null], shownWhilePrinting: ["true", null],
       scriptOff: ["false", "off"], clickAfterScript: ["true", null], scriptOn: ["true", null],
       wrapperOff: { ownButtonShown: false, legend: "hidden", highlighted: false },

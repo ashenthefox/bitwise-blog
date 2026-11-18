@@ -82,9 +82,10 @@ pages. A new file would need a new tag in every page, template and sealed privat
   (`theme/diagrams.css`). That is the state without JavaScript: the highlights show.
 - With JavaScript a page opens with them off. `bh.js` is deferred and can run after the page has
   painted, so the last block of `theme/unlisted.js` sets `<html data-changes="off">` first, on every
-  page: it cannot know whether marks follow. `changesButton()` in `bh.js` then settles it: it keeps
-  the state and adds the top bar's button on a page with marks, and removes the attribute on a page
-  with none (and on one with no top bar), where a mark that arrives later must show.
+  page: it cannot know whether marks follow. `bh.js` then settles it. On a page with marks,
+  `changesButton()` keeps the state and adds the top bar's button. On a page with none it removes the
+  attribute, so a mark that arrives later shows. On a page with no top bar (`data-chrome="none"`)
+  `buildChrome()` removes the attribute itself and never calls `changesButton()`.
 - **One rule for the starting state**: `window.bhChanges.startsOn()`, which both scripts call. It is
   true for a diff page (`<body data-bh-diff>`). A diff page is a bundle, and a bundle's scripts all
   run at the end of `<body>`, so the marker has been parsed by then. In a `<head>` there is no body
