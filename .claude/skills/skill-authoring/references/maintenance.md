@@ -93,7 +93,7 @@ the output suites alone.
   answers and the new run's with one judge before reading anything into it
   ([evals](evals.md#judging-saved-answers-again)). The 0.10 tolerance is a starting value
   (`DEFAULT_TOLERANCE`): it was too tight for output cases judged by Haiku (two runs 0.12 apart)
-  and has held for the one suite measured twice with Sonnet (#237).
+  and has held for the one suite measured more than once with Sonnet (four runs within 0.03; #237, #248).
 - **Cost.** About US$0.27 per trigger query with Sonnet (about US$42 for the 157 queries in the
   five skills; `pedagogical-writing`'s 58 alone are about US$16) plus US$30.54 for the four output
   suites with the Sonnet judge, measured on 2026-11-18: `pedagogical-writing` $21.76,
@@ -101,7 +101,7 @@ the output suites alone.
   ([measurements](measurements.md)). So about US$73 for everything, stopped at a hard ceiling
   (default US$100); one step stops at $20 (trigger) or $30 (output). An output suite's cost follows
   its `llm` graders, about $0.025 a judged verdict, more than its cases. For the output suites
-  alone give `--max-cost-usd 45`: with less, the last suite's step gets what is left, not its $30. The
+  alone `--max-cost-usd 40` was enough, with $9 unspent. The
   trigger evals are more than half of a full run. A trigger suite on Haiku costs about a twentieth as much and
   answers a different question: whether the smallest model loads the skill. Always give a run of
   your own `--max-cost-usd`.

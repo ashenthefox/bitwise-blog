@@ -1347,8 +1347,8 @@ partial, and the skill loaded in every with-skill run (69 of 69 here, 12 of 12 i
 | `advisors` | 1 | 1 | 1.00 | 0.33 | +0.67 | $0.26 | $0.06 | 21 s |
 | `pedagogical-diagrams` | 4 | 22 | 0.93 | 0.63 | +0.29 | $5.48 | $3.29 | 4 min 39 s |
 | `pedagogical-writing` | 13 | 61 | 0.85 | 0.45 | +0.40 | $21.76 | $10.64 | 13 min 30 s |
-| `skill-authoring` | 5 | 9 | 0.93 | 0.53 | +0.41 | $3.04 | $1.11 | 2 min 30 s |
-| All four | 23 | 93 | | | | $30.54 | $15.10 | 21 min |
+| `skill-authoring` | 5 | 9 | 0.93 | 0.53 | +0.41 | $3.04 | $1.12 | 2 min 30 s |
+| All four | 23 | 93 | | | | $30.54 | $15.11 | 21 min |
 
 `anatomy` has no output cases. **None of these scores compares with an earlier section's**: those were judged by
 Haiku, which scores the same answers 0.03 to 0.07 lower.
@@ -1411,14 +1411,15 @@ Haiku, which scores the same answers 0.03 to 0.07 lower.
   which holds for `pedagogical-diagrams` ($5.48 and $5.41) and not for `skill-authoring` (five cases, $3.04).
 - **The number of `llm` graders sets the cost, not the number of cases.** A judged verdict (three votes) cost
   $0.021 to $0.029 in the three larger suites, and the judge was 60% of the bill for `pedagogical-diagrams`, 49%
-  for `pedagogical-writing` and 37% for `skill-authoring`, which has 9 `llm` graders among 35.
+  for `pedagogical-writing` and 37% for `skill-authoring`, which has 9 `llm` graders among its 30 scored ones.
   `pedagogical-writing` has 61 of the 93.
 - **The ceilings hold.** The output step's $30 leaves $8 above the largest suite, and the run's $100 leaves about
   $27 above a full run: the 157 trigger queries the five skills have now cost about $42 at the $0.27 a query
   measured on 2026-11-12 (not measured again here), so a full run is about US$73. Neither ceiling was changed.
-- **`--max-cost-usd 40` for the output suites alone left the last suite $12.50**, less than the step's $30. It was
-  enough for `skill-authoring`; had `pedagogical-writing` come last it would have been cut short. Give an
-  output-only run $45 or more.
+- **`--max-cost-usd 40` was enough for the output suites alone**, with $9.46 unspent. A step gets the lesser of its
+  cap and what is left of the run's ceiling, so the last suite, `skill-authoring`, ran under $12.50, four times what
+  it cost. The order of the suites does not matter at $40: the other three cost $8.78 together, so
+  `pedagogical-writing` would have had its full $30 in any position.
 
 **Baselines kept**, each trimmed from the run above with `rejudge.mjs --trim --commit 01c596a`:
 `advisors/evals/baselines/2026-11-18.json` (6 answers), `pedagogical-writing/evals/baselines/2026-11-18.json` (78),
@@ -1428,12 +1429,20 @@ with-skill run). Every case's fixture is public: pages in `docs/`, the calibrati
 fixture generates, and no fixture at all for `advisors`. `--trim` failed on a skill with no `evals/baselines/`
 directory; it now creates it.
 
-**What the per-case rows say**, read from the grader counts (no transcript was read for this section):
+**What the per-case rows say**, read from the grader counts. The only answers read for this section are the six of
+`prompt-opus-explainers`:
 
 - **Two cases score higher without the skill, each through graders the no-skill answer passes more often.**
   `needs-a-script`: `lowest-rung` and `run-not-read` passed 1 of 3 with the skill and 3 of 3 without, while
   `reuses-existing-lint` passed 3 of 3 and 0 of 3. `prompt-opus-explainers`: four graders pass 3 of 3 in both arms
   and `05-effort` passes 0 of 3 with the skill, 1 of 3 without. Each is −0.07, inside the noise of one case.
+- **`prompt-opus-explainers` loses on the grader, not on the answers.** `05-effort` is a regex that wants `effort`
+  and `high`, `xhigh` or `max` within 60 characters with no full stop between them. All three with-skill answers
+  say to raise the effort to `high` or above, each with a full stop in between ("Raise effort. The default is
+  `medium`. Reviewers saw less padding at `high` or above."), so all three fail. The one no-skill answer that
+  passes says "try `high`" in the same sentence as `effort`; the other two do not tell the reader to raise it (one
+  says to try `high` only if the reasoning is thin, not for padding). Counted by what the answers say, the case is
+  1.00 with the skill and 0.87 without. The grader was not changed here.
 - **Two cases are low in both arms.** `plan-rank-select-series` (0.44 and 0.11): graders 03 (prerequisites named)
   and 07 (optional material marked) passed 0 of 6 across the arms. `outline-consistent-hashing` (0.50 and 0.00):
   grader 03 (applications ordered by a principle) passed 1 of 3 with the skill. `outline-bloom-filters` 05 and 06
@@ -1450,6 +1459,6 @@ directory; it now creates it.
 - **Both `pedagogical-diagrams` runs here, and both in #237, were made on one day.** A day effect is not excluded.
 - **The trigger evals were not run**, so the full run's cost is this section's output cost plus an earlier
   measurement of the trigger cost, at today's query counts.
-- **The low and negative rows were not investigated.** Whether each is the grader, the case or the skill needs the
-  answers read, and the baselines hold them.
+- **The low rows and `needs-a-script` were not investigated.** Whether each is the grader, the case or the skill
+  needs the answers read, and the baselines hold them.
 - **`advisors` is one case and six judged verdicts.** Its 1.00 is three answers.
