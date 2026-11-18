@@ -1,0 +1,991 @@
+{
+ "format": "bh-eval-baseline/1",
+ "startedAt": "2026-11-18T08:04:40.180Z",
+ "claudeVersion": "2.1.318",
+ "models": {
+  "agent": "claude-sonnet-5-5",
+  "judge": "claude-sonnet-5-5"
+ },
+ "ablation": "with-without",
+ "commit": "7affb26",
+ "cases": [
+  {
+   "name": "outline-amortised-append",
+   "graders": [
+    {
+     "name": "01-analogy-maps-a-quantity",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: The outline uses an analogy that maps a quantity the argument computes with (for example a coin, credit or payment per append that covers the later copying cost), so the reader can count with it, not only picture it.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "02-analogy-before-the-mechanism",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: The analogy is introduced before or in the section that shows why the total cost is O(1) per append, and does work in that explanation. It FAILS if the analogy appears only at the end as a summary or recap, or if there is no analogy.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "03-analogy-returns-by-name",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: The same analogy comes back, by name, in at least two later sections (for example to explain why doubling works, what a smaller growth factor does, or shrinking), rather than being used once and dropped or replaced by unrelated analogies.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "04-analogy-limit",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: The outline says where the analogy stops matching the real mechanism: what it gets wrong, or what the real data structure does that the analogy does not.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "skill-fired",
+     "type": "tool_used"
+    }
+   ],
+   "arms": {
+    "with": [
+     {
+      "score": 1,
+      "answer": "# Outline: why doubling makes append O(1) amortised\n\n**Reader:** knows arrays and big-O, has never met amortised analysis.\n**The one question:** a single append can copy the whole array, so how can appending be \"O(1)\"?\n**Misconception to correct:** \"O(1) amortised\" means \"O(1) on average over random inputs\", or \"O(1) for most appends, so the big ones are ignored\".\n\n## Running example\n\nWe append items 1, 2, 3, … to an array that starts at capacity 1 and doubles when full. We count **element writes**, where a resize copies every existing item and then writes the new one. The page keeps this example throughout, so every number is recomputed on it.\n\n| append # | 1 | 2 | 3 | 4 | 5 | 6–8 | 9 | 10–16 | 17 |\n|---|---|---|---|---|---|---|---|---|---|\n| cost | 1 | 2 | 3 | 1 | 5 | 1 each | 9 | 1 each | 17 |\n\nFor n = 16 the total is 16 writes plus 15 copied items (1+2+4+8) = 31 writes, which is under 2 per append. The table is built live in a `<bh-playground>` on the reader's own n.\n\n## Sections\n\n**TL;DR (`.tldr`).**\n- Takeaway: when expensive operations are rare, and each one is paid for by the cheap operations before it, judge the cost of the whole sequence, not of the worst single step.\n- Result stated, mechanism withheld: 16 appends cost 31 writes, not 16×16.\n- Common-mistake bullet: amortised does not mean \"average over random inputs\".\n\n**Opening (no h2 heading).** Python's `list.append`, Go's `append` and Rust's `Vec::push` are all documented as constant time. Then the puzzle: the 17th append above copies 16 items. The opening names the use as a promise to pay off in the ending.\n\n**1. A first try: price the worst append.** (labelled naive)\n- Need: we want a cost for \"append n items\".\n- Naive attempt: the worst single append costs n, and there are n appends, so the total is O(n²), about 256 writes for n = 16.\n- Crack: add up the actual table. The total is 31. The bound is loose, and it fails because it charges every append as if it were the expensive one. The fix must account for the fact that expensive appends are rare. I give that property a phrase and reuse it later.\n\n**2. Count the whole sequence, not one step.**\n- Idea: sum the real costs for n = 16 by hand, then for 32, and watch the copies form 1+2+4+8+…\n- The doubling sum is less than the final capacity, so the copying costs less than n in total. Total cost under 3n is a finite check first, then the general sum.\n- Predict (`details.predict`): \"Growing by +10 slots instead of doubling: total cost for n appends is still about 2n, about n^1.5, or about n²/20? Decide, then open.\" The wrong options are built from \"any growth rule works\" and \"rare enough is rare enough\". The answer is quadratic, since copies recur every 10 appends and each one is longer.\n\n**3. Pay as you go: the coin analogy (mapping).**\n- Need: the sum is a proof about the total. We want a per-append number we can quote.\n- Analogy introduced here, as a mapping, not a summary: each append is charged 3 coins. One pays for its own write, and two are left on the item as savings. A resize copies k items using the coins on them, so no resize needs money from anywhere else.\n- Walk the example: appends 5 to 8 deposit 8 coins on items 5 to 8, which pay for the 8-item copy at append 9.\n- Return to the analogy by name in sections 4 and 5. Say where it stops: nothing is really stored, and the coins are a bookkeeping device for the proof. This is also where the key step is marked.\n- A `<bh-stepper>` walks appends 1 to 17 with a coin balance that never goes negative.\n\n**4. Name it: amortised cost.**\n- The name arrives now, with its plain meaning: total cost of any sequence of n operations, divided by n.\n- Voice the objection \"isn't that just the average?\" and answer it. This is a guarantee for every sequence of appends, with no randomness and no assumed input distribution. It is also not the cost of any single append, which can still be O(n).\n- A short sidenote covers where this matters, such as real-time code that cannot tolerate one slow append.\n\n**5. Why doubling, not +10: the load-bearing assumption.** (ablation)\n- Interactive: a growth-factor or increment slider with a plot of cumulative cost per append.\n- The reader sets \"+10\" and sees the cost per append climb. At ×1.5 or ×2 it flattens.\n- Name what the proof needs: the resize sizes form a geometric series. Coin analogy check: with +10 the coins cannot cover the copy, which shows where the analogy fits and where it fails.\n- A fold covers the trade-off between ×1.5 and ×2 (memory slack against copy frequency), with the upshot stated before the fold.\n\n**6. Recognising it elsewhere (ending).**\n- Pay off the opening: why `list.append` and `Vec::push` are O(1) amortised, answered by name for the 17th-append puzzle.\n- Teach the trigger: when a rare, expensive step resets and pays for itself with cheap steps before it, reach for total-cost accounting. One transfer question follows, for example a hash table that doubles when full.\n- Calibrate: this is a constant factor of about 2–3 writes per append, and the real cost also depends on memory allocation.\n\n## Analogy summary\n\n- **Coin savings (mapping)** is introduced in §3, with the mechanism. It returns in §5 to explain why +10 fails, and it is retired with a stated limit.\n- I would not use a summary analogy such as a \"gym membership\" or \"monthly bills\". The reader needs the coins to compute with.\n\n## Promises to track\n\n- \"Amortised ≠ average\" is flagged in the TL;DR and paid off in §4.\n- A single append is still O(n). This is flagged in §1 and paid off in §4.\n- The coin model is a bookkeeping device. It is flagged in §3 and its limits are stated in §5.\n- The Python/Go/Rust use named in the opening is paid off in §6.",
+      "graders": [
+       {
+        "name": "01-analogy-maps-a-quantity",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-analogy-before-the-mechanism",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-analogy-returns-by-name",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-analogy-limit",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 0.75,
+      "answer": "# Outline: why appending to a doubling array is O(1) amortised\n\n**Working title:** \"Why a rare O(n) append still averages out to O(1)\". The title states the takeaway.\n\n**Reader:** knows arrays and big-O, has never seen amortised analysis.\n**The one question:** if one append can copy the whole array, why is appending n items O(n) in total?\n\n## Running example\nA dynamic array that starts at capacity 1 and doubles when full. We append items 1 to 16, then a 17th.\n- Cost model: one unit per element written or copied.\n- Resizes happen at appends 2, 3, 5, 9 and 17, copying 1, 2, 4, 8 and 16 elements.\n- Through append 16, the copies total 1+2+4+8 = 15, and the 16 writes add 16 more. I keep the sums unsimplified until the pattern shows.\n- The table is built once and reused in every section after it.\n- Handles used throughout: **length**, **capacity**, **resize**, **copy**. Never \"size\".\n\n## Analogy\nIt is a **mapping** analogy, a jar of coins that pays for the move in advance. It is introduced in section 5, alongside the mechanism, and not after it.\n- Each append deposits coins. A resize is paid out of the jar.\n- It returns by name in section 6 (the jar fills too slowly under +k growth) and in section 8 (the trigger).\n- I say where it stops matching: no one really pays in advance, the real cost is unchanged, and the jar is bookkeeping.\n- I decline a summary analogy such as \"a monthly bill\". The jar already does that job, and a second one would dilute it.\n\n## Sections\n\n**Hero and TL;DR**\n- First bullet, the transferable takeaway: judge an occasionally expensive operation by the total over a sequence, not by its worst single call.\n- Result spoiled: append is O(1) amortised. The mechanism is not.\n- Common-mistake bullet: amortised is not \"average over random inputs\" and not \"usually fast\". It is a guarantee on every sequence.\n\n**1. Opening: the append that sometimes takes a millisecond (need)**\n- A list of a million items occasionally has a single `append` that copies a million of them. The docs for Python `list.append`, C++ `vector::push_back` and Rust `Vec::push` still say O(1).\n- Gloss \"dynamic array\" in plain words.\n- Promise: this page returns to those three at the end.\n- Who it's for: you know big-O, so we skip it.\n\n**2. The machine, and a prediction (setup)**\n- Capacity versus length, and the doubling rule.\n- Flag the simplification: we count only copies and writes, and ignore the cost of allocating memory. A fold near the end covers this.\n- `details.predict` (\"Decide before you open this\"): after 16 appends from capacity 1, how many element copies has resizing caused in total?\n  - About 16.\n  - 15, the correct answer.\n  - About 120. This misconception is that every append copies everything so far.\n  - About 256, the n² worry.\n- The reveal gives the reasoning and the misconception behind each wrong option.\n\n**3. A first try: multiply the worst case by n (naive, labelled provisional in the h2)**\n- One append can cost O(n), there are n appends, so the total is O(n²).\n- Crack, located on the table: only 4 of the 16 appends are expensive, and the costly ones get rarer as they get costlier. The bound charges every append the price of the rarest.\n- Name the property the fix must have: **an expensive append must be paid for by the cheap ones before it.** That phrase is reused in section 5.\n\n**4. Add up the whole sequence (fix, then name)**\n- Copies are 1+2+4+…+n/2, which is less than n. Add the n writes and the total is under 3n.\n- Divide by n: at most 3 units per append.\n- Only now the name, amortised cost, with its plain meaning: total over a sequence divided by the number of operations.\n- Voice the objection: \"isn't that just the average?\" The answer is that no randomness is involved. It holds for any sequence of appends.\n- Return to the numbers: 31 units over 16 appends, which is under 2 per append.\n\n**5. The same argument as a jar of coins (mapping analogy introduced)**\n- Charge each append 3 coins: 1 to write itself, 1 to pay for copying itself next resize, and 1 to pay for copying an older element.\n- A `bh-stepper` walks appends 9 to 17 from the example. It shows the jar filling to 8 coins, then paying for the 16-element copy at append 17, and never going negative.\n- This formalises \"paid for by the cheap ones before it\".\n- Where the analogy stops: it is bookkeeping. The real cost is unchanged.\n\n**6. Why doubling, and not \"add 10 more\" (load-bearing assumption, ablation)**\n- Prediction: if we grow by a constant 10, what is the total for n appends? Gut-check the answer before the demo.\n- `bh-playground` on the reader's own n. A control switches between \"double\" and \"add k\". It plots cost per append as n grows.\n  - Default state: doubling stays flat and +k climbs. This makes the point without any interaction.\n- Tie back to the jar: with +k, resizes cost about n but come every k appends, so the coins deposited between them don't cover the move.\n- Disclosure: factors like 1.5 work too. The constant trades wasted memory against copying.\n\n**7. What amortised does not promise (misconception demoted)**\n- A single append can still take O(n). That matters for latency-sensitive code, and for hash-table rehashing.\n- Pay off the section 2 promise: allocation cost, in a fold.\n- Optional disclosure: shrinking the array at half full can thrash, so use a lower threshold.\n\n**8. Ending: where to reach for this (trigger)**\n- Pay off the opening: `list.append`, `push_back` and `Vec::push` are all this.\n- Teach the trigger: an operation that is occasionally expensive, where each expensive event gets rarer, or resets state, so cheap steps pay for it.\n- Transfer check: the array triples instead of doubling. Is the amortised cost still O(1)? What is the constant?\n- Optional exercise, marked as optional: incrementing a binary counter has the same shape.\n\n## Promise list\n| Promise | Where made | Where paid |\n|---|---|---|\n| Opening names three real appends | 1 | 8 |\n| Allocation cost ignored | 2 | 7 |\n| \"Paid for by earlier cheap ones\" | 3 | 5 |\n| Doubling looks arbitrary | 4 | 6 |",
+      "graders": [
+       {
+        "name": "01-analogy-maps-a-quantity",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-analogy-before-the-mechanism",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "03-analogy-returns-by-name",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-analogy-limit",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 0.75,
+      "answer": "# Outline: why doubling-array append is O(1) amortised\n\n**Reader:** knows arrays and big-O, has never seen amortised analysis.\n**The one question:** one append can copy a million elements, so how can append be O(1)?\n**Misconceptions to correct:**\n- \"Worst case O(n) means n appends cost O(n²).\"\n- \"Amortised means average over random inputs.\"\n\n## Running example\nStart with an empty array of capacity 1 and push 1 through 17. Cost is element writes: 1 for the new element, plus 1 per element copied during a resize.\n\n| Append | 1 | 2 | 3 | 4 | 5 | 6–8 | 9 | 10–16 | 17 |\n|---|---|---|---|---|---|---|---|---|---|\n| Cost | 1 | 2 | 3 | 1 | 5 | 1 each | 9 | 1 each | 17 |\n\n- The first 16 appends cost 31 in total, which is under 2 per append.\n- The numbers stay unsimplified (1+2+4+8 copies) until the pattern shows.\n- The reader's own sequence length later drives a `<bh-playground>`.\n\n## Analogy\nIt is a mapping analogy, a **coin bank**, because the argument computes with it.\n- **Where it appears:** it arrives with the mechanism in section 6, after the totals are computed and not before. It is not saved for the end.\n- **How it works:** every append pays 3 coins. 1 coin writes the element and 2 go into the bank. A resize is paid for from the bank.\n- **How it is reused:** it returns in the playground as the bank balance, and in the additive-growth failure as the balance going negative.\n- **Where it stops matching:** the machine holds no coins. They are bookkeeping that proves a bound.\n\n## Sections\nEach is one `h2`.\n\n1. **Hero + TL;DR.**\n   - First bullet: judge an operation by its total over a sequence, not by its worst single call.\n   - Common-mistake bullet: \"worst case O(n), so n appends is O(n²)\".\n   - The mechanism stays out of the TL;DR.\n\n2. **Need: one append that copies a million.**\n   - Open on a concrete case, for example appending 1M items to a Python list is fast, yet one of those appends copies about half a million.\n   - Gloss \"dynamic array\" in plain words.\n   - Pose the specific question: can n appends cost about 3n when some cost n?\n\n3. **The running example, append by append.**\n   - Show the table above as a `<bh-stepper>`.\n   - Give \"cost\" its meaning (element writes) and state that the array doubles when full.\n\n4. **A first try: take the worst case.** Labelled provisional in the heading.\n   - Worst case is n per append, so n appends cost n², which would make append O(n).\n   - **Crack:** the table shows the n-cost appends are rare, and each is followed by as many cheap ones as there are elements.\n   - **Property the fix must have:** an expensive append can't happen again soon. Reuse that phrase later.\n\n5. **Predict: the total for 16 appends.** A `details.predict`.\n   - Options are about 16, about 31 or about 256.\n   - The answer is 31.\n   - 256 comes from the worst-case-times-n model, and 16 comes from forgetting the copies.\n\n6. **Add up the whole run, then divide.**\n   - Copies are 1+2+4+8, and each copy is one more than all earlier copies combined, so the sum is under 2n.\n   - Total is under 3n, so each append averages under 3.\n   - Only now **name \"amortised\"**, with the plain meaning (total over the sequence divided by its length).\n   - Defend it against the misconception: this is a guarantee for every sequence of appends, with no randomness.\n\n7. **The coin version.**\n   - This is where the analogy is introduced.\n   - Explain why 3 coins always suffice: after a resize, half the slots are new, and each new element's 2 banked coins pay to copy itself and one old element.\n   - The `<bh-playground>` lets the reader pick the append count. The default state already shows the balance never going negative.\n   - Include the ablation switch \"grow by +10 instead of doubling\", which makes the balance go negative.\n\n8. **Why doubling, not \"a bit more\".** Compare with `<bh-versions>`: doubling, ×1.5 and +10.\n   - +10 gives O(n²) total, because resizes stay evenly spaced while each costs more. That violates the \"can't happen again soon\" property.\n   - Any constant factor above 1 works, and only the constant changes.\n   - The fix is named only now: geometric growth.\n\n9. **What amortised does not promise.** Mostly `details.disclosure` folds, each with its one-line upshot in the main text first.\n   - A single append is still O(n), which matters for latency-sensitive code.\n   - Up to half the memory can be idle.\n   - Shrinking at half-full thrashes, which is why real arrays shrink at a quarter.\n\n10. **Ending: the question, answered.**\n    - Answer the opening by name, using its numbers.\n    - Teach the trigger: reach for amortised analysis when an operation's cost depends on state that earlier cheap operations built up.\n    - Give an optional transfer check: incrementing a binary counter.\n\n## Promises to track\n- **Provisional worst-case model:** flagged in the section 4 heading, retired in section 6 by running it on the 16-append case and showing 256 against 31.\n- **\"Amortised\" deferred:** held until section 6.\n- **\"+10 doesn't work\":** claimed in section 7, paid off in section 8.\n- **\"Randomness isn't involved\":** flagged at the name in section 6, restated in section 9.",
+      "graders": [
+       {
+        "name": "01-analogy-maps-a-quantity",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-analogy-before-the-mechanism",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         true
+        ]
+       },
+       {
+        "name": "03-analogy-returns-by-name",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-analogy-limit",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     }
+    ],
+    "without": [
+     {
+      "score": 0.5,
+      "answer": "# Outline: Why appending to a doubling array is O(1) amortised\n\n**Audience:** knows arrays and big-O, has never seen amortised analysis.\n\n## Running example\nAppend the numbers 1 to 17 to an empty dynamic array that starts at capacity 1 and doubles when full. It's small enough to draw in full. Capacity goes 1 → 2 → 4 → 8 → 16 → 32, and the resize points (appends 2, 3, 5, 9, 17) are visible in one table. The example returns in every section.\n\n## Sections\n\n1. **The puzzle.** Show `append` as usually cheap (write one slot) but occasionally expensive (copy everything). Ask: if one append can cost O(n), why do people say append is O(1)? Name the tension without resolving it.\n\n2. **How the array grows.** Briefly recap capacity vs. length, then the doubling rule. Walk through appends 1–17 in a table with columns: append #, capacity before, copies made, cost. The reader sees the expensive appends getting rarer.\n\n3. **Why worst-case O(1) is the wrong question.** Introduce the idea that we care about the cost of a *sequence* of operations, not one in isolation. Define amortised cost as total cost of n operations divided by n. It is a guarantee about the sequence, not an average over random inputs. This section addresses the common confusion with average-case analysis.\n\n4. **Proof 1: add up the total.** Total copy work for n appends is 1 + 2 + 4 + … + n/2 < n. Add the n writes and the total is under 2n, so about 2 per append. Tie each term back to the table from section 2. Include the geometric-series fact as a one-line aside.\n\n5. **Proof 2: the savings-account view (the banker's method).** Charge every append a flat 3 units: 1 pays for its own write, 2 go into a bank. Show on the running example that when the array is full, the bank holds enough to pay for the copy. Draw the bank balance as a row beneath the table. This is the intuition many readers keep.\n\n6. **What breaks it: growing by a constant.** Replace doubling with \"add 10 slots\" and rerun a shortened version of the example. Total cost becomes quadratic, so the amortised cost is O(n). This shows that the *multiplicative* factor is what matters, and that the result isn't automatic.\n\n7. **Loose ends.** Short notes:\n   - Any factor > 1 works (1.5× vs 2×), trading memory for copy frequency.\n   - A single append can still be O(n), which matters for latency-sensitive code like real-time systems.\n   - Shrinking arrays need care to avoid thrashing.\n   - Real-world examples: Python `list`, C++ `std::vector`, Java `ArrayList`.\n\n8. **Takeaways.** Three bullets: amortised means total over a sequence, doubling makes the expensive steps rare enough to pay for with a small constant surcharge, and constant-size growth fails.\n\n## Analogy\n\n**Moving to a bigger house, or the savings account.** It appears in section 5 only, attached to the banker's method. Each append \"pays rent\" into a moving fund, and the fund covers the cost of the occasional move. I'd keep it out of the earlier sections so the table and the algebra stay concrete. In section 6, it can return briefly: with constant growth, you'd be moving so often the fund never keeps up.\n\n## Optional extras\n- An interactive widget in section 2 or 5 that steps through appends and shows the copy count and bank balance.\n- A closing exercise: does tripling still give O(1) amortised, and what is the constant?",
+      "graders": [
+       {
+        "name": "01-analogy-maps-a-quantity",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-analogy-before-the-mechanism",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-analogy-returns-by-name",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "04-analogy-limit",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       }
+      ]
+     },
+     {
+      "score": 0.75,
+      "answer": "# Outline: Why appending to a doubling array is O(1) amortised\n\n**Audience:** knows arrays and big-O, new to amortised analysis.\n**Goal:** reader leaves able to explain *why* the average cost is constant, and what \"amortised\" does and doesn't promise.\n\n## Running example\nAppend the numbers 1 to 17 to an empty dynamic array that starts at capacity 1 and doubles when full. It's small enough to show in full. Capacity goes 1→2→4→8→16→32, and the final append (the 17th) triggers a resize at a moment readers can see coming. A table runs through the whole post with columns: append #, capacity before, did it resize, elements copied, running total cost. It's introduced in section 2 and revisited in sections 3, 4 and 6.\n\n## Analogy\n**The prepaid moving-day fund**, used in section 4 (the banker's/accounting method) and nowhere else, so it doesn't blur the earlier sections. Each append pays 3 coins. 1 coin covers writing the element. 2 coins go into a jar, kept on the new items. When the array fills and has to be copied, the jar holds exactly enough to pay for moving every element. Each coin is tied to a specific element: after a doubling, the newer half carries the savings that pay for the next copy. I'd also name the limit of the analogy: the jar is a bookkeeping device, and no actual money is saved in the program.\n\n## Sections\n\n1. **The worry: one append can be slow.** Show a plain `append` and point out that the occasional resize copies everything. Ask the question: if a single call can cost O(n), why do people say append is O(1)? Name the two readings of \"cost\" (worst single call versus cost per call over a sequence).\n\n2. **Watch it happen.** Build the table for appends 1–17. Show that expensive appends (at 2, 3, 5, 9, 17) get rarer and that cheap ones fill the gaps. Readers should notice the pattern before it's explained.\n\n3. **Add it up.** Total the copies: 1+2+4+8+16 = 31 for 17 appends. Generalise: copies at sizes 1, 2, 4, …, n/2 form a geometric series that sums to less than n. So total work is under 2n (n writes plus fewer than n copies), and dividing by n gives a constant. Include the \"why a geometric series sums to about its last term\" intuition, with a halving-bar picture.\n\n4. **The same result as a bank account (the accounting method).** The coin analogy, with the jar's balance shown in the table as an added column. Invariant: the jar never goes negative.\n\n5. **What \"amortised\" means, and what it doesn't.** Definition: a guarantee about the average over any sequence of operations, with no probability involved and no assumed typical input. Contrast it with average-case analysis (random inputs). It does not mean every call is fast: a single append can still stall (latency spikes in real-time or interactive code).\n\n6. **Why doubling matters: try other growth rules.** Re-run the example with \"grow by +10 each time\" (quadratic total, O(n) amortised) and with growth factor 1.5 (still O(1), different constant). The point is that the factor, not the number 2, is what counts. Brief note on the memory/speed trade-off (real libraries use 1.5 or 2).\n\n7. **Common misconceptions and where it applies elsewhere.** Quick list: amortised isn't average-case; the cost isn't spread evenly; shrinking needs care (the thrashing trap when you halve at 50% full). Pointers to hash table rehashing and other structures that use the same idea.\n\n8. **Recap and exercises.** Three-sentence summary. Exercises: (a) work out the total cost for 33 appends, (b) prove that +10 growth is quadratic, (c) find the shrink rule that keeps pop at O(1) amortised.\n\n## Open choices for you\n- Code language for snippets (I'd default to Python-like pseudocode with explicit capacity tracking, since Python hides it).\n- Whether to include the third method, the potential method, as an optional sidebar. I'd leave it out for this audience.",
+      "graders": [
+       {
+        "name": "01-analogy-maps-a-quantity",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-analogy-before-the-mechanism",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-analogy-returns-by-name",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "04-analogy-limit",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       }
+      ]
+     },
+     {
+      "score": 0.75,
+      "answer": "# Outline: Why appending to a doubling dynamic array is O(1) amortised\n\n**Audience:** knows arrays and big-O, has never seen amortised analysis.\n**Goal:** the reader leaves able to explain why one expensive append doesn't make the average append expensive, and can tell amortised from average-case.\n\n## 1. The puzzle (hook)\n- Show a `push` loop and a naive worst-case claim: a single append can copy the whole array, so it's O(n). Then n appends would be O(n²). Yet benchmarks show linear time.\n- Pose the question: where does the analysis go wrong?\n\n## 2. How the array grows\n- Fixed-size backing store, size vs capacity, the doubling rule.\n- Introduce the **running example** (below) with a small table of the first ~17 appends.\n\n## 3. Counting the cost of the resizes\n- Resizes happen at sizes 1, 2, 4, 8, … and copy that many elements.\n- Sum the copies: 1 + 2 + 4 + … + 2^k < 2n. Short geometric-series argument, with a picture of the bars shrinking by half going leftward.\n- Total work for n appends ≤ n (plain writes) + 2n (copies) = 3n, so about 3 per append.\n\n## 4. What \"amortised\" means\n- Definition in plain words: the cost per operation averaged over a worst-case *sequence*, not over random inputs.\n- Contrast with average-case (no probability, no luck involved) and with worst-case-per-operation (still O(n) for one append, and that is fine).\n- This is the section where the term is named, after the reader has already seen the result.\n\n## 5. The bank-account view (accounting method)\n- Charge every append a flat 3 \"coins\": 1 pays for its own write, 2 are saved.\n- When the array fills, the saved coins pay exactly for copying the old elements: the second half of the old array has saved 2 each, which covers copying all of it.\n- The analogy lives here (below).\n\n## 6. Why doubling matters: what if we grow by a constant?\n- Grow by +10 instead of ×2: copies sum to roughly n²/20, which is O(n) per append amortised.\n- Grow by ×1.5 or any constant factor > 1 still works; the constant changes, not the class.\n- Shows the reader the *factor* is what does the work.\n\n## 7. Caveats and common confusions\n- Amortised ≠ every operation is fast: latency spikes still happen (matters for real-time code).\n- Amortised ≠ average-case over random inputs.\n- Shrinking: halving at 1/2 full can thrash; shrink at 1/4 (one-sentence pointer, not a full treatment).\n- Memory overhead: up to 2× capacity unused.\n\n## 8. Recap and exercises\n- Three-sentence summary.\n- Exercises: (a) grow by ×3, find the constant; (b) show +1 growth is O(n); (c) predict the copies for 100 appends.\n\n---\n\n## Running example\nAppending the integers 1 to 17 to an empty array that starts at capacity 1. A table with columns: append #, size after, capacity, copies this append, cumulative cost. It shows resizes at appends 2, 3, 5, 9, 17 (copying 1, 2, 4, 8, 16 elements). It is used in sections 2, 3 and 5. In section 5 the same table gets an extra \"coins in bank\" column, so the reader sees the balance spike up and drop to near zero at each resize without going negative.\n\n## Analogy\n**A savings jar for moving house**, introduced in section 5 (and teased with one line at the end of section 4). Every month, you put in a small fixed amount. Most months you spend nothing, but occasionally you must pay a big removal bill. Because of the regular deposits, the bill is always covered and your monthly outlay is effectively constant. It maps directly onto the coins: flat charge per append, big copy cost on resize. I'd flag where the analogy breaks (the real cost does still arrive in one lump, which is the latency-spike caveat in section 7).\n\n## Notes\n- Section 6's \"+10 gives n²/20\" figure should be checked before publishing, and the section-6 claim that it is \"O(n) per append amortised\" is correct. I'd also double-check the table values when writing it up.",
+      "graders": [
+       {
+        "name": "01-analogy-maps-a-quantity",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-analogy-before-the-mechanism",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-analogy-returns-by-name",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "04-analogy-limit",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "name": "outline-bloom-filters",
+   "graders": [
+    {
+     "name": "01-the-first-section-after-the-tl-dr-opens-with-a-c",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: The first section after the TL;DR opens with a concrete need or puzzle, not a definition.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "02-a-naive-approach-such-as-storing-the-whole-set-o",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: A naive approach (such as storing the whole set, or a single hash into a bit array) appears and its failure is shown before the Bloom filter is named.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "03-the-outline-names-a-specific-failure-of-the-naive-",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: The outline names a specific failure of the naive attempt (a case that gives a wrong answer, and what causes it) and says what the fix must do about it before the fix is described.\nFAIL if it says only that the naive attempt is limited or not enough, or the answer is too vague to tell."
+    },
+    {
+     "name": "04-for-at-least-three-steps-between-sections-the-o",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: For at least three steps from one section to the next, the outline says why the next section follows (a flaw in the previous attempt, a question it raises, or a \"but\" or \"therefore\"), and not only what the next topic is.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "07-there-is-exactly-one-centrepiece-interactive-wit",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: There is exactly one centrepiece interactive, with a stated purpose.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "08-the-tl-dr-may-state-what-a-bloom-filter-achieves",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: The TL;DR may state what a Bloom filter achieves but does not give away the mechanism.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "skill-fired",
+     "type": "tool_used"
+    }
+   ],
+   "arms": {
+    "with": [
+     {
+      "score": 1,
+      "answer": "# Outline: how Bloom filters work\n\nI haven't checked this against the repo's CLAUDE.md or templates. The component names (`.tldr`, `details.predict`, `<bh-stepper>`, `<bh-playground>`) come from the skill and may need adjusting.\n\n**Headline (states the takeaway):** \"A Bloom filter answers 'have I seen this?' in about 10 bits per item by allowing false yeses and never false noes.\"\n\n**Reader:** a programmer who knows hash functions and arrays. No probability beyond \"multiply independent chances\".\n\n## Running example\n- **Set:** three usernames already taken: `ada`, `alan`, `grace`.\n- **Filter:** a 16-bit array with 3 probes per name.\n- **Queries:** `linus` (a clear no), then a second name that happens to light up all three of its bits (a false yes).\n- **Hashes:** compute the real hash positions in code and choose the second name from the actual output. The prose, stepper and playground then agree.\n- **Reader's own input:** the playground takes their words, so they supply the running example from section 5 on.\n\n## Sections\n\n**Hero + TL;DR**\n- First bullet is the transferable idea: if \"definitely not / probably yes\" is enough, keep a fingerprint of the set instead of the set.\n- Common-mistake bullet: \"it stores the items\" and \"it can forget items it holds\". It does neither.\n\n**1. Need: a lookup that is expensive to ask**\n- Open on one named use with a cost in numbers, such as a database checking whether a key is on disk before reading. Verify the figures before using them.\n- Question for the page: how few bits per item can answer \"seen it?\" with about 1% false yeses and zero false noes?\n- Gloss \"Bloom filter\" in plain words only. The mechanism stays out of the opening.\n\n**2. A first try: store the set, then one hash, one bit** (labeled provisional in the heading)\n- Dead end in one sentence: a hash set stores the items themselves.\n- Naive attempt: hash each name to one of 16 bits and set it. A query checks that one bit.\n- Crack: `alan` and some other name share a bit, so a \"yes\" is wrong. This shows where it fails: one shared bit is one witness.\n- State the fix's required property: a yes needs several independent witnesses.\n\n**3. Several witnesses: k probes** (`<bh-stepper>` goes here)\n- Insert `ada`, `alan`, `grace` with 3 probes each. Then query `linus` (a no) and the false-yes name.\n- Step text gives meaning, not motion: \"one probe hit a 0, so `linus` is definitely absent\".\n- Name it here: Bloom filter. Introduce \"probe\" and \"bit array\" as handles on the first figure.\n- Voice the objection: \"haven't we just moved the collisions around?\" Answer: a false yes now needs all k bits to be set by other items.\n\n**4. Why a no is certain and a yes is only probable**\n- Bits only ever flip 0→1, so an inserted item's bits stay set. That means no false negatives.\n- **Prediction 1** (`details.predict`): show the filled array and two queries. Ask the reader to commit to yes or no for each.\n  - The wrong option comes from \"a yes means it was inserted\".\n  - The reveal explains each wrong guess.\n\n**5. Playground: break it, then tune it** (the main interactive)\n- **Failure of the plain text it fixes:** the reader can't feel how m, k and n trade off from prose alone.\n- **Default state:** the running example with k=1, already showing a false yes (the section 2 crack). Skimmers and print readers get the point without touching it.\n- **Controls, unlocked one at a time:**\n  1. Add and query words.\n  2. A k slider (the ablation: k=1 brings the crack back).\n  3. An m slider.\n- **Diagnostic view:** a fill meter, and a live false-positive count measured on random non-members.\n- Each control gets its meaning before the reader is asked to use it.\n\n**6. How often is a yes wrong?**\n- Build it from counts, unsimplified, on the 16-bit example:\n  - fraction of bits set after n items;\n  - chance one probe lands on a set bit;\n  - raise that to the power k.\n- Only then the closed form, with each term pointed at its figure part via `data-ref`.\n- Gut-check: the formula's number against the playground's measured rate.\n\n**7. Choosing k and m**\n- Need and crack: more probes mean more witnesses, but they also fill the array faster. Show the U-shaped curve with a static figure or playground state.\n- Result: the best k leaves about half the bits set. For 1%, expect roughly 10 bits per item (derive it, don't just quote it).\n- **Prediction 2:** \"About how many bits per item for 1%: 1, 10 or 100?\" Ask for a magnitude, with a note that a guess is enough.\n\n**8. What it can't do** (edge cases)\n- Load-bearing assumption: n stays at or below the planned size. Overfill it and every query says yes.\n- No deletion. Clearing bits would break other items, and the counting variant is one line in a disclosure.\n- No listing of items and no resizing.\n- Hash independence and double hashing go in a `details.disclosure`.\n\n**9. Where it's used, and when to reach for it**\n- Pay off the opening's named use with its numbers.\n- Order the uses by one principle: each is the same filter in a bigger or harder setting, and each adds one new thing, such as network transfer or merging filters.\n- Teach the trigger: a big set, a costly check, and a tolerable \"maybe\".\n- Optional transfer check: \"choose m and k for 1 million items at 0.1%\". Mark it optional.\n\n## Promise list\n| Promise | Flagged in | Paid off in |\n|---|---|---|\n| One probe is \"provisional\" | §2 heading | §3 |\n| \"Need several witnesses\" | §2 | §3 |\n| \"Fraction of bits set matters\" | §3 | §6 |\n| \"About 10 bits/item\" | opening question | §7 and §9 |\n| False-yes name from the example | §3 | §6 |\n\n## Name table\nUse these terms consistently across prose, figure labels and glossary: *bit array*, *probe* (not \"hash slot\"), *member*, *false positive* (\"false yes\" in plain gloss only), *fill* (fraction of bits set). Check each against `docs/glossary.html` before drafting.",
+      "graders": [
+       {
+        "name": "01-the-first-section-after-the-tl-dr-opens-with-a-c",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-a-naive-approach-such-as-storing-the-whole-set-o",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-the-outline-names-a-specific-failure-of-the-naive-",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-for-at-least-three-steps-between-sections-the-o",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "07-there-is-exactly-one-centrepiece-interactive-wit",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "08-the-tl-dr-may-state-what-a-bloom-filter-achieves",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "# Outline: How Bloom filters work\n\nI haven't looked at the blog's templates or components. The repo has no commits, so I couldn't check them. I used the component names from the writing guidelines (`.tldr`, `details.predict`, `<bh-stepper>`, `<bh-playground>`, `<bh-versions>`). Rename them if the house templates differ.\n\n**Reader:** a programmer who knows hash tables and bits. **The page's question:** how can you answer \"have I seen this?\" in about 10 bits per item, and what do you give up?\n\n## Running example\n\n- **Toy:** a 16-bit array with 3 hash functions. The words are `cat` and `dog` (inserted) and `owl` (queried). Use hand-picked hash outputs so the arithmetic is visible, and say they're invented.\n- **Scale-up:** the same example at 100 bits and 10 items, so counts stay clean (\"10 out of 100\").\n- **Real use, named in the opening and paid off at the end:** an LSM-tree database (Cassandra, RocksDB) skipping a disk read for keys that aren't there. I'd verify the specific numbers before quoting them.\n- **Reader's own input:** the playground (below) lets them swap in their own words.\n\n## Sections\n\n**Hero and `.tldr`**\n- Bullet 1, the transferable takeaway: a filter can say \"definitely not\" or \"probably yes\" in a tiny fraction of the space, if you accept one-sided errors.\n- Common-mistake bullet: \"it stores the items\" or \"it can give wrong *no*s\". It does neither.\n\n**1. The need: \"Is this key on disk?\"**\n- A lookup that misses still costs a disk read, and most lookups in the opening scenario miss.\n- A hash set answers exactly but costs memory proportional to the keys themselves.\n- The question: can we answer in a few bits per key if we tolerate occasional wrong answers?\n\n**2. A first try: one hash, one bit array** (label it provisional in the heading)\n- Hash each word to one position and set that bit. Query by checking the bit.\n- Walk `cat` and `dog` in. Query `owl`.\n- **Figure:** `<bh-stepper>` over the 16 bits, with step text about meaning (\"`owl`'s bit is 0, so it was never inserted\"), not motion.\n\n**3. The crack: two different kinds of wrong**\n- `owl` lands on a bit `dog` set, so the filter says \"yes\" wrongly (a false positive).\n- A \"no\" can never be wrong, because bits are never cleared. Pin this down now, since sections 4 to 6 lean on it.\n- The failure is located: the chance of a wrong \"yes\" is roughly the fraction of bits already set. State the property the fix needs: *a wrong \"yes\" must need several unlucky coincidences at once*.\n- **Prediction #1 (`details.predict`):** 100 bits, 10 items, one hash. What fraction of absent keys get a wrong \"yes\"? Give the answer, the reasoning, and why \"1 in 1,000\" (the misconception) is tempting.\n\n**4. The fix: several hashes, then the name**\n- Each item sets k bits, and a query needs all k set. This is the property named in section 3.\n- Re-run the 16-bit toy with k = 3.\n- Only now name it: a Bloom filter, with its plain meaning.\n- **Figure:** a `<bh-stepper>` or `<bh-versions>` comparing k = 1 (labelled \"first try\") with k = 3 on the same inserts.\n\n**5. Why \"no\" is always right, and why you can't delete**\n- Bits only go 0→1, which is the load-bearing assumption. Clearing the bits of `cat` would also clear bits `dog` needs, creating false negatives.\n- This is a sidebar-sized section with one takeaway. Counting filters go in a later fold.\n\n**6. Try it: the playground** (hands-on slot)\n- **`<bh-playground>`:** the reader types words to insert, then queries others. It shows the bit array, each word's k positions, and a live count of bits set.\n- **Default state:** `cat`, `dog` inserted and `owl` queried, so it teaches without interaction.\n- **Controls, unlocked one at a time:**\n  1. Insert and query.\n  2. A size slider (m).\n  3. A k slider. Setting k = 1 is the ablation that returns to the section 2 model, showing it fail again.\n- **Closing prompt:** find a false positive yourself. An honest note says it uses a toy hash and the real hash functions are better mixed.\n\n**7. Tuning: the tradeoff in k**\n- More hashes make each query stricter, but they fill the array faster. So the error rate goes down, then back up.\n- Introduce the formula after the examples, read in words, with the terms pointed at the figure via `data-ref`. Bookkeeping factors are marked as such.\n- Give the rule of thumb (about 10 bits per item and k ≈ 7 gives about 1%). Verify these numbers before publishing.\n- **Prediction #2:** double the array size and keep k. Does the false-positive rate fall a little or a lot?\n- **Figure:** a static chart of error rate against k, made with the dataviz skill.\n- The derivation goes in a `details.disclosure` fold, with the one-line upshot in the main text before it.\n\n**8. Details and edge cases** (reference-style, after the story)\n- You can't resize without the original keys.\n- Counting and deletable variants.\n- Double hashing to get k hashes cheaply.\n- Each of these gets a short fold.\n\n**9. Close: when to reach for one**\n- Pay off the opening: back to the LSM database, with the real saving in numbers.\n- Teach the trigger: a big set, mostly-miss lookups, a wrong \"yes\" is cheap and a wrong \"no\" is fatal.\n- **Transfer check** (optional, in plain prose): would a Bloom filter fit a spell-checker that must never flag a correct word? Which way would the errors have to point?\n\n## Promise list (flag where made, pay off by name)\n\n| Promise | Made in | Paid in |\n|---|---|---|\n| The one-hash model is provisional | 2 | 3 and 4 |\n| \"A 'no' is always right\" | 3 | 5 |\n| \"More hashes isn't free\" | 4 | 7 |\n| The toy hash isn't a real hash | 6 | 8 (fold) |\n| The opening's disk-read use | 1 | 9 |\n\n## Interactive placement, in short\n\n- Sections 2 and 4: steppers, because the point is walking through a mechanism.\n- Section 6: the single playground, containing the k-slider ablation.\n- Section 7: a static chart only. The playground already lets readers explore the effect of k and m.\n\nI can turn this into a draft next. I'd want to see the blog's existing pages first so I match their components and voice.",
+      "graders": [
+       {
+        "name": "01-the-first-section-after-the-tl-dr-opens-with-a-c",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         false,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-a-naive-approach-such-as-storing-the-whole-set-o",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-the-outline-names-a-specific-failure-of-the-naive-",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-for-at-least-three-steps-between-sections-the-o",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "07-there-is-exactly-one-centrepiece-interactive-wit",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "08-the-tl-dr-may-state-what-a-bloom-filter-achieves",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 0.8333333333333334,
+      "answer": "# Outline: How Bloom filters work\n\n**Working title:** \"A set that forgets what's in it, and why that's useful\"\nThe headline is the takeaway: you can answer \"have I seen this?\" in a few bits per item if you accept occasional false yeses and no false noes.\n\n**Reader:** knows what a hash function does and what a set is. Hasn't seen a Bloom filter.\n\n**Running example:** a sign-up form checking whether a username is taken. Two scales:\n- **Toy:** a 16-bit array, 3 hash functions, three usernames (`ada`, `bob`, `cy`). Small enough to compute every hash by hand, and it keeps the hard part, collisions, visible.\n- **Real:** the same question over 100 million usernames, where the table is too big to keep in memory. The toy numbers get recomputed at this scale in the sizing section.\n\n## TL;DR (`.tldr`, slide 1)\n- Transferable takeaway: trade exactness for space by letting every item leave a small fingerprint in shared bits. One-sided errors can be cheap to handle.\n- Result, with no mechanism: a \"no\" is always right, and a \"yes\" is only probably right.\n- Common mistake: \"a Bloom filter stores the items\", or \"it can miss items\". It stores neither, and it never misses.\n\n## 1. The question: is this username taken?\n- **Need:** opens on 100 million usernames and a check on every keystroke. Names one real use as a promise to return to: a database consulting a filter before a disk read.\n- States the promise as a specific question: how few bits per name can answer \"taken?\", and what do we give up?\n\n## 2. A first try: keep the names (labelled provisional)\n- Naive attempt: a hash set of the names. Compute the memory, in counts (100M names × ~10 bytes is ~1 GB, before overhead).\n- **Crack:** it's the *names* that cost the space. The fix must remember less than the name. Name that property here and reuse the phrase later.\n- Declines the tempting simplification, a sorted list or trie, in one sentence. It's the same crack.\n\n## 3. A second try: one bit per name\n- Hash each name to one position in a bit array and set that bit. This is the toy, run by hand on `ada`, `bob`, `cy`.\n- Lookup: if the bit is 0, the name was never added. If it is 1, \"maybe\".\n- **Crack:** a new name, `dee`, lands on `bob`'s bit. Show *where* it breaks: a 1 can't say who set it. It points at the fix: a name should leave more than one mark, so one collision isn't enough to fool us.\n\n## 4. Several marks per name\n- Fix: k hash functions, so each name sets k bits (k=3). Lookup needs all k bits to be 1.\n- Re-run `dee` from section 3: it now needs three coincidences.\n- Only now the names: **Bloom filter**, plus **bit array** and **hash functions**, each with its plain meaning attached.\n- **Reformulation defended:** \"haven't we just made the collision problem three times bigger?\" Answer: each added name sets more bits, but a false yes needs *all* k bits already set.\n- **Interactive, centrepiece (`<bh-playground>`, see below).** The default state is the toy, already loaded, with `dee` queried so a false positive is visible on load.\n\n## 5. Why a \"no\" is always right\n- The one-sided guarantee. Bits are only ever set, never cleared, so a name that was added can't find a 0.\n- **Exposes the load-bearing assumption:** deletion. Clearing a bit might break other names. Defer out loud: counting filters exist, and the one takeaway is that plain Bloom filters don't support delete.\n- **Predict (`details.predict`), at the key step:** \"Query a name you never added. Which answers are possible: only 'no', only 'maybe', or both? Decide before you open this.\" The wrong options come from named misconceptions: \"a filter can miss an added name\" and \"a false positive means a bug\".\n\n## 6. How often is \"maybe\" wrong?\n- Gut-check on the toy by counting: with 3 names and 16 bits, how many bits are set, and what are the chances a random name hits three of them?\n- Then the formula, built from the counting rather than stated first. Read it aloud, triaged:\n  - the fraction of bits set is the bookkeeping term,\n  - raising it to the k-th power is the idea.\n- Say what it ignores: the hashes are assumed independent and uniform.\n- **Playground ablation:** the slider for k shows that too few marks and too many marks both hurt. *Too many fill the array.* That is the crack in \"more hashes is always better\".\n\n## 7. Sizing it for 100 million names\n- Return to the opening question and answer it by name: bits per name against the false-positive target, with the k that minimises it. Counts first, then the rates. About 10 bits per name gives about 1% false yeses, and the formula page's numbers get checked against the interactive.\n- Re-run the section 2 memory comparison: ~125 MB against ~1 GB.\n- **Optional transfer check** (plain prose, marked optional): \"You'd rather have 0.1% false yeses. Roughly how much more space?\"\n\n## 8. Where to reach for one\n- **Principle, stated once:** use it when a \"no\" lets you skip expensive work and a wrong \"yes\" only costs that work once.\n- The opening's promised use, returned to: check the filter, and read the disk only on \"maybe\". Name what each further use adds, such as a cache check or a distributed membership test.\n- Calibrate honestly, with the limits: no deletion, no listing the items, and the filter can't be resized without rebuilding.\n\n## Interactive: where it goes and what it fixes\n**One `<bh-playground>`, introduced in section 4** and extended in section 6 by unlocking controls one at a time.\n- **Failure of plain text it fixes:** a reader can't see how *shared* bits make both the saving and the false positive.\n- **Default state** (works for print and no-JS readers): the toy, with three names inserted, `dee` queried, and the three bits highlighted, two of them lit by other names.\n- **Controls:** a text box to add or query a name (the reader's own input), then the k slider and the array-size slider, unlocked in section 6. Each control is explained before the reader is asked to use it.\n- **Diagnostic view:** a live \"fraction of bits set\" readout and a measured false-positive count over a batch of random queries. It is driven by the real algorithm and sits next to the formula's prediction, so the gap is visible.\n- **Closing note:** says what it ignores, such as ideal hashes, and has a question to answer (\"find the k that minimises false yeses for 10 names in 64 bits\").\n\nA static diagram of the 16-bit array, with one-colour-per-name arrows, goes in section 3 and doesn't need interaction.\n\n## Open choices before drafting\n- Section 7's numbers need a check before they're written as fact, since I haven't computed them here.\n- I haven't looked at the blog's templates or glossary, so `.tldr`, `data-ref` and the component names above follow the skill's description. They should be checked against the real theme.",
+      "graders": [
+       {
+        "name": "01-the-first-section-after-the-tl-dr-opens-with-a-c",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-a-naive-approach-such-as-storing-the-whole-set-o",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-the-outline-names-a-specific-failure-of-the-naive-",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-for-at-least-three-steps-between-sections-the-o",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "07-there-is-exactly-one-centrepiece-interactive-wit",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "08-the-tl-dr-may-state-what-a-bloom-filter-achieves",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     }
+    ],
+    "without": [
+     {
+      "score": 0,
+      "answer": "# Outline: How Bloom Filters Work\n\n**Working title:** \"Bloom Filters: Remembering Without Storing\"\n**Reader:** a developer who knows hash tables but hasn't met probabilistic data structures.\n**Goal:** the reader can explain why a Bloom filter gives \"definitely not\" or \"probably yes\", and can size one.\n\n## Running example\n**A username-availability checker for a sign-up form.** The filter holds taken usernames, so most lookups for new names skip a database hit.\n\n- Use a tiny 16-bit array and 3 hash functions, so every step fits on screen.\n- Insert `alice`, `bob`, `carol`.\n- Query `dave` (a clean \"no\"), then `mallory` (a false positive that collides with bits set by the others).\n- Reuse the same names in every section so the reader never has to learn new data.\n\n## Sections\n\n1. **The problem: checking membership cheaply**\n   - Show the sign-up form hitting the database on every keystroke.\n   - A hash set would work, but memory grows with the data.\n   - Pitch the trade: give up a little certainty to save a lot of space.\n\n2. **The core idea in one picture**\n   - A bit array plus k hash functions.\n   - State the contract: \"no\" is always right, and \"yes\" is only probably right.\n\n3. **Inserting**\n   - Walk through hashing `alice` into 3 positions and setting those bits.\n   - Then `bob` and `carol`, with the array filling up visibly.\n\n4. **Querying**\n   - `dave`: one of his bits is 0, so he's definitely not in the set.\n   - `alice`: all bits are 1, so probably present.\n   - `mallory`: all bits are 1 because of other names, which is a false positive.\n\n5. **Why false negatives are impossible (and why you can't delete)**\n   - Bits are only ever set, never cleared.\n   - Deleting `bob` would clear bits that `alice` or `carol` share.\n   - Brief pointer to counting Bloom filters.\n\n6. **The math, lightly**\n   - False-positive rate ≈ (1 − e^(−kn/m))^k.\n   - Intuition first: more bits help, more items hurt, and there is a sweet spot for k.\n   - Optimal k = (m/n)·ln 2.\n   - A small sizing table, such as 1% error at about 9.6 bits per item.\n   - Keep derivations in a collapsible \"show the math\" block.\n\n7. **Choosing hash functions**\n   - k independent hashes are unnecessary.\n   - Double hashing (h1 + i·h2) gets the same effect.\n   - Note which non-cryptographic hashes are fine (murmur, xxhash).\n\n8. **Where they're used in practice**\n   - Databases and LSM trees (skip disk reads for missing keys).\n   - Browser and CDN caches.\n   - Crawler deduplication.\n   - Close the loop with the username checker: the filter answers \"no\" instantly, and only \"maybe\" goes to the DB.\n\n9. **Limits and alternatives**\n   - No deletion, no enumeration, and the size must be planned up front.\n   - Pointers to cuckoo filters, quotient filters and counting Bloom filters.\n\n10. **Recap + further reading**\n    - Three-bullet summary and a short reading list.\n\n## Interactive placement\n\n**Primary widget: between sections 4 and 5.** The reader has now seen insert and query on paper, so they can use the widget.\n- A 16-bit array with a text input and Insert and Check buttons.\n- Hashed positions highlight as they're set or checked.\n- The result reads \"definitely not\", \"probably yes\", or \"false positive!\". The last is flagged by comparing against a hidden true set.\n- Preload alice, bob and carol, and offer a \"try `mallory`\" hint.\n\n**Secondary widget: inside section 6.** This is a sliders-only calculator with m, n and k.\n- It shows the live false-positive rate and a fill-percentage meter.\n- A small curve of error vs. k marks the optimum.\n- Use the dataviz skill for the chart styling.\n\n**Non-interactive figures:** static step diagrams in sections 3 and 4, so the page still reads well without JS.\n\n## Open questions\n- What does the blog use for interactives (plain JS, React, an embedded component)?\n- Should this match the length of existing explainers, or run longer?\n\nI haven't looked at the repo's existing posts. Once I check them for conventions on frontmatter, components and tone, I can adjust the outline to fit.",
+      "graders": [
+       {
+        "name": "01-the-first-section-after-the-tl-dr-opens-with-a-c",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "02-a-naive-approach-such-as-storing-the-whole-set-o",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "03-the-outline-names-a-specific-failure-of-the-naive-",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "04-for-at-least-three-steps-between-sections-the-o",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "07-there-is-exactly-one-centrepiece-interactive-wit",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "08-the-tl-dr-may-state-what-a-bloom-filter-achieves",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       }
+      ]
+     },
+     {
+      "score": 0.16666666666666666,
+      "answer": "The working directory has no files, so I couldn't match any existing blog conventions. This outline is generic and you can adapt it.\n\n# How Bloom Filters Work: Outline\n\n**Working title:** \"Bloom filters: a set that's allowed to be wrong in one direction\"\n\n**Audience:** Developers who know hash tables but haven't met probabilistic data structures.\n\n## Running example\n**A username-availability checker** for a sign-up form. Checking the database on every keystroke is slow. A Bloom filter in front of it answers \"definitely not taken\" instantly. It only sends the \"maybe taken\" cases to the database.\n\nUse a tiny filter of **16 bits, 3 hash functions**, and a handful of names (`alice`, `bob`, `carol`). Then query `dave` (a true negative) and `erin` (a false positive). The numbers stay small enough to draw and follow by hand.\n\n## Sections\n\n1. **The problem: fast membership checks at scale**\n   - Introduce the sign-up form and the cost of hitting the DB.\n   - Compare a hash set (exact, but memory-heavy) with a Bloom filter (tiny, approximate).\n   - State the one-line promise: \"no\" is always right, and \"yes\" means \"probably\".\n\n2. **The structure: a bit array and k hash functions**\n   - Show an empty 16-bit array.\n   - Explain that each item hashes to k positions.\n\n3. **Inserting an item**\n   - Walk through `alice`, setting 3 bits.\n   - Then add `bob` and `carol`, and point out where bits overlap.\n\n4. **Querying an item**\n   - **True negative:** `dave` hits a 0 bit, so he's definitely absent.\n   - **True positive:** `alice` finds all 1s, so she's probably present.\n   - **False positive:** `erin` lands on bits set by other names. This is the key \"aha\" moment.\n\n5. **Why there are no false negatives (and no deletes)**\n   - Bits are only ever set, never cleared.\n   - Brief note on why removal breaks this, with a pointer to counting Bloom filters.\n\n6. ****Interactive goes here** (see below)**\n\n7. **The math, kept light**\n   - False-positive rate ≈ (1 − e^(−kn/m))^k.\n   - Explain what m (bits), n (items) and k (hashes) each do.\n   - Give the optimal k ≈ (m/n)·ln 2.\n   - Add a small table of bits per item against error rate (e.g. ~10 bits/item for ~1%).\n\n8. **Real-world uses**\n   - Databases and LSM trees (skip disk reads), caches, and browser or malware URL checks.\n   - Close with the same pattern as the running example: cheap filter first, expensive check second.\n\n9. **When not to use one**\n   - You need deletes, you can't tolerate false positives, or the set is small.\n   - Mention alternatives: cuckoo filters and xor filters.\n\n10. **Recap and further reading**\n    - Three-bullet summary and a few links.\n\n## Interactive: placement and behavior\n**Placement:** Put it after section 5 and before the math. By then readers have seen the mechanics by hand, and they can break it on their own before the formula explains why it breaks.\n\n**Behavior:**\n- A visible bit array with a text box and \"Add\" and \"Check\" buttons.\n- Highlight the k bit positions an input hashes to, in a different colour for set bits and unset bits.\n- Show the verdict as \"definitely not present\" or \"probably present\".\n- Sliders for m and k, plus a live counter of the estimated false-positive rate.\n- A \"preload\" button that fills in the running-example names.\n\n**Lighter touch (optional):** A small static diagram in section 4 for the `erin` false-positive case, so the page still works if the interactive is cut.\n\nDecisions for you:\n- **Interactive scope:** Should the interactive offer sliders for m and k, or stay fixed at 16 bits and 3 hashes? My lean is fixed first and sliders after the math section, but that's a call for you.\n- **Math depth:** Is the math section in scope for this audience, or should it shrink to a sidebar?",
+      "graders": [
+       {
+        "name": "01-the-first-section-after-the-tl-dr-opens-with-a-c",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "02-a-naive-approach-such-as-storing-the-whole-set-o",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "03-the-outline-names-a-specific-failure-of-the-naive-",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "04-for-at-least-three-steps-between-sections-the-o",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "07-there-is-exactly-one-centrepiece-interactive-wit",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "08-the-tl-dr-may-state-what-a-bloom-filter-achieves",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       }
+      ]
+     },
+     {
+      "score": 0.16666666666666666,
+      "answer": "I found no blog files in the working directory, so this outline doesn't follow any existing conventions. It assumes a plain prose page with one embedded interactive.\n\n# Outline: How Bloom Filters Work\n\n**Running example:** a signup form that checks whether a username is taken. Asking the database on every keystroke is slow, so we put a Bloom filter in front of it. The page uses a small set of usernames (`alice`, `bob`, `carol`) throughout, so the reader sees the same data at every step.\n\n## 1. The problem (short hook)\n- Show the username check. A \"definitely not taken\" answer can skip the database.\n- State the tradeoff: a tiny amount of memory in exchange for occasionally being wrong in one direction.\n- **Takeaway:** \"Maybe yes\" or \"definitely no.\"\n\n## 2. The core idea: a bit array and hash functions\n- Start with an empty row of 16 bits, all 0.\n- Introduce hash functions as \"deterministic dice\": the same input always lands on the same positions.\n- Use 3 hashes and a 16-bit array. Keep these numbers fixed so the diagrams stay readable.\n- **Static diagram:** an empty array.\n\n## 3. Adding an item\n- Insert `alice`. Hash it 3 times, then set those 3 bits to 1.\n- Insert `bob` and `carol`. Show where the bits overlap.\n- **Static diagram:** the array after 3 inserts, with each item's bits color-coded.\n\n## 4. Checking an item\n- **Definitely not:** `dave` hashes to a position that is still 0.\n- **Probably yes:** `alice` finds all 3 bits set.\n- **False positive:** a username nobody added, whose 3 bits happen to be set by other items. Pick a real collision for the example.\n- Explain why there are no false negatives: bits are never cleared.\n\n## 5. ⭐ Interactive\nThis goes right after section 4, once the reader has the mental model. They can then experiment before reading the math.\n- A text input plus \"Add\" and \"Check\" buttons, backed by a visible bit array.\n- Hashed positions highlight on each action.\n- Check results are labelled \"definitely not present\" or \"possibly present.\"\n- A live readout shows the fill ratio and the estimated false-positive rate.\n- Sliders for array size (m) and hash count (k), and a \"preload N random items\" button, so the reader can push the filter toward saturation and see false positives climb.\n- A reset button.\n- A fallback for no-JS or screen readers: the static diagrams from sections 3 and 4.\n\n## 6. Why false positives happen, and how to tune them\n- Intuition first: as the array fills up, collisions get more likely.\n- Then the formula: p ≈ (1 − e^(−kn/m))^k.\n- The optimal k is (m/n)·ln 2.\n- A worked sizing example: 1 million usernames at 1% false positives needs about 9.6 bits per item.\n- **Optional static chart:** false-positive rate against bits per item, for a few values of k.\n\n## 7. Limitations\n- You can't delete items. Mention counting Bloom filters and cuckoo filters as alternatives.\n- The filter can't list what it holds.\n- The filter doesn't resize without a rebuild.\n\n## 8. Where Bloom filters show up\n- Browser safe-browsing checks.\n- Databases such as LSM-tree stores (Cassandra, RocksDB), which skip disk reads for missing keys.\n- CDN caches and spell-checkers.\n\n## 9. Recap and further reading\n- A 3-bullet summary.\n- Links: the original 1970 Bloom paper and a couple of implementation references.\n\n**Open questions for you:**\n- What framework or format does the blog use (MDX, Astro, plain HTML)? That decides how the interactive is embedded.\n- Should the math in section 6 stay short, or get a deeper derivation in a collapsible section?",
+      "graders": [
+       {
+        "name": "01-the-first-section-after-the-tl-dr-opens-with-a-c",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "02-a-naive-approach-such-as-storing-the-whole-set-o",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "03-the-outline-names-a-specific-failure-of-the-naive-",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "04-for-at-least-three-steps-between-sections-the-o",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "07-there-is-exactly-one-centrepiece-interactive-wit",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "08-the-tl-dr-may-state-what-a-bloom-filter-achieves",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "name": "outline-consistent-hashing",
+   "graders": [
+    {
+     "name": "01-opening-promises-a-use",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: The opening or the TL;DR names at least one specific place consistent hashing is used (a named system or setting, such as Dynamo, Cassandra, a CDN, a memcached client or a load balancer) as something the page will come back to. It FAILS if the opening speaks only of the problem in general terms, or names no use.\nFAIL if it does not hold, or the answer is too vague to tell."
+    },
+    {
+     "name": "03-applications-ordered-by-a-principle",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: Where the outline lists the places consistent hashing is used (caches, key-value stores such as Dynamo or Cassandra, load balancers, CDNs), it says what orders them: a principle or progression under which each use is the same ring in a larger or harder setting, for example each one adds one new thing or raises the cost of moving a key. A phrase stating that principle at the head of the list is enough. Judge only that list of uses: virtual nodes, replication or the implementation having sections of their own earlier in the outline must not fail it, and neither must a closing item on where not to use it.\nFAIL if the uses are a list or a tour by category with no stated order, or the outline says only what each system gets from the ring."
+    },
+    {
+     "name": "skill-fired",
+     "type": "tool_used"
+    }
+   ],
+   "arms": {
+    "with": [
+     {
+      "score": 1,
+      "answer": "# Outline: Consistent hashing\n\n**Working title:** \"Consistent hashing: adding a server without reshuffling every key\"\n\n**Reader:** An engineer who knows hash tables and has met a cache or database cluster. They are not assumed to know distributed-systems vocabulary.\n\n**The one question:** When you add a fifth cache server to four, how few keys can you move, and how do you get that few?\n\n**Running example:** A cache with 4 servers (A–D) and 20 named keys (`user:1` … `user:20`). The page uses the same keys throughout and recomputes the same counts at every step. The reader can later swap in their own server and key names in a playground.\n\n## Sections, in order\n\n1. **TL;DR** (required, straight after the hero)\n   - *For:* Slide 1.\n   - First bullet: the transferable takeaway, that hashing the servers as well as the keys makes a change move only about 1/N of the keys.\n   - Common-mistake bullet: \"`hash(key) % N` is fine until N changes.\"\n   - States the result but not the ring mechanism.\n\n2. **Opening: one server joins, and the cache goes cold**\n   - *For:* Creating the need. It names one real use as a promise (a cache tier or Dynamo-style store losing its hit rate on a resize) and asks the specific question above.\n   - Glosses \"consistent hashing\" in plain words and delays the ring and its vocabulary.\n   - Says who the page is for and what it skips.\n\n3. **A first try: `hash(key) % N`** (labelled provisional)\n   - *For:* The naive attempt, done concretely on the 20 keys over 4 servers.\n   - Works well on a hash table, which is why it is the reader's first guess.\n   - Includes a `details.predict`: \"Add a fifth server. How many of the 20 keys stay on the same server? Pick a number before you open this.\" The wrong options are \"almost all\" (the reader's hash-table intuition) and \"15 of 20\" (the 1/N intuition applied backwards). The answer is about 4 of 20 stay.\n\n4. **Where it cracks: the modulus changes under every key**\n   - *For:* Locating the failure. The server count sits inside the formula, so any change to N reshuffles nearly everything.\n   - Counts the moves in the example, then scales up: a cold cache means a stampede on the database.\n   - Names the property the fix must have: a key's home should depend only on the key and its neighbours, not on N. The page reuses that phrase when the fix arrives.\n\n5. **The fix: put servers and keys on the same circle**\n   - *For:* The mental model, taken through the toy.\n   - Uses a small ring of positions 0–99. Hash each server to a point. Each key walks clockwise to the first server it meets.\n   - Re-runs the 20 keys on this ring. Only now does it name the technique \"consistent hashing\" and \"the ring.\"\n   - Handle terms are introduced here with plain meanings (position, successor) and labelled on the figure.\n   - A `<bh-stepper>` walks one key, then all 20.\n\n6. **Adding and removing a server: only one arc changes hands**\n   - *For:* Paying off the \"depends only on neighbours\" property.\n   - Adds server E and shows that only keys between E and its predecessor move. Recomputes the count and compares it to section 4's number.\n   - Removes a server too, for symmetry.\n   - Fills in the 1/N claim: it holds on average, not for every placement. This is flagged as a promise for the next section.\n   - A `<bh-playground>` lets the reader add or remove servers or keys. Its default state already shows the small move count.\n\n7. **The crack in the ring: uneven arcs**\n   - *For:* The second need.\n   - With 4 random points, arc sizes differ a lot. The example shows one server holding 9 of the 20 keys while another holds 2.\n   - Names the tempting fix we decline (placing servers at even intervals) and why it fails once servers come and go.\n   - A `details.predict` asks how uneven it gets with N servers.\n\n8. **Virtual nodes: many points per server**\n   - *For:* The fix for section 7. Each server owns many small arcs, so loads average out.\n   - Ablation switch in the playground: turn vnodes off and watch the imbalance return.\n   - Tells the reader which details don't matter (the exact hash function).\n   - Boundary stated: everything after this changes cost or placement policy, not the idea.\n\n9. **Making it work in code**\n   - *For:* The engineering layer. A `<bh-codewalk>` builds lookup from a sorted array of points plus binary search (O(log N·v)) and wraps around at the end.\n   - Notes that the naive scan from section 5 is the oracle the fast version must agree with.\n   - Details such as hash choice and memory go in a `details.disclosure`, with the one-line upshot before the fold.\n\n10. **Where it gets used: the same ring under harder settings**\n    - *For:* Applications ordered by one stated principle: each use is this ring under a larger or harder condition. The principle is stated where the section opens, and each use names the one new thing it adds. It is not a tour.\n    - **Many nodes and data ownership** (Dynamo, Cassandra): vnodes plus replication on the next K successors.\n    - **Load and hot keys** (memcached clients, CDNs and load balancers): bounded-load variants.\n    - **Failure and membership change** (removing a dead node, handoff).\n    - **Alternatives, when the ring costs too much:** rendezvous hashing and Maglev (jump hash is a note). Says what each trades away.\n    - Returns to the opening's named system and answers it by name.\n\n11. **Recognising when to reach for it, and its limits**\n    - *For:* Teaching the trigger: \"keys map to a changing set of machines and moving data is expensive.\"\n    - Honest limits: it doesn't fix hot keys by itself, ranges, or ordering, and it assumes stable key hashes.\n    - A transfer check, as optional prose: \"Where would `% N` be fine?\" For example, a fixed-size shard count chosen once.\n    - Closes by answering the opening question with the section 3 and 6 numbers side by side.\n\n## Promises to track\n\n| Promise | Made | Paid |\n|---|---|---|\n| \"1/N on average\" | 6 | 7–8 |\n| Opening's named real system | 2 | 10 |\n| Lookup cost deferred | 5 | 9 |\n| Hot keys not solved | 7 | 10–11 |\n\n## Open choices for you\n\n- Whether to include the alternatives (rendezvous, Maglev) in section 10 or move them to a follow-up page. I lean towards a short mention, which keeps the page to one concept.\n- Whether the opening's real use should be Cassandra/Dynamo or a memcached tier. I lean towards memcached for the first example, because the cold-cache failure is immediate and easy to count.",
+      "graders": [
+       {
+        "name": "01-opening-promises-a-use",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-applications-ordered-by-a-principle",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "# Outline: Consistent hashing\n\n**Title (the takeaway):** \"Consistent hashing: how to add a server without reshuffling every key\"\n\n**Reader:** an engineer who knows hash tables and has heard of caches or sharding. The page assumes nothing about distributed systems beyond \"several machines hold the data\".\n\n**The one question:** when the number of servers changes, how can almost every key stay where it is, and how does each node still know where a key lives with no lookup table?\n\n**Running example:** a cache cluster with 12 keys, hashed to the integers 1–12 (invented, and labelled as invented). It starts on 3 servers and grows to 4. It is invented and small enough to compute by hand. Every section reuses it and recomputes its numbers. A playground on the reader's own keys comes in at the mechanism section.\n\n## Sections, in order\n\n1. **Hero and TL;DR**\n   - First bullet: the transferable idea. Place keys and servers in the same space, so that adding a server only takes over a neighbour's slice.\n   - \"Common mistake\" bullet: `hash(key) % N` is fine until N changes.\n   - It states the result (about 1/N of keys move, not most of them) but not the mechanism.\n   - **Purpose:** this is slide 1 in Present mode, and it gives readers who skim the result.\n\n2. **Opening: the 3-to-4 server problem**\n   - Open on a concrete failure: you add one cache server and your hit rate falls off a cliff. Name one real use here as a promise, such as a named cache tier or Dynamo-style store, to pay off in the applications section.\n   - Gloss \"consistent hashing\" in plain words. Do not name the ring yet.\n   - **Purpose:** create the need and state the specific question.\n\n3. **A first try: `hash(key) % N`** *(labelled provisional)*\n   - Place the 12 keys on 3 servers.\n   - **Purpose:** the naive attempt, shown concretely. Flag it as \"great while N never changes\".\n\n4. **The crack: grow to 4 servers**\n   - Recompute. Only keys 1, 2 and 12 stay put; 9 of 12 move.\n   - Show where it breaks: the modulus changes for every key, not only the ones near the new server.\n   - Name the property the fix must have: \"a key moves only if the new server takes it\".\n   - **Predict (`details.predict`):** \"With 100 keys going from 10 to 11 servers, how many move: about 10, about 50 or about 90?\" The answer is about 90. The wrong options come from the misconception \"one more server means about 1/N moves\".\n   - **Purpose:** locate the failure so that it points at the fix. Also show the cost: a cold cache, or a real data migration.\n\n5. **Fix: put servers and keys in the same space**\n   - Build it from the required property.\n   - Hash both servers and keys onto one circle. A key belongs to the first server clockwise from it.\n   - Walk the 12-key example on a `<bh-stepper>`: place 3 servers, assign keys, add a 4th server.\n   - Only now name it the \"hash ring\".\n   - **Purpose:** the key step, marked once as the key step. Recompute the example: only the keys in the new server's arc move, about 3 of 12 here.\n\n6. **Why it works, and what it costs** *(boundary)*\n   - Voice the objection \"haven't we just moved the problem to knowing where servers sit?\".\n   - Answer: every node can compute the ring from the server list alone, with no central lookup.\n   - Cover removal and failure, which hand an arc to the next neighbour.\n   - Declare the boundary between the idea and the engineering: lookup is a sorted array plus binary search, O(log N), and everything after that changes speed or balance, not correctness.\n   - **Purpose:** defend the reformulation and say what is guaranteed.\n\n7. **The crack in the ring: uneven arcs**\n   - With only 3 or 4 points, arcs are very unequal, and a failed server dumps its whole load on one neighbour.\n   - **Purpose:** raise the remaining flaw before the reader does.\n\n8. **Fix: virtual nodes**\n   - Each server gets many points on the ring.\n   - **Playground (`<bh-playground>`):** the reader sets the servers, the virtual nodes per server and the number of keys. A load histogram updates live. The default state already shows the imbalance shrinking as the count grows.\n   - **Ablation switch:** set virtual nodes to 1 and see the skew.\n   - Mention that weighted capacity falls out of this: bigger machines get more points.\n   - **Purpose:** an interactive that fixes a named failure of plain text, namely that skew is hard to feel from prose.\n\n9. **Where it is used: the same mechanism under bigger settings**\n   - State the ordering principle where the section begins: each use scales one dimension of the 3-to-4 example, and each adds one new thing.\n     - Cache clusters: more nodes, and misses as the cost of a bad move.\n     - Partitioned databases, Dynamo-style: replication on the next k nodes, plus failure.\n     - Load balancers with sticky routing: no data, only affinity, and \"bounded loads\" as the added fix.\n     - CDNs: huge scale and heterogeneous capacity.\n   - Pay off the use named in the opening by name.\n   - **Purpose:** show recognition, not a tour of uses.\n\n10. **Alternatives and limits** *(a `details.disclosure` fold, with the one-line upshot above it)*\n    - Rendezvous hashing, jump hash, and why the ring is not always the best choice.\n    - **Purpose:** depth for experts that does not slow the main line.\n\n11. **Ending**\n    - Answer the opening question by name, in numbers from the running example.\n    - Teach the trigger: reach for this when the node set changes and moving data is expensive.\n    - **Transfer check:** \"Your service routes by user ID across 8 workers, and you want to autoscale. Why does that break, and what would you change?\"\n    - **Purpose:** a checkable question before the end, since smooth reading is no evidence of learning.\n\n## Promise list\n\n| Promise | Where made | Where paid |\n|---|---|---|\n| Named real use | Opening | Applications section |\n| \"Mod is fine while N is fixed\" | Section 3 | Section 4 |\n| \"How do nodes know the ring?\" | Section 5 | Section 6 |\n| Uneven arcs | Section 6 | Section 8 |\n| Alternatives exist | Section 6 | Section 10 |\n\n## Open choices for you\n\n- Depth on replication and \"bounded loads\": I lean towards one paragraph each, in the applications section, with a fold for detail.\n- Whether to include code. I'd suggest a short `<bh-codewalk>` of the sorted-array lookup in section 6, if you want the page to end hands-on.",
+      "graders": [
+       {
+        "name": "01-opening-promises-a-use",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-applications-ordered-by-a-principle",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "# Outline: Consistent hashing\n\n**Reader:** an engineer who knows hash tables and `hash(key) % n`, but hasn't met a distributed cache or sharded store. They get no ring, vnode or replication background up front.\n\n**One question the page answers:** when you add or remove a server, how can you move only the keys that have to move?\n\n**Running example:** 12 keys (`k0`…`k11`) on a cache cluster that grows from 3 servers to 4. The numbers are small enough to list by hand.\n- With `k mod n`, 9 of the 12 keys move.\n- The minimum possible is 3 of 12, the 1/4 that the new server must own.\n- The page's job is to close the gap between 9 and 3.\n- Readers can later edit this cluster in a playground (their own keys, add or remove servers).\n\n**Hook:** in the opening, name one real use, such as a memcached tier where adding one server turns about three quarters of lookups into misses.\n\n---\n\n1. **Hero + TL;DR** (required, slide 1)\n   - *Purpose:* state the result without the mechanism.\n   - First bullet: the transferable idea, that a placement rule should depend only on the keys and servers near it, not on the total count.\n   - Common-mistake bullet: \"`hash % n` is fine for sharding\" holds only if n never changes.\n\n2. **Opening: one server joins, most of the cache goes cold**\n   - *Purpose:* create the need.\n   - Open on the memcached tier and its miss spike. Gloss \"consistent hashing\" in plain words, but don't explain the mechanism.\n   - State the question with numbers: 3 → 4 servers, how few keys can move?\n\n3. **A first try: `hash(key) % n`** (labelled provisional in the heading)\n   - *Purpose:* the naive attempt, done concretely.\n   - Table the 12 keys under n=3 and n=4.\n   - Show it is a perfectly good scheme while n is fixed.\n\n4. **Prediction (`details.predict`): how many of the 12 keys move?**\n   - *Purpose:* commit the reader before the crack. Options: 3, 6, 9.\n   - The reveal is 9, i.e. 3/4. The reasoning is that `k mod 3` and `k mod 4` agree only when k is small.\n   - Each wrong option maps to a misconception: \"only the new server's share moves\", or \"about half\".\n\n5. **Where it cracks: n is in every key's address**\n   - *Purpose:* locate the failure and name the property the fix needs.\n   - The minimum is 3 moved, and the lower bound is \"the new server's fair share only\".\n   - The requirement to reuse later: a key's home must not depend on how many servers exist.\n   - Also cover removal and failure, which crack the same way.\n\n6. **The fix: put servers and keys on the same circle**\n   - *Purpose:* the key step, marked as such, with one idea.\n   - Hash servers onto a ring and hash keys onto the same ring. A key belongs to the first server clockwise.\n   - Walk the 12 keys on a `<bh-stepper>`.\n   - Name the idea here, and answer \"haven't we just moved the problem?\": servers and keys now share one coordinate space, so a server's neighbours don't change when another is added.\n\n7. **Add the 4th server: only 3 keys move** (payoff of the opening)\n   - *Purpose:* re-run the running example and hit the bound from section 5.\n   - The new server takes over only its arc. Show that all moved keys come from one neighbour.\n   - Removal is the mirror image.\n   - Pay off the 9-vs-3 gap by name.\n\n8. **Prediction: with one point per server, is the load even?**\n   - *Purpose:* expose the second crack before stating it.\n   - Reveal: arcs have random lengths, so with 3–4 points one server can own most of the ring.\n   - Include a diagnostic view of arc sizes.\n\n9. **Virtual nodes: many points per server**\n   - *Purpose:* the second naive-crack-fix loop.\n   - Each server gets, say, 100 points. Arcs average out and load variance shrinks as points increase.\n   - A `<bh-playground>` lets the reader set the vnode count and watch the load histogram, with an ablation switch (vnodes off).\n   - Cover weighting: a bigger machine gets more points.\n   - State the cost: the lookup table is larger, and a lookup is a binary search over a sorted array.\n\n10. **Details that make it production-shaped** (mostly `details.disclosure`, with the one-line upshot before each fold)\n    - *Purpose:* mechanics the main line doesn't need.\n    - Lookup cost.\n    - Replication: walk clockwise to the next N distinct physical servers.\n    - Hash choice.\n    - Alternatives: rendezvous hashing, jump hash, Maglev, bounded-load variants, each with the one property it trades.\n\n11. **Where it's used: the same mechanism as a moved key gets more expensive**\n    - *Purpose:* order the applications by one stated principle, with one new thing each.\n    - **Cache tier** (memcached clients, CDNs): a moved key is one miss. This is the opening case. Nothing new.\n    - **Load balancers** (Envoy ring hash, Maglev): a moved key is a broken session or connection. New: balance matters more, because a few hot keys dominate.\n    - **Sharded stores** (Dynamo, Cassandra, Riak): a moved key is data to stream. New: replication and rebalancing.\n    - Add a short \"when not to use it\" note: range partitioning, or a directory service when you need control over placement.\n\n12. **Ending**\n    - *Purpose:* pay off the opening question by name: 3 of 12, not 9.\n    - Teach the trigger: reach for this whenever placement must survive a changing set of nodes.\n    - Include one transfer check, an optional exercise: \"a 5th server joins. Which keys move, and from where?\"\n    - Honest calibration: it minimises movement, not imbalance or hot keys.\n\n---\n\n**Promise list to track**\n- Section 3's \"fine while n is fixed\" is paid off in section 5.\n- Section 6's \"one point per server\" is a simplification, flagged for section 9.\n- The opening's memcached use is paid off in section 11.\n- The \"replication\" deferral in section 10 is paid off in the Dynamo/Cassandra application in section 11.\n\n**Name table:** \"server\" (not node/shard/bucket), \"ring\", \"arc\", \"virtual node\", \"key\".\n\nI'd write this to a draft file once you've picked the title and checked the glossary terms. I haven't looked at the repo's templates or CLAUDE.md, so the section order may need adjusting to the house shape.",
+      "graders": [
+       {
+        "name": "01-opening-promises-a-use",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-applications-ordered-by-a-principle",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     }
+    ],
+    "without": [
+     {
+      "score": 0,
+      "answer": "# Outline: Consistent Hashing Explained\n\n**Audience:** Engineers who know hash tables and have probably never had to spread one across machines.\n\n**Running example:** A cache cluster of 4 servers (`cache-a` through `cache-d`) holding user session keys like `user:1842`. Midway through, we add `cache-e`, then lose `cache-b`. Every section comes back to the question \"how many keys have to move?\"\n\n## 1. The problem: a hash table that doesn't fit on one machine\n**Purpose:** Motivate the topic by stretching something the reader already knows. Introduce the cluster and the keys. Define the goal: any client can compute which server owns a key, with no central lookup table.\n\n## 2. The obvious answer: `hash(key) % N`\n**Purpose:** Build the naive baseline and show it works, so the failure that follows is surprising. Walk through placing 8 sample keys on 4 servers in a small table.\n\n## 3. Why it breaks when N changes\n**Purpose:** Create the pain point. Change N from 4 to 5 and recompute the same 8 keys. Most of them move, which means a cache stampede on the database. State the general result: about (N−1)/N of keys remap. Define the target: when a node is added or removed, only about 1/N of keys should move.\n\n## 4. The core idea: hash onto a ring\n**Purpose:** Introduce the one mental model the rest depends on. Hash servers and keys into the same space, drawn as a circle. Each key belongs to the first server found going clockwise. Include a diagram of the 4 servers and a few keys.\n\n## 5. Adding and removing a node\n**Purpose:** Pay off the promise from section 3. Add `cache-e` and show that it takes keys only from its clockwise neighbor. Remove `cache-b` and show that its keys fall to the next node. Count the moved keys and compare with the modulo version from section 3.\n\n## 6. Problem with the basic ring: uneven load\n**Purpose:** Be honest about the limits. With only 4 points on the ring, arc sizes are random, so one server can own far more than its share. After a removal, one neighbor absorbs all the displaced load.\n\n## 7. Virtual nodes\n**Purpose:** Fix section 6. Each physical server gets many points on the ring (e.g. 100–200). Cover how this evens out load, spreads a failed node's keys across many survivors, and lets you weight bigger machines. Note the tradeoff: more ring metadata and a slightly slower lookup.\n\n## 8. Implementation sketch\n**Purpose:** Make it concrete. Show a sorted array of hash points and a binary search for lookup, in about 20 lines of pseudocode or Python. Cover the wraparound case and the choice of hash function (it needs good distribution, not cryptographic strength). Give complexity: O(log(N·v)) per lookup.\n\n## 9. Where it's used in practice\n**Purpose:** Show that this matters beyond the toy example. Group the examples by what each one is solving:\n- **Distributed caches and clients:** memcached client libraries (ketama).\n- **Databases:** Dynamo-style stores such as Cassandra and Riak, which partition data across nodes.\n- **Load balancing and routing:** sticky routing by key, CDN request routing, and the origin of the idea in Akamai.\n- **Variants worth a pointer:** rendezvous hashing and jump consistent hash, plus bounded-load consistent hashing.\n\nVerify each claim before publishing, since implementations differ in detail (for example, Cassandra's token and vnode design).\n\n## 10. Limits and when not to use it\n**Purpose:** Calibrate the reader's judgment. Cover:\n- It doesn't handle replication by itself. You walk to the next K distinct nodes.\n- Hot keys still overload one node.\n- Data movement still needs orchestration.\n- If the cluster size is fixed, modulo or a lookup table is simpler.\n\n## 11. Takeaways and further reading\n**Purpose:** Close with a three-sentence summary and links to the original 1997 Karger et al. paper, the Dynamo paper, and the jump hash and rendezvous hashing references.\n\n**Optional extra:** An interactive or static ring diagram that is reused in sections 4, 5, and 7, with the same 4 servers and the same keys each time so the reader can compare.\n\nI haven't looked at the blog's existing posts, so I haven't matched its tone, length or code-sample conventions. I can check a few posts and adjust the outline if you want.",
+      "graders": [
+       {
+        "name": "01-opening-promises-a-use",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "03-applications-ordered-by-a-principle",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       }
+      ]
+     },
+     {
+      "score": 0,
+      "answer": "# Outline: Consistent Hashing Explained\n\n**Audience:** Engineers who know how a hash table works but haven't dealt with distributed data placement.\n\n**Running example:** A cache cluster of 4 servers (A–D) holding user-session keys such as `session:8f3a`. We add a fifth server (E) during a traffic spike, then lose one (B) to a crash. The same cluster is used in every section, so readers watch one system change.\n\n## 1. The problem: scaling a hash table across machines\n- **Content:** Start from the familiar `hash(key) % N` and apply it to servers instead of buckets. Show it working fine on 4 servers.\n- **Purpose:** Establish the setup using what the reader already knows, and make \"which server owns this key?\" the central question.\n\n## 2. Why modulo breaks when N changes\n- **Content:** Go from 4 servers to 5 in the example. Show a small table of keys and their old and new owners. Roughly 80% of keys move, and in a cache that means a wave of misses hitting the database.\n- **Purpose:** Make the pain concrete. The reader should want a scheme where adding a server moves about 1/N of the keys, not nearly all of them.\n\n## 3. The core idea: hash servers and keys onto the same ring\n- **Content:** Treat the hash output space as a circle. Place A–D on it by hashing their names. Place each key on the ring and assign it to the next server clockwise. Include a diagram.\n- **Purpose:** Introduce the one mental model everything else builds on. Keep it free of code and caveats.\n\n## 4. Adding and removing servers\n- **Content:** Add E and show that it takes keys only from its clockwise neighbor's range. Crash B and show its keys falling to the next server. Compare the fraction of keys moved with section 2.\n- **Purpose:** Pay off the promise from section 2 and show the \"minimal disruption\" property.\n\n## 5. Making it work in practice: virtual nodes\n- **Content:** Show how a few random ring positions give uneven load. For example, A might own 40% of the ring. Fix it by giving each server many virtual nodes (e.g. 100–200). Cover the benefits: smoother balance, weighting by capacity, and spreading a failed server's load across many survivors instead of one.\n- **Purpose:** Answer the first objection a skeptical reader will have, and move the explanation from toy model to real design.\n\n## 6. A minimal implementation\n- **Content:** About 25 lines: a sorted array of hashes, a binary search for lookup, and add/remove methods. Mention the hash function choice (uniformity matters, cryptographic strength doesn't) and the wraparound at the end of the array.\n- **Purpose:** Show the idea is small, and give readers something to run. It also links the ring back to data structures they know.\n\n## 7. Where it's used in practice\n- **Content:** Short, concrete examples of the problem each one solves:\n  - **Caches and load balancers:** memcached client libraries, and CDN or L7 routing that needs sticky placement.\n  - **Distributed databases:** Dynamo-style stores and Cassandra, using the ring plus replication to the next N nodes.\n  - **Sharded systems:** partitioning in messaging and storage systems.\n- **Purpose:** Answer \"so what?\" and show the range of uses. Note that some systems use alternatives, which sets up the next section.\n\n## 8. Limits and alternatives\n- **Content:** Cover hot keys (hashing doesn't fix skew in the workload), the memory and lookup cost of many virtual nodes, and how replication and rebalancing are handled on top of the ring. Briefly name the alternatives: rendezvous (HRW) hashing, jump consistent hash, and fixed hash slots as in Redis Cluster. Say when each is a better fit.\n- **Purpose:** Keep the post honest and give readers the next thing to look up, so they don't leave thinking the ring is always the answer.\n\n## 9. Recap\n- **Content:** Three or four bullets: the modulo problem, the ring, virtual nodes, and where to use it.\n- **Purpose:** Give skimmers and returning readers a quick reference.\n\n**Suggested length:** 1,500–2,000 words, with 3–4 diagrams (the modulo reshuffle, the ring, adding a node, and virtual nodes).",
+      "graders": [
+       {
+        "name": "01-opening-promises-a-use",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "03-applications-ordered-by-a-principle",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       }
+      ]
+     },
+     {
+      "score": 0,
+      "answer": "# Outline: Consistent Hashing, Explained\n\n**Audience:** engineers who know hash tables, but haven't thought about spreading data across machines.\n\n**Running example:** a distributed cache of 4 servers (A, B, C, D) holding user-session keys like `user:1842`. Midway through, we add server E, then lose server B. The same cache and the same keys appear in every section, so the reader can watch what moves.\n\n## 1. The problem: a hash table that spans machines\n- **Content:** Introduce the 4-server cache and the obvious scheme, `server = hash(key) % N`.\n- **Purpose:** Anchor in what the reader already knows (bucket index = hash mod size), and pose the question \"what are the buckets now?\"\n\n## 2. Why `mod N` breaks when N changes\n- **Content:** Add server E, so N goes from 4 to 5. Show with concrete numbers that roughly 80% of keys now map to a different server. The result is a cold cache, a thundering herd on the database, and the same again when a server dies.\n- **Purpose:** Make the pain concrete. The goal is that when adding or removing a node, only about 1/N of keys should move.\n\n## 3. The core idea: hash onto a ring\n- **Content:**\n  - Hash servers and keys into the same space, drawn as a circle.\n  - A key belongs to the first server clockwise from it.\n  - Walk through the 4-server ring with a handful of keys marked.\n- **Purpose:** Build the mental model. This is the central diagram of the post.\n\n## 4. Adding and removing nodes\n- **Content:** Add E to the ring and show that only the keys between E and its predecessor move. Remove B and show that its keys fall to its clockwise neighbor. Compare the fraction of keys moved against section 2.\n- **Purpose:** Deliver the payoff, minimal data movement.\n\n## 5. Problem: uneven load, and virtual nodes\n- **Content:** With only 4 points on the ring, the arcs are lopsided, and when B dies, C absorbs all of its load. Fix this by hashing each server to many positions (e.g. `A#1…A#100`). This evens out load, spreads a failed node's keys across all survivors, and lets you weight bigger machines.\n- **Purpose:** Show that the naive ring isn't enough, and explain the refinement every real system uses.\n\n## 6. Implementation sketch\n- **Content:** A short code snippet: a sorted array of (hash, node) pairs, plus binary search with wraparound for lookup. State the cost: O(log n) lookup, with O(v log n) work to add or remove a node, where v is the number of virtual nodes per node. Mention that the hash function should be well-distributed, not necessarily cryptographic.\n- **Purpose:** Show the idea is small enough to implement, and give readers something to try.\n\n## 7. Where it's used in practice\n- **Content:** One short paragraph per system, each saying what is being partitioned:\n  - **Dynamo-style stores** (Dynamo, Cassandra, Riak): partitioning data across nodes, with replication on the next N nodes of the ring.\n  - **Memcached client libraries** (ketama): the cache example from this post.\n  - **Load balancers and CDNs** (e.g. Maglev, Envoy ring hash): sticky routing of requests to backends.\n  - **Sharded databases and object stores**: keeping rebalancing cheap.\n- **Purpose:** Connect the concept to systems the reader may already operate. I'd verify each of these claims against current docs before publishing.\n\n## 8. Alternatives and trade-offs\n- **Content:** Briefly cover rendezvous (highest-random-weight) hashing, jump consistent hash, and Maglev hashing, plus fixed-partition schemes (Redis Cluster's 16384 slots, Kafka partitions). Say when each is a better fit, and mention that the ring can still have hot keys, which hashing doesn't fix.\n- **Purpose:** Be honest about limits and point readers to the next step, so they don't treat the ring as the only answer.\n\n## 9. Takeaways\n- **Content:** Three or four bullets: `mod N` reshuffles almost everything, the ring moves only about 1/N, virtual nodes fix imbalance, and it's a building block rather than a whole system.\n- **Purpose:** Give the reader something to remember and reuse.\n\n**Optional extras:** An interactive or animated ring diagram for sections 3–5, and a small simulation script that counts moved keys for `mod N` versus the ring, to back up the claims in sections 2 and 4.",
+      "graders": [
+       {
+        "name": "01-opening-promises-a-use",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       },
+       {
+        "name": "03-applications-ordered-by-a-principle",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}

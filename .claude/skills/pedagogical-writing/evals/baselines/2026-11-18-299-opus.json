@@ -1,0 +1,373 @@
+{
+ "format": "bh-eval-baseline/1",
+ "startedAt": "2026-11-18T08:09:12.105Z",
+ "claudeVersion": "2.1.318",
+ "models": {
+  "agent": "claude-sonnet-5-5",
+  "judge": "claude-sonnet-5-5"
+ },
+ "ablation": "with-without",
+ "commit": "7affb26",
+ "cases": [
+  {
+   "name": "prompt-opus-explainers",
+   "graders": [
+    {
+     "name": "01-point-first",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: It proposes an instruction that each section (or paragraph) states its point in its first sentence or two, before the supporting example and reasons.\nFAIL if it only asks for shorter or tighter sections, or never addresses where the point goes."
+    },
+    {
+     "name": "02-show-consequence",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: It replaces announcements of importance (\"This matters.\") with an instruction to show why through a consequence, a number or a concrete case, rather than only banning the phrases.\nFAIL if it only bans or deletes the phrases without saying what to write instead."
+    },
+    {
+     "name": "03-no-self-revision",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: It says not to rely on the model applying its own critique, and proposes a different way: list the problems and rewrite in a separate request with the list in hand, have another model or a person fix the order, or similar.\nFAIL if it recommends the same critique-then-revise loop the user already tried, or does not address why it failed."
+    },
+    {
+     "name": "04-drops-summary-line",
+     "type": "llm",
+     "criteria": "PASS if this holds of the answer: It tells the user to remove or replace the \"high-level summary unless an in-depth one is specifically requested\" line for teaching drafts, because it works against explaining in depth.\nFAIL if it keeps that line, or never mentions it."
+    },
+    {
+     "name": "05-effort",
+     "type": "regex"
+    },
+    {
+     "name": "skill-fired",
+     "type": "tool_used"
+    }
+   ],
+   "arms": {
+    "with": [
+     {
+      "score": 1,
+      "answer": "Your system prompt is probably part of the problem, and your critique-then-revise loop is set up in a way that tends to fail with this model.\n\n**1. Remove the conciseness line.** Delete \"give a high-level summary unless an in-depth one is specifically requested\" from your teaching prompt. Opus 5.5 follows instructions literally, so for an explainer it will default to the high-level summary and then pad around it. Edit the prompt in place rather than adding a counter-rule below it. Search it for \"concise\", \"brief\", \"short\" and \"high-level\" while you're there. State each rule once.\n\n**2. Add a base prompt that says what to leave out, not how long to be.** Fill in the reader and goal, and write it as paragraphs, because the prompt's formatting tends to carry into the output:\n\n```text\nReader: <who they are; what they already know; what they don't>.\nGoal: after one read, the reader can <do X / predict Y> without help.\n\nWrite to be understood on the first read. An explanation the reader has to reread or decode\nhas failed. Leave out what this reader does not need, but never compress what they do need\ninto fragments, abbreviations or jargon.\n\nEvery explanation states the question or problem it answers before the answer. It works one\nexample with real numbers step by step for the reader before giving the general rule, gives\nthe reason for each step (\"because ...\") and not only the step, and says under which\nconditions each claim holds and what its exceptions are.\n\nPut each section's point in its first one or two sentences, then the example and the reasons\nthat support it.\n\nDefine each technical term in plain words when it first appears, after the reader has seen\nwhat it names; then use the same term for that thing throughout. Do not coin labels or\nhyphenated compounds. No arrows or shorthand in prose. Write paragraphs; use a list only for\nparallel items or steps the reader performs. Name the relation between sentences: \"because\",\n\"so\", \"but\".\n\nPrecision: simplify the wording and the order of ideas, never the claim. Keep every number,\ncondition, exception and qualifier. If a simplification is only approximately true, say so\nand say how far off it is.\n```\n\nThe \"point in the first one or two sentences\" paragraph targets your editor's complaint directly. Opus 5.5 reads very easily but buries the point: one review had it using 37–39 sentences where a human editor used 21.\n\n**3. Add an Opus-specific line for \"This matters.\"** Stock salience phrases like that one are still its most common tic:\n\n```text\nWhen something matters, show why through its consequence, with a number or a case, instead\nof saying that it matters. No bold lead-ins on list items. Say what you mean literally: when\na literal phrase exists (\"a parameter worth varying\"), do not use a figure of speech (\"a dial\nworth turning\").\n```\n\nPut style lines like this in the first user turn, not only the system prompt. They held better there in Anthropic's tests on a related model.\n\n**4. Split critique and revision into separate requests.** Opus 5.5 can correctly diagnose a paragraph and then write a revision that ignores its own diagnosis, so self-critique inside one call doesn't help much. Instead:\n\n- **Call 1 (cold read):** \"Reread this as a newcomer who has read it once and taken no notes. List every place they would stop to work out the meaning. Then list every sentence that says something matters without showing why.\" Ask for the list only.\n- **Call 2:** Pass the draft and that list, and ask for a rewrite of only those places.\n- **Alternative:** Move each section's point to the top yourself. Or give a scoped pass to Sonnet 5.5, which reviews better than it drafts: \"Move each section's point to its first two sentences; change nothing else.\" That pairing hasn't been tested on explanatory prose.\n\n**5. Check that the revision kept the content.** List every claim, condition, exception and reason in the draft, then confirm the rewrite keeps them. Tightening can swap a precise term for a vague one, and the reader then leaves confident and wrong.\n\n**6. Settings.** Opus 5.5 defaults to `medium` effort. Draft at `high` or above, where reviewers saw less padding.\n\n**Structure beyond the prompt.** \"Takes forever to reach the point\" can also be a section-design problem. A prompt can only push so far here. Each section should open with the need (a puzzle or a failure), then a naive attempt, then where it breaks, and only then the fix and its name. If a section says \"this is the key insight\" without a crack beforehand, the reader hasn't seen what the insight fixes. Putting that need-then-crack order in your outline gives the model something to follow that \"show, don't tell\" doesn't.\n\nThese model findings come from vendor guides, a few reviews and forum reports, not controlled tests on explanatory prose. Run the before and after on three or four of your own sections and see whether your editor's complaint actually shrinks.",
+      "graders": [
+       {
+        "name": "01-point-first",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-show-consequence",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-no-self-revision",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-drops-summary-line",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-effort",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "Your editor's complaints match what's known about Opus 5.5, and your own setup is probably making them worse. The evidence is vendor guides and a few outside reviews, not controlled tests on explanatory prose. Treat each change below as something to test on your own passages.\n\n## 1. Remove the conciseness line\n\nDelete \"when asked to explain something, give a high-level summary unless an in-depth one is specifically requested.\" Anthropic's guide treats the Opus 5 patterns as a starting point, and this line is aimed at chat answers, not teaching prose. Opus 5.5 follows instructions literally, so it applies the line to every section. A \"high-level summary\" gives you slow openings and salience flags like \"This matters.\" In a summary, it's cheaper to say a thing is important than to show it. Also search the rest of your prompt for \"concise\", \"brief\" and \"short\". A leftover brevity rule beats a later request for depth. Edit the conflicting rule where it sits. Don't append a new paragraph that contradicts it.\n\n## 2. Add explicit rules about the point and the \"why\"\n\nPut these in the first user turn, not the system prompt. Style instructions held better there in Anthropic's measurements.\n\n```text\nReader: <who they are; what they already know; what they don't>.\nGoal: after one read, the reader can <do X / predict Y> without help.\n\nPut each section's point in its first one or two sentences, then the\nexample and the reasons that support it. Every explanation states the\nquestion it answers before the answer, works one example with real\nnumbers before giving the general rule, and gives the reason for each\nstep (\"because ...\").\n\nWhen something matters, show why through its consequence, with a number\nor a case, instead of saying that it matters. No bold lead-ins on list\nitems. Say what you mean literally: when a literal phrase exists, do\nnot use a figure of speech.\n\nSimplify the wording and the order of ideas, never the claim. Keep every\nnumber, condition, exception and qualifier.\n```\n\nFill in a real reader and goal. A prompt that names no reader gets prose written for no one. The block deliberately has no length rule. It says what to leave out, so it won't clash with the removed brevity line.\n\n## 3. Don't ask for self-critique and revision in one request\n\nOpus 5.5 can diagnose what a paragraph needs and then write a revision that ignores its own diagnosis. That matches what you're seeing. Split it into separate calls:\n\n1. **Draft.**\n2. **Diagnose, in a fresh call.** Give it only the draft: \"Reread this as a newcomer who has read it once and taken no notes. List every place they would stop to work out the meaning, and every sentence that says something matters without showing why.\"\n3. **Rewrite, in a second call** with the list in hand. Ask it to rewrite only those places.\n\nFor burying the point, you can also move each section's point into its first two sentences yourself. Sonnet 5.5 is reported to be a better reviser than drafter. A scoped \"move each section's point to its first two sentences; change nothing else\" pass is worth trying, though that pairing hasn't been tested on explanatory prose.\n\n## 4. Settings\n\nOpus 5.5's effort defaults to `medium`. Draft at `high` or above, where reviewers saw less padding.\n\n## 5. Check precision after each rewrite\n\nRewrites tend to fail in two ways. Jargon can stay untranslated. A precise term can also be swapped for a vague one, which leaves the reader confident and wrong. List the claims, conditions, exceptions and reasons in the draft before the rewrite. Then confirm the rewrite keeps all four.\n\n## How to test it\n\nPick three or four sections your editor flagged and run them before and after. Track sentences before the point appears, and count \"This matters\"-style phrases. That will show you which change did the work.\n\nIf you want a deeper review of a specific draft, paste a section and I can mark where the point is buried.",
+      "graders": [
+       {
+        "name": "01-point-first",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-show-consequence",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-no-self-revision",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-drops-summary-line",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-effort",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "Your system prompt is part of the cause, and your critique-then-revise step has a known weakness. Four changes, in order of expected impact:\n\n**1. Remove the conciseness line.** \"Give a high-level summary unless an in-depth one is specifically requested\" pushes Opus 5.5 toward a gesture at the idea instead of a worked explanation. Opus follows instructions literally, so a leftover brevity rule will beat any later request for depth. Delete it where it sits, and don't add a competing paragraph elsewhere. Search the rest of your prompt for \"concise\", \"brief\" and \"short\" as well.\n\n**2. Add a base prompt for teaching prose.** Name the reader and the goal, and say what to leave out instead of how long to be. For example:\n\n```text\nReader: <who they are; what they already know; what they don't>.\nGoal: after one read, the reader can <do X / predict Y> without help.\n\nWrite to be understood on the first read. Leave out what this reader does not need, but never compress what they do need into fragments or jargon.\n\nEvery explanation states the question it answers before the answer. Put each section's point in its first one or two sentences, then the example and the reasons that support it. Work one example with real numbers before giving the general rule, and give the reason for each step (\"because ...\"), not only the step.\n\nDefine each technical term in plain words when it first appears, after the reader has seen what it names, and use the same term throughout. Write paragraphs; use a list only for parallel items or steps the reader performs.\n\nSimplify the wording and the order of ideas, never the claim. Keep every number, condition and exception.\n```\n\n**3. Target the \"This matters.\" habit directly.** Opus 5.5 still produces salience flags more than any other stock phrase, and it buries the point, using roughly 37–39 sentences where an editor would use about 21. Add this:\n\n```text\nWhen something matters, show why through its consequence, with a number or a case, instead of saying that it matters. No bold lead-ins on list items. Say what you mean literally; do not use a figure of speech when a literal phrase exists.\n```\n\nPut the style lines in the first user turn, not the system prompt. In Anthropic's testing on a related model, they held better there.\n\n**4. Split critique and revision into two requests.** Opus can diagnose what a paragraph needs and then write a revision that ignores its own diagnosis. This is probably why your revisions don't fix anything. Instead:\n\n- **Call 1:** \"Reread this as a newcomer who has read it once and taken no notes. List every place they would stop to work out the meaning, and every sentence that says a point matters without showing it.\" Output only the list.\n- **Call 2:** Send the draft and the list. Ask it to rewrite only those places.\n\nReordering a section yourself, so the point comes first, is often faster than asking for it. You could also run call 2 on Sonnet 5.5, which is reportedly better at scoped revisions. The suggested instruction is \"Move each section's point to its first two sentences; change nothing else.\" That pairing is untested on explanatory prose.\n\n**Settings.** Draft at `high` effort or above. The default is `medium`, and reviewers saw less padding at higher effort.\n\n**Caveats.**\n- These findings come from vendor guides and a few outside reviews, not controlled tests on explanatory prose. Treat them as hypotheses.\n- Run before and after on two or three of your own sections. Keep a section's draft and your editor's marked-up version, and check whether the point now lands in the first two sentences.\n- Check that the rewrite didn't hollow out the content. Compare claims, conditions and exceptions against the earlier draft. A more direct revision can silently drop a qualifier.\n\nI can also draft a version of the base prompt filled in for your blog's actual readers if you tell me who they are.",
+      "graders": [
+       {
+        "name": "01-point-first",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-show-consequence",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-no-self-revision",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-drops-summary-line",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-effort",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     }
+    ],
+    "without": [
+     {
+      "score": 1,
+      "answer": "I'd start by deleting the \"high-level summary\" clause. It's the most likely cause. I haven't run your prompts, so treat that as a hypothesis and A/B it.\n\n## Why that line hurts you\n\nThe Opus 5 guide added that sentence to a chat-oriented conciseness instruction. Its aim is to cut the length of conversational replies. A blog explainer is a different job. A high-level summary of something is mostly claims about it, and \"This matters\" and \"This is the key insight\" are what a summary says when it has no mechanism or example to point to. The model is doing what you asked, and it's the wrong ask for this use.\n\nThe rest of that conciseness block is also tuned for chat, so I'd drop it from this pipeline. The guide suggests replacing it with an instruction tied to the kind of output you want.\n\n## Why self-critique doesn't fix it\n\n- The same model reading its own draft has the same blind spots. It thinks \"This matters.\" is fine, because that's the draft it just wrote.\n- The guide notes that re-check phrasing like \"double-check\" tends to trigger extra work rather than better work on this model family. It also says separate fresh-context verifiers do better than self-critique.\n- A better fix is to specify the target up front, so the first draft doesn't need rescuing.\n\n## What I'd change\n\n**1. Use a task-specific prompt for explainers instead of the generic one.** For example:\n\n```\nYou're drafting an explainer for a blog audience of [who, and what they already know].\n\nOpen each section with its point, in one or two sentences a reader could\nquote on their own. Then support it. Don't build up to the point.\n\nNever assert that something matters, is key, or is important. Show it: give\nthe concrete consequence, the number, the failure case, or the example that\nmakes the reader feel it. If you can't, cut the sentence.\n\nExplain mechanisms, not conclusions. For each idea, say what happens, then\nwhy it happens. Prefer one worked example over three abstract statements.\n\nWrite complete sentences in plain language. Say the literal thing rather\nthan a metaphor or flourish. Length should match what the topic needs.\nCover the substance without padding or recap sections.\n```\n\nThe pieces come from the guide's own recommendations. \"Lead with the outcome\" is adapted from its communication block, the plain-language line from its \"mannered prose\" guidance, and the no-padding line from its deliverables guidance. The \"show, don't assert\" rule is my addition.\n\n**2. Add one before/after pair.** The guide says positive examples of the target work better than \"don't\" rules. Take a real paragraph from your drafts that your editor flagged and one you'd accept, then include both with a note on what changed. Use your own text so the voice matches.\n\n**3. Give the reason.** Add something like \"Readers abandon an explainer when a section doesn't state its point early, and they distrust claims of importance that aren't demonstrated.\" The guide says newer models do better when they know the intent.\n\n**4. Put the style rules in the user turn too.** For Fable 5.1, the guide says style instructions hold better in the first user turn than in the system prompt. I haven't seen that stated for Opus 5.5, but it costs nothing to try.\n\n**5. Replace self-critique with a targeted check, if you still want one.** A separate call with a fresh context and a narrow brief works better than \"critique and revise\". For example: \"List every sentence that claims significance without showing it, and every section whose point isn't in its first two sentences.\" Then revise only those. A simple regex for \"This matters\", \"key insight\" and similar phrases also catches the worst offenders cheaply.\n\n**6. Set `effort` explicitly.** On Opus 5.5 the default is `medium`, and the guide says to set it yourself. Don't expect effort to change length or style, though. The guide says prompting is the lever there. Higher effort might improve how well the model reasons about what a section is for, so test `high`.\n\n## How to test\n\nRun 5 to 10 of your usual topics through the old and new prompts and have your editor compare them blind. If the first drafts improve, you can likely drop the self-critique pass entirely, which also saves tokens.\n\nIf you'd like, paste your current system prompt and one flagged section. I can draft the replacement against your real text.",
+      "graders": [
+       {
+        "name": "01-point-first",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-show-consequence",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-no-self-revision",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-drops-summary-line",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-effort",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 0.8,
+      "answer": "The line you quoted is the likeliest cause, and it's the wrong tool for this job.\n\n**Why it backfires**\n\n- **What the line is for.** Anthropic's guide gives it as a conciseness snippet for conversational replies. It cut user-facing length by about 20% in their tests. The guide treats written deliverables as a separate case.\n- **What it does to an explainer.** \"High-level summary\" tells the model to stay at the altitude of the topic. An explainer that stays there has no mechanism or example to show, so it announces importance (\"This matters\", \"This is the key insight\") instead of demonstrating it.\n- **The slow openings.** Sections that take forever to reach the point are probably the same problem. The model orients and frames before it commits to a claim.\n\n**What to change**\n\n1. **Remove that sentence from the explainer route.** Keep it for any chat-style route. For the blog route, use the guide's wording for written deliverables: *\"Match the length of written deliverables to what the task needs: cover the substance, but do not pad with filler sections, redundant summaries, or boilerplate.\"*\n\n2. **Describe the structure you want, with positive instructions.** The guide says positive instructions and examples work better than \"don't\" lists, so a ban on \"This matters.\" will likely be weak. It also suggests leading with the outcome. For example:\n   ```\n   Each section's first sentence states its claim in concrete terms. The rest of the section\n   earns that claim with a mechanism, a worked example, or a number. If you want to say\n   something is important, state the specific consequence for the reader instead (what\n   breaks, what it costs, what they'd do differently) and leave out the word \"important.\"\n   Write for a smart reader who is new to the topic, and go as deep as the explanation needs.\n   ```\n   Add one before/after pair taken from your own drafts: a flagged section and your editor's fixed version. That's likely the strongest lever, because it shows the target directly.\n\n3. **Replace self-critique with a separate editing call.** Asking the same context to critique its own draft re-reads it with the same framing. The guide also says re-check phrasing like \"double-check your answer\" triggers extra work on this model family without improving results. It reports that separate fresh-context verifiers tend to beat self-critique. So send the draft to a new call with a narrow rubric built from your editor's complaints:\n   - Does each section's first sentence state its point?\n   - Quote every sentence that asserts importance without showing it.\n   - Rewrite those with the concrete consequence.\n\n   Return edits, not a general review.\n\n4. **Set `effort` explicitly.** Opus 5.5 defaults to `medium`. The guide says effort isn't a reliable lever for visible length, but it may matter for how well the model plans an explanation. Try `high` on a few drafts and compare.\n\n5. **Put the style instructions in the request.** Per-request instructions about audience and structure are easy to vary by post. The guide notes that for knowledge-work deliverables, style instructions in the user turn respond well.\n\nI haven't run any of this against your drafts, so treat it as a starting hypothesis. Take 5–10 topics your editor already marked up and run them with the old and new prompts. Then count how many sections open with their point.\n\nIf you paste your current system prompt and one flagged section, I can draft the replacement text and the before/after example.",
+      "graders": [
+       {
+        "name": "01-point-first",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-show-consequence",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-no-self-revision",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-drops-summary-line",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-effort",
+        "passed": false,
+        "scored": true
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "Your system prompt is likely causing part of this. Replace it for this route, and stop relying on self-critique.\n\n**Why the current setup misfires**\n\n- **The \"high-level summary\" line is tuned for chat.** The Opus 5 guide added it, together with \"keep responses focused, brief, and concise\", to cut verbosity in conversational replies. For a blog explainer, \"high-level\" pushes the model toward abstractions. The mechanism, concrete detail, and example are what make a point land, so it drops those and keeps the sentence that says the point is important. That would explain \"This matters.\" and \"This is the key insight.\"\n- **Slow arrival and empty emphasis are separate symptoms.** I'm inferring this, since the guide doesn't diagnose your exact case. Both come from the model not being told what a good explainer section looks like. It is only told to stay abstract and short.\n- **Self-critique has the same blind spot as the draft.** The guide cautions that \"check your work\" phrasing triggers extra work on Opus 5.x models. It also notes that separate fresh-context verifiers tend to outperform self-critique, though that is in an agentic-build context, so test it for prose.\n\n**What to change**\n\n1. **Remove that line from the explainer route.** Keep it for any chat use. Don't just swap in \"be more detailed\", because that gives you longer filler.\n\n2. **Describe the target positively and include one before/after pair.** The guide says positive examples work better than \"don't\" rules. Take a real paragraph your editor flagged, show its rewrite, and add a sentence on why the rewrite is better.\n\n3. **Give a lead-with-the-point rule.** This is adapted from the guide's \"lead with the outcome\" block:\n   > Each section's first sentence states its claim in plain terms, the thing a reader would say if asked \"so what's this section about?\" Mechanism, example, and numbers come after.\n\n4. **Define the empty-emphasis failure the way the guide defines \"mannered prose\".** Describe it and give the fix, rather than only banning phrases:\n   > A sentence that announces importance (\"This matters,\" \"This is the key insight\") asserts significance without showing it. Delete it and state the concrete consequence instead: what changes for the reader, what breaks, what it costs. If there's no consequence you can state, the point doesn't belong.\n\n5. **Replace \"critique, then revise\" with a targeted pass.** Either of these works:\n   - Use a second call with fresh context. Give it only the draft and a short checklist: does each section's first sentence carry its point, and does any sentence claim importance without a consequence? Have it return the offending sentences, then revise only those.\n   - Skip the second call and encode the same checklist in the generation prompt.\n\n6. **Put the style rules in the user turn, or repeat them there.** The Fable 5.1 guidance says style instructions in the first user turn hold better than the same text in the system prompt. That note is for Fable, so verify it on Opus 5.5.\n\n7. **Set `effort` explicitly.** Opus 5.5 defaults to `medium`. Try `high` for drafting and compare, but don't expect effort to fix verbosity or density, because the guide says it isn't the lever for those.\n\n**Testing it**\n\nRun the old and new prompts on 5–10 sections your editor has already reviewed, and have them compare blind. Change one thing at a time. Items 1–4 are the likeliest to matter.\n\nI can draft the full system prompt if you paste a flagged paragraph and a version you'd consider good.",
+      "graders": [
+       {
+        "name": "01-point-first",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "02-show-consequence",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "03-no-self-revision",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "04-drops-summary-line",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "05-effort",
+        "passed": true,
+        "scored": true
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}
