@@ -95,4 +95,6 @@ anything else, use `npm run diff`.
   module adds to the page must carry that class.
 - Tests: `tests/page-diff.test.mts` (alignment, the word diff's nesting, inert copies, the data file, the
   git helpers and the published file set on a throwaway repository).
+  `tests/page-diff-browser.test.mts` runs `theme/modules/diff.js` in Chrome on a small page: where each
+  mark lands, the outdated-thread jump, the Review panel, and phone width. It is skipped without Chrome.
 - The component gallery's "Diff marks" section is the visual regression sample.

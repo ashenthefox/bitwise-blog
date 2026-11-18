@@ -57,9 +57,15 @@
       const byId = doc.getElementById(change.id);
       if (byId && byId.parentElement === article) return byId;
     }
-    // `includes`, not `startsWith`: a component puts its own controls ahead of its content.
-    const fits = (b) => b && b.localName === change.tag && (!change.probe || textOf(b).includes(change.probe));
-    if (fits(list[change.at])) return list[change.at];
+    // A component rewrites its own content (controls ahead of it, labels between its parts), so its
+    // text is only a hint: at the expected position its tag is enough, and elsewhere a short start of
+    // the text, found anywhere in it.
+    const custom = change.tag.includes("-");
+    const probe = custom ? change.probe.slice(0, 24) : change.probe;
+    const fits = (b) => b && b.localName === change.tag && (!probe || textOf(b).includes(probe));
+    const expected = list[change.at];
+    if (expected && custom && expected.localName === change.tag) return expected;
+    if (fits(expected)) return expected;
     let best = null, distance = Infinity;
     list.forEach((b, i) => { if (Math.abs(i - change.at) < distance && fits(b)) { best = b; distance = Math.abs(i - change.at); } });
     return best;
