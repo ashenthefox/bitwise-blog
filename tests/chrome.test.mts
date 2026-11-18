@@ -69,19 +69,19 @@ function rendererFixture(env: FixtureEnv, renderer = "visual.mts"): string {
 }
 
 const profileRecorder = `const fs = require('node:fs');
+const path = require('node:path');
 const profile = process.argv.find(a => a.startsWith('--user-data-dir=')).split('=')[1];
 fs.writeFileSync(process.env.PROFILE_RECORD, profile);
-fs.writeFileSync(require('node:path').join(require('node:path').dirname(process.env.PROFILE_RECORD), 'browser.pid'), String(process.pid));`;
+fs.writeFileSync(path.join(path.dirname(process.env.PROFILE_RECORD), 'browser.pid'), String(process.pid));`;
 
 /**
- * No profile `launchChrome` made is left: it makes them in `os.tmpdir()`, which is the fixture's `TMPDIR`.
- * `recorded` also requires the profile the fake recorded to lie there, which proves the listing is not vacuous;
- * pass `false` only where a fake may be killed before it runs.
+ * No profile `launchChrome` made is left: it makes them in `os.tmpdir()`, the fixture's `TMPDIR`, which must end
+ * empty. A profile the fake recorded must lie there, which proves the listing is not vacuous. `recorded` requires
+ * a record; pass `false` only where every fake may be killed before it runs.
  */
 function assertProfileRemoved(env: FixtureEnv, { recorded = true } = {}): void {
-  const left = fs.readdirSync(env.TMPDIR).filter((name) => name.startsWith("bh-chrome-"));
-  assert.deepEqual(left, [], `profiles left behind in ${env.TMPDIR}`);
-  if (!recorded) return;
+  assert.deepEqual(fs.readdirSync(env.TMPDIR), [], `profiles left behind in ${env.TMPDIR}`);
+  if (!recorded && !fs.existsSync(env.PROFILE_RECORD)) return;
   const profile = fs.readFileSync(env.PROFILE_RECORD, "utf8");
   assert.equal(path.dirname(profile), env.TMPDIR, `launchChrome made its profile outside TMPDIR: ${profile}`);
 }
@@ -131,10 +131,9 @@ test("a Chrome that is slow to start is launched again, and each failed attempt 
   // the first fake writes: under load a fake can be killed before it runs a line, and then attempt 2 hung too.
   // Attempt 2 lists the profiles in TMPDIR, to show attempt 1's was removed before it launched.
   const env = fixture(t, `${profileRecorder}
-const dir = require('node:path').dirname(process.env.PROFILE_RECORD);
-if (fs.existsSync(require('node:path').join(dir, 'retried'))) {
-  const seen = fs.readdirSync(require('node:os').tmpdir()).filter(name => name.startsWith('bh-chrome-'));
-  fs.writeFileSync(require('node:path').join(dir, 'seen.json'), JSON.stringify(seen));
+const dir = path.dirname(process.env.PROFILE_RECORD);
+if (fs.existsSync(path.join(dir, 'retried'))) {
+  fs.writeFileSync(path.join(dir, 'seen.json'), JSON.stringify(fs.readdirSync(require('node:os').tmpdir())));
   console.error('DevTools listening on ws://fake');
 }
 setInterval(() => {}, 1000);`);
@@ -148,7 +147,10 @@ setInterval(() => {}, 1000);`);
     };
     const fs = (await import('node:fs')).default;
     const warn = console.warn;
-    console.warn = (...args) => { fs.writeFileSync(${JSON.stringify(path.join(dir, "retried"))}, ''); warn(...args); };
+    console.warn = (...args) => {
+      if (String(args[0]).includes('retrying, attempt')) fs.writeFileSync(${JSON.stringify(path.join(dir, "retried"))}, '');
+      warn(...args);
+    };
     const { launchChrome } = await import(${JSON.stringify(chromeModule)});
     // Attempt 2 must start Node and print within this; under load that took more than 300 ms.
     const chrome = await launchChrome(2000);
