@@ -455,6 +455,8 @@ test("change highlights: off before a slow bh.js runs, and on without JavaScript
     return await evaluate(partsProbe);
   };
   const rootAttr = () => evaluate(`document.documentElement.getAttribute("data-changes")`);
+  /** Count, in window.__writes, every later write to data-changes on <html>, a rewrite of the same value included. */
+  const countWrites = `window.__writes = 0; new MutationObserver((records) => { window.__writes += records.length; }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-changes"] }); 0`;
   const { identifier } = await s("Page.addScriptToEvaluateOnNewDocument", { source: frameCounter });
 
   for (const page of marked) {
@@ -478,10 +480,14 @@ test("change highlights: off before a slow bh.js runs, and on without JavaScript
       assert.equal(await rootAttr(), "off", "and it comes back after printing");
       await evaluate("new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))");
       const printed = (await evaluate("window.__marks")).lit;
+      await evaluate(countWrites);
       release(); release = () => {};
       await until("document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')", "the page settled");
       assert.equal(await rootAttr(), "off", "bh.js keeps the off state");
       assert.equal(await evaluate(`document.querySelector(".bh-topbar .bh-changes-btn").getAttribute("aria-pressed")`), "false");
+      // The button agrees with what the head script set, so bh.js writes nothing: the attribute is not
+      // rewritten, and the button (which follows the attribute) has no change to answer.
+      assert.equal(await evaluate("window.__writes"), 0, "bh.js did not touch the attribute on <html>");
       const frames = await evaluate("window.__marks");
       assert.ok(frames.frames >= 3, "frames were counted");
       assert.equal(frames.lit, printed, "nor any frame since, but those while printing");
@@ -491,8 +497,39 @@ test("change highlights: off before a slow bh.js runs, and on without JavaScript
       assert.equal(await rootAttr(), null);
       await evaluate(`window.dispatchEvent(new Event("afterprint"))`);
       assert.equal(await rootAttr(), "off");
+      assert.equal(await evaluate("window.__writes"), 2, "one write to lift and one to restore");
     });
   }
+
+  await t.test("printing that starts before bh.js runs and ends after it leaves the switch off, and its button working", async () => {
+    mode = "hold"; held = 0;
+    await s("Page.navigate", { url: base + marked[0] + "?examples" });
+    await until(`document.readyState === "interactive" && performance.getEntriesByType("paint").length > 0`, "the page painted");
+    assert.equal(held, 1, "bh.js is held");
+    await evaluate(`window.dispatchEvent(new Event("beforeprint"))`);
+    assert.equal(await rootAttr(), null, "the head script lifted the off state");
+    release(); release = () => {};
+    await until("document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')", "the page settled");
+    await evaluate(`window.dispatchEvent(new Event("afterprint"))`);
+    const state = `[document.documentElement.getAttribute("data-changes"), document.querySelector(".bh-topbar .bh-changes-btn").getAttribute("aria-pressed")]`;
+    assert.deepEqual(await evaluate(state), ["off", "false"], "neither afterprint handler leaves the attribute and the button apart");
+    assert.deepEqual(await evaluate(`new Promise((r) => { document.querySelector(".bh-topbar .bh-changes-btn").click(); setTimeout(() => r(${state}), 0); })`), [null, "true"]);
+  });
+
+  await t.test("a page with no marked part: bh.js takes the off state away, and nothing puts it back", async () => {
+    mode = "hold"; held = 0;
+    await s("Page.navigate", { url: base + "glossary.html" });
+    await until(`document.readyState === "interactive" && performance.getEntriesByType("paint").length > 0`, "the page painted");
+    assert.equal(held, 1, "bh.js is held");
+    assert.equal(await rootAttr(), "off", "the head script cannot know the page marks nothing");
+    await evaluate(countWrites);
+    release(); release = () => {};
+    await until("document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')", "the page settled");
+    assert.deepEqual(await evaluate(`[document.documentElement.getAttribute("data-changes"), !!document.querySelector(".bh-topbar"), !!document.querySelector(".bh-changes-btn"), window.bhChanges.settled, window.__writes]`), [null, true, false, true, 1], "removed once, and no button");
+    // Neither pair of print handlers has anything to lift or restore.
+    await evaluate(`new Promise((r) => { window.dispatchEvent(new Event("beforeprint")); setTimeout(() => { window.dispatchEvent(new Event("afterprint")); setTimeout(r, 0); }, 0); })`);
+    assert.deepEqual(await evaluate(`[document.documentElement.getAttribute("data-changes"), window.__writes]`), [null, 1]);
+  });
 
   await t.test("a page whose bh.js throws before it builds the top bar shows its highlights", async () => {
     mode = "broken";
@@ -509,6 +546,10 @@ test("change highlights: off before a slow bh.js runs, and on without JavaScript
     await until("document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')", "the page settled");
     assert.deepEqual(await evaluate(`[!!document.querySelector(".bh-topbar"), window.bhChanges.settled]`), [false, true]);
     assert.equal(await rootAttr(), null);
+    // With no button, printing changes nothing: there is no off state left to lift or to put back.
+    await evaluate(countWrites);
+    await evaluate(`new Promise((r) => { window.dispatchEvent(new Event("beforeprint")); setTimeout(() => { window.dispatchEvent(new Event("afterprint")); setTimeout(r, 0); }, 0); })`);
+    assert.deepEqual(await evaluate(`[document.documentElement.getAttribute("data-changes"), window.__writes]`), [null, 0]);
     const shown = await parts();
     assert.ok(shown.length > 0, "the page has marked diagram parts");
     for (const p of shown) assert.notEqual(p.looks, p.plain, `${p.id} (${p.kind}) is highlighted`);
