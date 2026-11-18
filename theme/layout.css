@@ -81,6 +81,10 @@
 .bh-topbar.show-title .bh-topbar-title { opacity: 1; transform: none; }
 
 .bh-topbar-actions { display: flex; gap: var(--space-1); margin-left: auto; }
+/* A phone has no room for the title, which still costs a gap on each side. With five buttons (a page
+   with change marks has the switch below) the bar was then too narrow at 390px, and a flex row
+   shrinks its icons to fit: the gap is halved so they keep their size. */
+@media (max-width: 480px) { .bh-topbar { gap: var(--space-2); } }
 /* Change highlights for the whole page. The stroke through the icon carries "off" without colour. */
 .bh-changes-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 .bh-changes-btn:not([aria-pressed="false"]) .bh-changes-off { display: none; }
@@ -486,7 +490,8 @@ html.bh-presenting { font-size: clamp(16px, 0.55vw + 11px, 24px); scroll-padding
 .bh-search-btn kbd { font-size: 0.72em; padding: 0 0.35em; }
 /* The hint is generated, not text: the button's visible text is "Search", which its label contains (WCAG 2.5.3). */
 .bh-search-btn kbd::after { content: attr(data-hint); }
-@media (max-width: 640px) { .bh-search-btn span, .bh-search-btn kbd { display: none; } }
+/* On a phone the button is its icon alone, so it is padded like the icon buttons beside it. */
+@media (max-width: 640px) { .bh-search-btn span, .bh-search-btn kbd { display: none; } .bh-search-btn { padding-inline: 0.45em; } }
 
 .bh-search {
   width: min(40rem, calc(100vw - 2rem));
