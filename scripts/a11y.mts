@@ -11,11 +11,13 @@
 // axe-core (a pinned devDependency) is injected and run against the whole document with the WCAG 2.0/2.1/2.2
 // A and AA rules plus axe's best-practice rules, and again after each STATE below puts hidden content on
 // screen: inactive tabs, later stepper steps, open details, the glossary and sidenote popups, the search
-// dialog, the review panel and slide mode.
+// dialog, the review panel, slide mode and a page diff's "Expand all".
 // Findings that are known and tracked live in a11y-allowlist.json, as a rule on a page with the number of
 // distinct elements it covers. Anything else fails the run, and so does an entry whose rule fires on
 // fewer elements than listed (or none), so the list can only shrink.
 // A fixture page that carries a published review thread is scanned too (scripts/a11y-review-fixture.mts), since no public page does.
+// So are two fixture pages that show a page diff (scripts/a11y-diff-fixture.mts): the diff page `npm run diff` writes, and a live page
+// opened with ?diff=<commit>, whose marks start closed under a change bar.
 // Sealed pages are skipped: their shell is a generic notice and the page is encrypted.
 //
 // The rules are also checked by `npm run check` (contrast tokens, alt text, svg names). This
@@ -28,6 +30,7 @@ import { fileURLToPath } from "node:url";
 import type { AddressInfo } from "node:net";
 import { findChrome, launchChrome, serveStatic, sleep, FONT_FILES, type ChromeHandle } from "./chrome.mts";
 import { REVIEW_FIXTURE_PAGE, reviewFixtureRoutes } from "./a11y-review-fixture.mts";
+import { DIFF_LIVE_PAGE, DIFF_LIVE_QUERY, DIFF_STANDALONE_PAGE, diffFixtureRoutes } from "./a11y-diff-fixture.mts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"];
@@ -148,6 +151,11 @@ const PRELUDE = `const frames = () => new Promise((r) => requestAnimationFrame((
   };
   const tabButtons = (t) => [...t.querySelectorAll(":scope > .bh-tablist > [role=tab]")];`;
 
+/** The pages that are served from memory, not read from the repo (scripts/a11y-*-fixture.mts), and the query string each is opened with. */
+export const FIXTURE_QUERIES = new Map<string, string>([[REVIEW_FIXTURE_PAGE, ""], [DIFF_STANDALONE_PAGE, ""], [DIFF_LIVE_PAGE, DIFF_LIVE_QUERY]]);
+/** The routes that serve them. */
+export const fixtureRoutes = () => new Map([...reviewFixtureRoutes(), ...diffFixtureRoutes()]);
+
 /** Everything reachable by interaction that axe cannot see on load, in the order scanned. Selectors are the theme's (theme/bh.js and theme/modules). */
 export const STATES: State[] = [
   { name: "details",
@@ -156,6 +164,16 @@ export const STATES: State[] = [
       d.forEach((x) => { x.open = true; x.setAttribute("data-a11y-opened", ""); });
       await frames(); return "ok";`,
     undo: `document.querySelectorAll("[data-a11y-opened]").forEach((x) => { x.open = false; x.removeAttribute("data-a11y-opened"); });` },
+  // The change bar's button on a page opened with ?diff=: it opens every mark through the page diff's own code (its label turns to "Collapse all").
+  { name: "expand-all",
+    apply: `const b = document.querySelector(".bh-diff-bar [data-expand]");
+      if (!b) return "na";
+      show(b); b.click();
+      if (b.getAttribute("aria-pressed") !== "true") throw new Error("Expand all did not press its button");
+      if (document.querySelector(".bh-diff-mark:is(details):not([open])")) throw new Error("Expand all left a mark closed");
+      await frames(); return "ok";`,
+    undo: `const b = document.querySelector(".bh-diff-bar [data-expand]");
+      if (b && b.getAttribute("aria-pressed") === "true") b.click();` },
   { name: "tab", rounds: { from: 0 },
     apply: `const g = [...document.querySelectorAll("bh-tabs")].map((t) => [t, tabButtons(t)]).filter(([, b]) => b.length > k);
       if (!g.length) return "na";
@@ -368,12 +386,12 @@ async function main() {
 
   const axeSource = fs.readFileSync(path.join(ROOT, "node_modules", "axe-core", "axe.min.js"), "utf8");
   const allow = loadAllowlist(path.join(ROOT, "a11y-allowlist.json"));
-  // The pages a run scans: the public ones, and the fixture that carries a published review thread, which no public page does yet.
-  const pages = [...publicPages(ROOT), REVIEW_FIXTURE_PAGE].filter((p) => !only || p.includes(only));
+  // The pages a run scans: the public ones, and the fixtures for what no public page has yet (a published review thread, a page diff).
+  const pages = [...publicPages(ROOT), ...FIXTURE_QUERIES.keys()].filter((p) => !only || p.includes(only));
   if (!pages.length) { console.error(`No page matches --only ${only}`); process.exitCode = 1; return; }
 
   if (!findChrome()) { console.error("Chrome not found: install it or set CHROME_PATH"); process.exitCode = 2; return; }
-  const server = await serveStatic(ROOT, reviewFixtureRoutes());
+  const server = await serveStatic(ROOT, fixtureRoutes());
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
   let chrome: ChromeHandle | undefined;
   const results: A11yResult[] = [];
@@ -384,7 +402,7 @@ async function main() {
       for (const viewport of VIEWPORTS) {
         for (const scheme of SCHEMES) {
           // ?examples shows example pages; #unlisted=true adds the unlisted cards to the home page.
-          const url = `${base}${page}?examples#unlisted=true`;
+          const url = `${base}${page}?examples${FIXTURE_QUERIES.get(page) ? "&" + FIXTURE_QUERIES.get(page) : ""}#unlisted=true`;
           const label = `${page} ${viewport.name} ${scheme}`;
           const mine: A11yResult[] = [];
           try {

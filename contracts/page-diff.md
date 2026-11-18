@@ -205,4 +205,8 @@ anything else, use `npm run diff`.
   for `?diff=` on a page with marks of its own, the late-built button on a page with none, and a diff page
   written by the real `bh diff` command, which opens with the highlights on, also when its scripts arrive late; and a bundle
   that arrives slowly, which never paints its highlights before the off state. It is skipped without Chrome.
+- `npm run a11y` scans the diff UI: a diff page and a live page opened with `?diff=`, with the marks closed and open
+  (the change bar's "Expand all" is a state of the run), at both widths and in both schemes, built with the real code
+  from one pair of versions (`scripts/a11y-diff-fixture.mts`; see [The accessibility run](a11y.md)). A new part of the
+  diff UI is covered by adding it to that pair. `details.bh-diff-mark > summary` is a 24px target (`target-size`).
 - The component gallery's "Diff marks" section is the visual regression sample.
