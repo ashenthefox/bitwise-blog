@@ -9,13 +9,16 @@
 //      inline SVG keeps the colours its theme classes give it;
 //   2. lay that screenshot out on a branded 1200×630 frame with the page title, kind and logo,
 //      so the card still says something when the visual is a bare diagram.
-// Without Chrome, every card becomes a copy of the shared site card, tagged `fallback`.
+// A new picture with exactly the pixels of the PNG already on disk leaves that file's bytes alone, so a
+// re-render that changes nothing a reader sees changes nothing in git but social-cards.txt.
+// Without Chrome, every card becomes a copy of the shared site card (`bh cards` records it as `fallback`).
 
 import fs from "node:fs";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
 import { launchChrome, findChrome, serveStatic, sleep, FONT_FILES, type ChromeHandle } from "./chrome.mts";
+import { samePixels } from "./png.mts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const c = { red: (s: string) => `\x1b[31m${s}\x1b[0m`, green: (s: string) => `\x1b[32m${s}\x1b[0m`, yellow: (s: string) => `\x1b[33m${s}\x1b[0m`, dim: (s: string) => `\x1b[2m${s}\x1b[0m` };
@@ -30,11 +33,15 @@ export interface CardSelection { tier: string; css?: string | null; index?: numb
 /** The text and date `frameHtml` puts on the card. */
 export interface CardFrame { title: string; kind: string; date?: string; siteName: string }
 
-/** One card for `renderCards` to draw: `out` is the PNG, `key` the staleness hash recorded in it. */
+/** One card for `renderCards` to draw: `out` is the PNG, `key` the staleness hash `bh cards` records for it in social-cards.txt. */
 export interface CardJob { slug: string; href: string; out: string; key: string; selection: CardSelection; frame: CardFrame }
 
-/** What `renderCards` did; `failed` lists the hrefs it could not draw. */
-export interface RenderResult { rendered: number; fallback: number; failed: string[] }
+/**
+ * What `renderCards` did. `rendered` counts the PNGs it wrote, `unchanged` the cards it drew again with
+ * exactly the pixels already on disk (the file is left as it was), `fallback` the shared-card copies
+ * written for want of Chrome (then every job is one), and `failed` lists the hrefs it could not draw.
+ */
+export interface RenderResult { rendered: number; unchanged: number; fallback: number; failed: string[] }
 
 export const CARD_W = 1200, CARD_H = 630;
 const FAMILIES = ["Fraunces", "IBM Plex Sans"];
@@ -49,29 +56,6 @@ const BG = "#0c0e12", TEXT = "#e7e9ee", MUTED = "#9ba3b4", ACCENT = "#a5a8ff";
 const ENTITIES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 const esc = (s: unknown) => String(s).replace(/[&<>"']/g, (ch) => ENTITIES[ch]!);
 const dataUrl = (file: string) => `data:${MIME[path.extname(file).toLowerCase()] || "application/octet-stream"};base64,${fs.readFileSync(file).toString("base64")}`;
-
-// ---- PNG text chunk: where a card records the key it was rendered for --------------------------
-
-const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
-  let v = n;
-  for (let k = 0; k < 8; k++) v = v & 1 ? 0xedb88320 ^ (v >>> 1) : v >>> 1;
-  return v >>> 0;
-});
-function crc32(buf: Buffer): number {
-  let v = 0xffffffff;
-  for (const b of buf) v = CRC_TABLE[(v ^ b) & 0xff]! ^ (v >>> 8);
-  return (v ^ 0xffffffff) >>> 0;
-}
-
-/** The PNG with a `bh-card` tEXt chunk right after IHDR (Chrome's own output has none). */
-export function tagPng(png: Buffer, value: string): Buffer {
-  const body = Buffer.concat([Buffer.from("tEXt"), Buffer.from(`bh-card\0${value}`, "latin1")]);
-  const len = Buffer.alloc(4), crc = Buffer.alloc(4);
-  len.writeUInt32BE(body.length - 4);
-  crc.writeUInt32BE(crc32(body));
-  const ihdrEnd = 8 + 12 + 13;
-  return Buffer.concat([png.subarray(0, ihdrEnd), len, body, crc, png.subarray(ihdrEnd)]);
-}
 
 // ---- Phase 1: the chosen visual ---------------------------------------------------------------
 
@@ -228,17 +212,17 @@ export async function renderCards(jobs: CardJob[], { sharedCard, systemFonts = f
     console.log(c.yellow("Chrome not found (set CHROME_PATH): using the shared site card for these pages."));
     for (const j of jobs) {
       fs.mkdirSync(path.dirname(j.out), { recursive: true });
-      fs.writeFileSync(j.out, tagPng(fs.readFileSync(sharedCard), "fallback"));
+      fs.copyFileSync(sharedCard, j.out);
       console.log(c.yellow("~ ") + path.relative(ROOT, j.out) + c.dim(" shared card (fallback); render it again where Chrome is installed"));
     }
-    return { rendered: 0, fallback: jobs.length, failed: [] };
+    return { rendered: 0, unchanged: 0, fallback: jobs.length, failed: [] };
   }
   if (typeof WebSocket === "undefined") throw new Error("rendering cards needs Node >= 22 (global WebSocket); this is Node " + process.versions.node);
   const routes = new Map<string, { type: string; body: string }>();
   const server = await serveStatic(ROOT, routes);
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
   let chrome: ChromeHandle | undefined;
-  let rendered = 0;
+  let rendered = 0, unchanged = 0;
   const failed: string[] = [];
   try {
     chrome = await launchChrome();
@@ -249,10 +233,16 @@ export async function renderCards(jobs: CardJob[], { sharedCard, systemFonts = f
         if (sel.css) visual = await captureVisual(chrome.send, base, j, systemFonts);
         else visual = { src: dataUrl(sel.image!), bg: "#f6f7f9", tile: sel.tier === "logo" || sel.tier === "glyph" };
         const png = await composeCard(chrome.send, base, routes, j, visual, systemFonts);
-        fs.mkdirSync(path.dirname(j.out), { recursive: true });
-        fs.writeFileSync(j.out, tagPng(png, j.key));
-        rendered++;
-        console.log(c.green("✓ ") + path.relative(ROOT, j.out) + c.dim(` ${sel.tier}${sel.css ? ` · ${sel.css}` : ""}`));
+        // The same picture as the committed card: keep its bytes, so git sees no change to the PNG.
+        // Exact equality, no tolerance: two renders on one machine are byte-identical (contracts/social-cards.md).
+        const same = fs.existsSync(j.out) && samePixels(fs.readFileSync(j.out), png);
+        if (same) unchanged++;
+        else {
+          fs.mkdirSync(path.dirname(j.out), { recursive: true });
+          fs.writeFileSync(j.out, png);
+          rendered++;
+        }
+        console.log(c.green("✓ ") + path.relative(ROOT, j.out) + c.dim(` ${sel.tier}${sel.css ? ` · ${sel.css}` : ""}${same ? " · same pixels, file kept" : ""}`));
       } catch (e) {
         // One page that can't be drawn must not stop the rest.
         failed.push(j.href);
@@ -263,5 +253,5 @@ export async function renderCards(jobs: CardJob[], { sharedCard, systemFonts = f
     try { await chrome?.close(); }
     finally { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
   }
-  return { rendered, fallback: 0, failed };
+  return { rendered, unchanged, fallback: 0, failed };
 }

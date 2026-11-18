@@ -17,7 +17,7 @@ const SITE = JSON.parse(fs.readFileSync(path.join(source, "package.json"), "utf8
 function fixture(t: TestContext) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "bh-json-ld-test-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  for (const entry of ["scripts", "theme", "docs", "reviews", "templates", "package.json", "index.html", "feed.xml", "sitemap.xml", "robots.txt", "404.html"]) {
+  for (const entry of ["scripts", "theme", "docs", "reviews", "templates", "package.json", "index.html", "feed.xml", "sitemap.xml", "robots.txt", "404.html", "social-cards.txt"]) {
     fs.cpSync(path.join(source, entry), path.join(root, entry), { recursive: true });
   }
   // `check` asks 1Password for a private page's key; make that fail at once instead.

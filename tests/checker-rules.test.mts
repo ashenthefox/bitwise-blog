@@ -8,13 +8,16 @@
 //   <!-- expect error: <message> -->     <!-- expect warn: <message> -->     <!-- expect clean -->
 // Rules about the theme (contrast, stylesheet imports) edit a theme file instead; see THEME_CASES.
 // Rules about CLAUDE.md's contract pointers edit CLAUDE.md or contracts/ instead; see the contract cases.
+// Rules about the social cards' records edit social-cards.txt or a card instead; see the card record cases.
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { after, test } from "node:test";
+import zlib from "node:zlib";
 
 const source = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURES = path.join(source, "tests/fixtures/checker-rules");
@@ -50,7 +53,7 @@ function messagesUnder(out: string, heading: string): string[] {
 // One throwaway copy of the site serves every case; each case restores what it edited.
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "bh-rules-test-"));
 after(() => fs.rmSync(root, { recursive: true, force: true }));
-for (const entry of ["scripts", "theme", "docs", "reviews", "templates", "contracts", "CLAUDE.md", "package.json", "index.html", "feed.xml", "sitemap.xml", "robots.txt", "404.html"]) {
+for (const entry of ["scripts", "theme", "docs", "reviews", "templates", "contracts", "CLAUDE.md", "package.json", "index.html", "feed.xml", "sitemap.xml", "robots.txt", "404.html", "social-cards.txt"]) {
   fs.cpSync(path.join(source, entry), path.join(root, entry), { recursive: true });
 }
 // `check` asks 1Password for a private page's key; make that fail at once instead.
@@ -240,4 +243,102 @@ test("contract rule: a pointer removed from the fence still counts as missing wh
 test("contract rule: a file in contracts/ whose name is not a kebab-case .md", () => {
   assert.deepEqual(contractCheck(() => added("contracts/Notes.md", "# Notes\n", check)),
     ["error: contracts/Notes.md: a contract's file name is kebab-case (a-z, 0-9, -) and ends in .md"]);
+});
+
+// Card record rules: social-cards.txt records, for each card, the key it was rendered for and the hash
+// of its PNG (contracts/social-cards.md). Each case edits that file, the host page's card or a theme
+// file, and checks the messages under the host page and under the `theme` heading.
+const SLUG = path.basename(HOST, ".html"), CARD = `docs/assets/og/${SLUG}.png`, RECORDS = "social-cards.txt";
+const sha = (b: Buffer) => crypto.createHash("sha256").update(b).digest("hex");
+const recordOf = (text: string) => {
+  const line = text.split("\n").find((l) => l.startsWith(SLUG + " "));
+  assert.ok(line, `${RECORDS} has no line for ${SLUG}`);
+  return line;
+};
+/** Replace several files (as bytes) for the duration of `fn`; each replacement must change its file. */
+const replaced = <T,>(edits: Record<string, (b: Buffer) => Buffer>, fn: () => T): T => {
+  const saved = new Map<string, Buffer>();
+  try {
+    for (const [rel, edit] of Object.entries(edits)) {
+      const file = path.join(root, rel), before = fs.readFileSync(file), after = edit(before);
+      saved.set(file, before);
+      assert.ok(!after.equals(before), `the edit to ${rel} changed nothing`);
+      fs.writeFileSync(file, after);
+    }
+    return fn();
+  } finally { for (const [file, before] of saved) fs.writeFileSync(file, before); }
+};
+const text = (edit: (t: string) => string) => (b: Buffer) => Buffer.from(edit(b.toString("utf8")));
+/** The same picture in other bytes: a tEXt chunk added after IHDR. */
+const reencoded = (png: Buffer) => {
+  const body = Buffer.from("tEXtComment\0same pixels, other bytes", "latin1"), len = Buffer.alloc(4), crc = Buffer.alloc(4);
+  len.writeUInt32BE(body.length - 4);
+  crc.writeUInt32BE(zlib.crc32(body));
+  return Buffer.concat([png.subarray(0, 33), len, body, crc, png.subarray(33)]);
+};
+const cardMessages = (fn: () => string) => { const out = fn(); return { host: messagesUnder(out, HOST), theme: messagesUnder(out, "theme") }; };
+const STALE = `error: social card ${CARD} is stale: run \`npm run cards\``;
+const NOT_RECORDED_PNG = `error: social card ${CARD} is not the PNG that ${RECORDS} records for it: run \`npm run cards\``;
+
+test("card record rule: a theme edit that changes no pixel still makes the card stale", () => {
+  assert.deepEqual(cardMessages(() => edited("theme/bh.js", (t) => t + "\n// changes no pixel\n", check)), { host: [STALE], theme: [] });
+});
+
+test("card record rule: a record whose key is not the card's inputs", () => {
+  const edit = (t: string) => t.replace(recordOf(t), (l) => l.replace(/ [0-9a-f]{64} /, ` ${"0".repeat(64)} `));
+  assert.deepEqual(cardMessages(() => replaced({ [RECORDS]: text(edit) }, check)), { host: [STALE], theme: [] });
+});
+
+test("card record rule: a card with no record", () => {
+  assert.deepEqual(cardMessages(() => replaced({ [RECORDS]: text((t) => t.replace(recordOf(t) + "\n", "")) }, check)),
+    { host: [`error: social card ${CARD} has no record in ${RECORDS}: run \`npm run cards\``], theme: [] });
+});
+
+test("card record rule: a record of no public page", () => {
+  assert.deepEqual(cardMessages(() => replaced({ [RECORDS]: text((t) => t + `zz-no-such-page ${"a".repeat(64)} ${"b".repeat(64)}\n`) }, check)),
+    { host: [], theme: [`error: ${RECORDS} records zz-no-such-page, which is no public page: run \`npm run cards\` to remove it`] });
+});
+
+test("card record rule: records out of slug order", () => {
+  const edit = (t: string) => {
+    const lines = t.split("\n"), first = lines.findIndex((l) => l && !l.startsWith("#"));
+    [lines[first], lines[first + 1]] = [lines[first + 1]!, lines[first]!];
+    return lines.join("\n");
+  };
+  assert.deepEqual(cardMessages(() => replaced({ [RECORDS]: text(edit) }, check)),
+    { host: [], theme: [`error: ${RECORDS} is not in its canonical form (the header, then one card per line in slug order): run \`npm run cards\``] });
+});
+
+test("card record rule: a merge conflict left in the file", () => {
+  const n = fs.readFileSync(path.join(root, RECORDS), "utf8").split("\n").indexOf(recordOf(fs.readFileSync(path.join(root, RECORDS), "utf8"))) + 1;
+  const edit = (t: string) => t.replace(recordOf(t), (l) => `<<<<<<< HEAD\n${l}\n=======\n${l.replace(/ [0-9a-f]{64} /, ` ${"1".repeat(64)} `)}\n>>>>>>> theirs`);
+  const bad = (line: number, s: string) => `error: ${RECORDS}: line ${line} is not "<slug> <key> <png hash>": ${JSON.stringify(s)}: run \`npm run cards\``;
+  assert.deepEqual(cardMessages(() => replaced({ [RECORDS]: text(edit) }, check)), {
+    // A slug listed twice is no record at all: which side is right is for `npm run cards` to find out.
+    host: [`error: social card ${CARD} has no record in ${RECORDS}: run \`npm run cards\``],
+    theme: [bad(n, "<<<<<<< HEAD"), bad(n + 2, "======="), `error: ${RECORDS}: line ${n + 3} lists ${SLUG} again: run \`npm run cards\``, bad(n + 4, ">>>>>>> theirs")],
+  });
+});
+
+test("card record rule: a PNG that is not the one recorded (the other side of a merge)", () => {
+  assert.deepEqual(cardMessages(() => replaced({ [CARD]: reencoded }, check)), { host: [NOT_RECORDED_PNG], theme: [] });
+  const edit = (t: string) => t.replace(recordOf(t), (l) => l.replace(/[0-9a-f]{64}$/, "2".repeat(64)));
+  assert.deepEqual(cardMessages(() => replaced({ [RECORDS]: text(edit) }, check)), { host: [NOT_RECORDED_PNG], theme: [] });
+});
+
+test("card record rule: the same picture in other bytes passes once its record names them (control)", () => {
+  const png = reencoded(fs.readFileSync(path.join(root, CARD)));
+  const edit = (t: string) => t.replace(recordOf(t), (l) => l.replace(/[0-9a-f]{64}$/, sha(png)));
+  assert.deepEqual(cardMessages(() => replaced({ [CARD]: () => png, [RECORDS]: text(edit) }, check)), { host: [], theme: [] });
+});
+
+test("card record rule: the shared site card recorded as a fallback warns outside CI", () => {
+  const shared = fs.readFileSync(path.join(root, "theme/logo/og.png"));
+  const edit = (t: string) => t.replace(recordOf(t), `${SLUG} fallback ${sha(shared)}`);
+  assert.deepEqual(cardMessages(() => replaced({ [CARD]: () => shared, [RECORDS]: text(edit) }, check)),
+    { host: ["warn: social card is the shared site card (rendered without Chrome): run `npm run cards` where Chrome is installed"], theme: [] });
+});
+
+test("card record rule: the records file is missing", () => {
+  assert.deepEqual(cardMessages(() => removed(RECORDS, check)), { host: [], theme: [`error: ${RECORDS} is missing: run \`npm run cards\``] });
 });

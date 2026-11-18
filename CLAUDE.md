@@ -26,7 +26,7 @@ when a visibility mechanism or its check changes.
    A clean `check` says nothing about rendering, so never skip this step. See
    [Verifying changes](#verifying-changes).
 5. `npm run cards` renders the page's social card (needs Chrome). Look at the PNG, then commit
-   it with the page. See [Social cards](contracts/social-cards.md).
+   it, and `social-cards.txt`, with the page. See [Social cards](contracts/social-cards.md).
 6. For sharing outside the repo, run `npm run bundle -- docs/<slug>.html` and send `dist/<slug>.html`.
 7. To see what an edit changed as a reader would, run `npm run diff -- docs/<slug>.html [base]` and open
    `dist/diff/<slug>.html` (see [Page diffs](contracts/page-diff.md)).
@@ -52,6 +52,8 @@ comments, with `package.json` and the `bh:example` markers. Edit the fenced list
 
 Run `npm run cards` after changing a page's title, kind, date, or its first diagram or image
 (or the card layout, or the theme tokens): it re-renders every card that `check` calls stale.
+A re-render with the same pixels keeps the PNG and only updates its line in `social-cards.txt`. So after
+a rebase onto a theme change, and to resolve a conflict in that file (take either side), run `npm run cards`.
 
 ## Feature contracts
 

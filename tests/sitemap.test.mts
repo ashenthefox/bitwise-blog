@@ -16,7 +16,7 @@ const ROOT_FILES = ["feed.xml", "sitemap.xml", "robots.txt", "404.html"];
 function fixture(t: TestContext) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "bh-sitemap-test-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  for (const entry of ["scripts", "theme", "docs", "reviews", "templates", "package.json", "index.html", ...ROOT_FILES]) {
+  for (const entry of ["scripts", "theme", "docs", "reviews", "templates", "package.json", "index.html", "social-cards.txt", ...ROOT_FILES]) {
     fs.cpSync(path.join(source, entry), path.join(root, entry), { recursive: true });
   }
   // `check` asks 1Password for a private page's key; make that fail at once instead.
