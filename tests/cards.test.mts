@@ -73,10 +73,20 @@ test("cards: the page is captured with its change highlights on", { skip, timeou
   assert.ok(before.length >= 2, "the figure has marked parts");
   for (const p of before) assert.equal(p.looks, p.plain, `${p.id} is not highlighted as the page opens`);
 
+  // The figure's own <bh-versions> is switched off as well: the page's switch does not reach that.
+  const own = `document.querySelector(${JSON.stringify(FIGURE)}).closest("bh-versions")`;
+  await evaluate(`${own}.setAttribute("data-changes", "off")`);
+  const pressed = `document.querySelector(".bh-changes-btn").getAttribute("aria-pressed")`;
+  assert.equal(await evaluate(pressed), "false", "the page's button starts unpressed");
+
   const box = await evaluate(prepareVisual({ tier: "figure", css: FIGURE, index: 0 }));
   assert.ok(!box.error && box.width >= 8 && box.height >= 8, "the figure's picture was found");
 
   assert.equal(await evaluate(`document.documentElement.getAttribute("data-changes")`), null, "the page's switch is on");
+  // Only bh.showChanges() moves the button: with the attribute merely lifted, the button would still say off.
+  assert.equal(await evaluate(pressed), "true", "the page's switch was turned on through its button");
+  // Only the lift reaches the component's own switch.
+  assert.equal(await evaluate(`${own}.getAttribute("data-changes")`), null, "the figure's own switch is on");
   const after: Part[] = await evaluate(probe);
   for (const p of after) assert.notEqual(p.looks, p.plain, `${p.id} is highlighted when the card is captured`);
   assert.ok(after.some((p) => p.looks.includes("5px, 4px")), "a removed part has its dashed outline");

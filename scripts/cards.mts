@@ -116,9 +116,12 @@ async function withTab<T>(send: Send, fn: (s: TabSend) => Promise<T>): Promise<T
  * ({ x, y, width, height, bg }, or { error }). Exported so a test can run exactly what a card is drawn from.
  *
  * It turns the change highlights on. A page opens with them off and a button to ask for them; a card
- * has no button, so like print and the slides it shows the marks (contracts/social-cards.md).
- * `bh.showChanges()` does nothing on a page that marks no change; lifting the attribute covers a page
- * whose switch something else set.
+ * has no button, so like print and the slides it shows the marks (contracts/social-cards.md). Two steps:
+ * `bh.showChanges()` turns the page's switch on through its button, so the button's own state agrees and
+ * cannot switch the marks off again (it does nothing on a page that marks no change). Then, as printing
+ * does, every `data-changes="off"` left in the document is lifted: that is a `<bh-versions>` switched off
+ * on its own, which the page's switch does not reach. So no such attribute decides what a card shows, and
+ * the card's staleness key need not account for one.
  */
 export function prepareVisual(sel: CardSelection): string {
   return `(async () => {
@@ -126,7 +129,7 @@ export function prepareVisual(sel: CardSelection): string {
       st.textContent = ".bh-topbar, .bh-toc, .bh-progress { visibility: hidden !important; } .reveal-pending { opacity: 1 !important; transform: none !important; } * { animation: none !important; transition: none !important; }";
       document.head.append(st);
       if (window.bh && window.bh.showChanges) window.bh.showChanges();
-      document.documentElement.removeAttribute("data-changes");
+      for (const n of document.querySelectorAll('[data-changes="off"]')) n.removeAttribute("data-changes");
       const root = document.querySelectorAll(${JSON.stringify(sel.css)})[${sel.index}];
       if (!root) return { error: "no element matches " + ${JSON.stringify(sel.css)} + " [" + ${sel.index} + "]" };
       // A figure in a closed <details> has no box until it is opened.

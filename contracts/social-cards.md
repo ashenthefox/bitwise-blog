@@ -45,8 +45,10 @@ nothing for this; two generated things do the work.
   place with no button is that the marks show: without JavaScript, in print and in the slides. A
   card has no button either, and it is the first thing a reader sees of a page whose subject is a
   change, so `scripts/cards.mts` turns the page's switch on (`bh.showChanges()`) before the
-  screenshot. The card therefore differs from the page as it opens: that is decided, not a bug. A
-  `<bh-versions>` that carries its own `data-changes="off"` in the source keeps it.
+  screenshot and, as printing does, lifts every `data-changes="off"` left in the document (a
+  `<bh-versions>` switched off on its own). The card therefore differs from the page as it opens:
+  that is decided, not a bug. No `data-changes` attribute decides what a card shows, so none is
+  part of the staleness hash below.
 - **Staleness.** Each PNG records a hash (a `tEXt` chunk named `bh-card`) of the chosen
   visual's source and image files, the title, kind, date, site name, the page's `<style>`,
   `theme/{fonts,tokens,base,layout,components,diagrams}.css`, the font files, `theme/bh.js`, the logo and
