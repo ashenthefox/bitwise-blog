@@ -136,7 +136,11 @@ async function openTab(chrome: ChromeHandle, { width = 1100, height = 900, mobil
   const goto = async (url: string) => { await s("Page.navigate", { url }); await sleep(150); await ready(); };
   /** Start loading `url` and return at once: for a response the server holds back. */
   const start = async (url: string) => { await s("Page.navigate", { url }); };
-  return { evaluate, goto, start, ready, close: () => chrome.send("Target.closeTarget", { targetId }).catch(() => {}) };
+  /** Press a key as a keyboard does: it goes to whatever has focus. */
+  const press = async (key: string, code: number) => {
+    for (const type of ["rawKeyDown", "keyUp"]) await s("Input.dispatchKeyEvent", { type, key, code: key, windowsVirtualKeyCode: code });
+  };
+  return { evaluate, goto, start, ready, press, close: () => chrome.send("Target.closeTarget", { targetId }).catch(() => {}) };
 }
 
 // What the page shows: each mark with its status and the block it sits before.
@@ -590,5 +594,75 @@ test("the diff module marks a live page with what changed since a commit", { ski
     const button = await p.evaluate("(() => { const b = document.querySelector('.bh-topbar .bh-changes-btn'); if (!b) return null; const r = b.getBoundingClientRect(); return [b.getAttribute('aria-pressed'), r.width > 0 && r.left >= 0 && r.right <= 390]; })()");
     assert.deepEqual(button, ["true", true], "the page's switch is there, on, and inside the screen");
     await noErrors(p);
+  });
+
+  await t.test("a copy in a shadow tree that scrolls joins the tab order when its mark opens, and leaves it when it fits", async () => {
+    // A table that its page styles by id, so its copy is drawn in a shadow tree; three 420px columns never fit the column.
+    const WIDE = "docs/wide.html";
+    const table = (limit: string) => `
+    <h2 id="alpha">Alpha</h2>
+    <p>A sentence that stays exactly as it was in both versions.</p>
+    <div class="table-wrap" id="rates" data-linkable>
+      <table>
+        <caption>Rates by plan</caption>
+        <thead><tr><th>Plan</th><th>Limit</th><th>Burst</th></tr></thead>
+        <tbody><tr><td>Free</td><td>${limit} requests a second</td><td>None</td></tr></tbody>
+      </table>
+    </div>`;
+    const css = "#rates td { min-width: 420px; }";
+    const oldWide = pageOf(table("five"), css), newWide = pageOf(table("ten"), css);
+    const wideDiff = diffPages(oldWide, newWide);
+    assert.ok(wideDiff);
+    fs.writeFileSync(path.join(root, WIDE), newWide);
+    fs.mkdirSync(path.join(root, "theme/diffs"), { recursive: true });
+    fs.writeFileSync(path.join(root, `theme/diffs/wide.${BASE}.js`), diffScript(WIDE, diffData(wideDiff, BASE)));
+
+    const until = async (q: Awaited<ReturnType<typeof tab>>, expression: string, what: string) => {
+      for (let i = 0; i < 50; i++) { if (await q.evaluate(expression)) return; await sleep(100); }
+      assert.fail(what);
+    };
+    // Each candidate in the shadow trees: what makes it a tab stop, and whether it scrolls.
+    const regions = (selector: string) => `[...document.querySelectorAll(".bh-diff-shadow")].flatMap((h) => (h.shadowRoot ? [...h.shadowRoot.querySelectorAll("${selector}")] : [])).map((r) => [r.getAttribute("tabindex"), r.getAttribute("role"), r.getAttribute("aria-label"), r.scrollWidth - r.clientWidth > 1])`;
+    const wrap = `document.querySelector(".bh-diff-shadow").shadowRoot.querySelector(".table-wrap")`;
+
+    const p = await tab();
+    await p.goto(`${base}${WIDE}?diff=${BASE}`);
+    assert.deepEqual(await p.evaluate(`[document.querySelectorAll(".bh-diff-shadow").length, document.querySelectorAll("details.bh-diff-mark[open]").length]`), [1, 0], "one copy, in a shadow tree, in a closed mark");
+    assert.deepEqual(await p.evaluate(`[document.querySelector("#rates").getAttribute("tabindex"), document.querySelector("#rates").scrollWidth > document.querySelector("#rates").clientWidth]`), ["0", true], "the page's own table scrolls and is a tab stop");
+    // A closed mark's content takes no focus, whatever it is given (and where a closed <details> is not drawn at all, it has no size to measure until it opens).
+    const takesFocus = `(() => { const w = ${wrap}; w.focus(); return w.getRootNode().activeElement === w; })()`;
+    assert.equal(await p.evaluate(takesFocus), false, "a copy in a closed mark is no tab stop");
+    await p.evaluate(`document.querySelector("details.bh-diff-mark > summary").click()`);
+    await until(p, `${wrap}.hasAttribute("tabindex")`, "the copy never joined the tab order after its mark opened");
+    assert.deepEqual(await p.evaluate(regions(".table-wrap")), [["0", "group", "Rates by plan", true]], "open, it scrolls: focusable, with a role and its caption as its name");
+    // It takes focus, and the keyboard scrolls it.
+    await until(p, takesFocus, "the open copy never took focus"); // a mark that has just opened takes focus a frame later
+    assert.equal(await p.evaluate(`${wrap}.scrollLeft`), 0);
+    await p.press("ArrowRight", 39);
+    await until(p, `${wrap}.scrollLeft > 0`, "the right arrow did not scroll the focused copy");
+    // When its content fits, it leaves the tab order, and rejoins when it overflows again.
+    await p.evaluate(`(() => { const s = document.createElement("style"); s.id = "fits"; s.textContent = "#rates td { min-width: 0 !important; }"; ${wrap}.getRootNode().append(s); })()`);
+    await until(p, `!${wrap}.hasAttribute("tabindex")`, "a copy that now fits stayed in the tab order");
+    assert.deepEqual(await p.evaluate(regions(".table-wrap")), [[null, null, null, false]]);
+    await p.evaluate(`${wrap}.getRootNode().getElementById("fits").remove()`);
+    await until(p, `${wrap}.hasAttribute("tabindex")`, "a copy that overflows again did not rejoin the tab order");
+    await p.evaluate(`document.querySelector("details.bh-diff-mark > summary").click()`);
+    await until(p, `(() => { ${wrap}.blur(); return !${takesFocus}; })()`, "closed again, the copy still took focus");
+    await noErrors(p);
+
+    // A diagram: it fits on a wide screen, and below 640px it keeps its width and scrolls in its figure.
+    const figures = regions("figure.diagram");
+    const q = await tab();
+    await q.goto(`${base}${PAGE}?diff=${BASE}`);
+    await q.evaluate("document.querySelector('.bh-diff-bar [data-expand]').click()");
+    await until(q, `document.querySelector(".bh-diff-shadow").shadowRoot.querySelector("figure").clientWidth > 0`, "the copies were never drawn");
+    assert.deepEqual(await q.evaluate(figures), [[null, null, null, false], [null, null, null, false]], "a diagram that fits is no tab stop");
+    const phone = await tab({ width: 390, height: 844, mobile: true });
+    await phone.goto(`${base}${PAGE}?diff=${BASE}`);
+    await phone.evaluate("document.querySelector('.bh-diff-bar [data-expand]').click()");
+    await until(phone, `[...document.querySelectorAll(".bh-diff-shadow")].every((h) => h.shadowRoot.querySelector("figure").hasAttribute("tabindex"))`, "a diagram that scrolls in its copy never joined the tab order");
+    assert.deepEqual(await phone.evaluate(figures), [["0", null, null, true], ["0", null, null, true]], "each side scrolls in its figure and is a tab stop; a figure keeps its role, and its caption names it");
+    await noErrors(q);
+    await noErrors(phone);
   });
 });
