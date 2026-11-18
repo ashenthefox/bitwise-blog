@@ -320,6 +320,10 @@
   border-radius: var(--radius);
   background: var(--surface);
 }
+/* A chart or matrix holds a bare table, which its module moves into a .table-wrap. Until then (while
+   bh.js loads, and for good without JavaScript) the element itself scrolls the table, as the wrap
+   would: a table cannot scroll itself, and one wider than a phone widens the page and zooms it out. */
+:is(bh-chart, bh-matrix):not(.is-ready) { position: relative; overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: var(--step--1); }
 caption {
   caption-side: bottom;

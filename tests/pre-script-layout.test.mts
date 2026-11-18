@@ -40,7 +40,8 @@ const templates = readdirSync(join(root, "templates")).filter((f) => f.endsWith(
 /**
  * Pages made here, to pin the count that decides whether there is a table of contents: bh.js builds
  * one from three headings (h2 or h3, directly in the article, not .no-toc), and layout.css must
- * reach the same answer from the markup. No real page sits on the boundary.
+ * reach the same answer from the markup. No real page sits on the boundary. The last one holds components
+ * whose markup the script rearranges, so the phone check does not rest on which pages use them today.
  */
 const fixture = (body: string) => `<!doctype html>
 <html lang="en">
@@ -72,6 +73,17 @@ const FIXTURES: { name: string; toc: boolean; body: string }[] = [
   { name: "two-headings-and-others", toc: false, body: [h("h2", 1), h("h2", 2), h("h4", 3), '    <div class="card"><h3>In a card</h3><h3>And another</h3></div>'].join("\n") },
   // Only the page's own article counts, not a block inside it that borrows the class.
   { name: "two-headings-nested-article", toc: false, body: [h("h2", 1), h("h2", 2), '    <div class="bh-article"><h2>One</h2><h2>Two</h2><h2>Three</h2></div>'].join("\n") },
+  // A chart and a matrix hold bare tables until their modules wrap them; tables far wider than a phone must not widen the page meanwhile.
+  { name: "wide-chart-and-matrix", toc: false, body: [
+    '    <figure id="wide-chart" class="frame wide"><bh-chart type="bar"><table>',
+    `      <thead><tr><th>Quarter</th>${[1, 2, 3, 4, 5, 6].map((n) => `<th>Long series name ${n}</th>`).join("")}</tr></thead>`,
+    `      <tbody>${["Q1", "Q2"].map((q, i) => `<tr><td>${q}</td>${[1, 2, 3, 4, 5, 6].map((n) => `<td>${n * 10 + i}</td>`).join("")}</tr>`).join("")}</tbody>`,
+    "    </table></bh-chart><figcaption>A chart.</figcaption></figure>",
+    '    <bh-matrix id="wide-matrix" class="wide"><table><caption>A caption long enough to need a line of its own on any phone.</caption>',
+    `      <thead><tr><th>Criterion</th><th>Weight</th>${["A long option", "Another long option", "A third long option", "A fourth long option"].map((o) => `<th>${o}</th>`).join("")}</tr></thead>`,
+    `      <tbody>${["Cost", "Speed"].map((c) => `<tr><td>${c}</td><td>3</td><td>1</td><td>2</td><td>3</td><td>4</td></tr>`).join("")}</tbody>`,
+    "    </table></bh-matrix>",
+  ].join("\n") },
 ];
 const fixturePath = (name: string) => `/docs/pre-script-fixture-${name}.html`;
 
@@ -82,20 +94,6 @@ const cases: Case[] = [
   ...templates.map((f) => ({ path: `/templates/${f}`, widths: [DESKTOP, PHONE] })),
   ...FIXTURES.map((f) => ({ path: fixturePath(f.name), widths: [DESKTOP, ...BREAKPOINT, PHONE], toc: f.toc })),
 ];
-
-/**
- * Pages that are wider than a phone until bh.js runs: a bare table, a long line of code or a diagram's
- * minimum width overflows, and the phone widens its viewport to fit. bh.js wraps or scrolls them, so
- * the settled page is 390px. That is a different fault from the one this test is for, and it is on
- * main too; it has its own follow-up issue. Named here so the check holds for every other page, and
- * so a page that stops overflowing must be taken off the list.
- */
-const WIDE_ON_A_PHONE_BEFORE_THE_SCRIPT = new Set([
-  "/docs/component-gallery.html",
-  "/docs/edge-rate-limiting-design.html",
-  "/docs/how-deflate-sends-its-code.html",
-  "/docs/how-deflate-works.html",
-]);
 
 interface Box { x: number; width: number }
 /** `tocRight` is the right edge of the table of contents, or null when the page has none. */
@@ -123,7 +121,6 @@ const probe = `(async () => {
 test("the reading column is in place before bh.js runs, and without JavaScript", { skip, timeout: 170000 }, async (t) => {
   assert.ok(docs.length > 0 && templates.length > 0, "found pages and templates");
   for (const f of AT_BREAKPOINT) assert.ok(docs.includes(f), `${f} is a page`);
-  for (const p of WIDE_ON_A_PHONE_BEFORE_THE_SCRIPT) assert.ok(cases.some((c) => c.path === p), `${p} is a page`);
   const routes = new Map(FIXTURES.map((f) => [fixturePath(f.name), { type: "text/html; charset=utf-8", body: fixture(f.body) }]));
   const server = await serveStatic(root, routes);
   t.after(() => new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); }));
@@ -216,13 +213,11 @@ test("the reading column is in place before bh.js runs, and without JavaScript",
         // Equal positions are not enough: were CSS to count the headings as too few where the script builds a
         // table of contents, the page would stay one column, the table of contents stacked above an article that never moved.
         if (width >= 1100 && settled.tocRight !== null) assert.ok(settled.article.x >= settled.tocRight, `the table of contents has its own column, left of the article (${settled.tocRight} <= ${settled.article.x})`);
+        // A phone widens its viewport to fit anything wider than the screen, and zooms the whole page out.
+        // A table, a code block or a diagram scrolls inside its own box, in CSS, before bh.js has run as after.
         assert.equal(settled.innerWidth, width, "nothing widens the settled page");
-        if (phone && WIDE_ON_A_PHONE_BEFORE_THE_SCRIPT.has(page.path)) {
-          assert.ok(waiting.innerWidth > width || off.innerWidth > width, "the page no longer overflows before the script runs: take it off the list");
-        } else {
-          assert.equal(waiting.innerWidth, width, "nothing widens the page while bh.js loads");
-          assert.equal(off.innerWidth, width, "nothing widens the page without JavaScript");
-        }
+        assert.equal(waiting.innerWidth, width, "nothing widens the page while bh.js loads");
+        assert.equal(off.innerWidth, width, "nothing widens the page without JavaScript");
         assert.ok(settled.text.width >= Math.min(320, width - 80), `the settled paragraph is a reading column (${settled.text.width}px)`);
         assert.deepEqual(waiting.text, settled.text, "the paragraph is in the same place while bh.js loads as after it runs");
         assert.deepEqual(waiting.article, settled.article, "the article is in the same place while bh.js loads as after it runs");
