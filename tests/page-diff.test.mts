@@ -384,7 +384,8 @@ test("the diff page is the new page with marks: prose changed in place, componen
      <bh-chart type="bar" id="c"><table><tr><th>k</th><th>v</th></tr><tr><td>x</td><td>12</td></tr></table></bh-chart><p>Added.</p>`);
   const html = renderDiffPage(d, { base: "abc1234", head: "the working tree" });
   assert.match(html, /<title>Diff: T<\/title>\n\s*<meta name="robots" content="noindex">/);
-  assert.match(html, /<body data-home="\.\.\/index\.html" data-present="off" data-review="off" data-bh-diff>/);
+  assert.match(html, /<body data-home="\.\.\/index\.html" data-present="off" data-review="off">/);
+  assert.match(html, /<html data-bh-diff>/, "the marker is where a script in <head> can read it");
   assert.match(html, /<\/header>\s*<aside class="bh-diff-summary" id="bh-changes"/, "the summary follows the hero");
   assert.match(html, /<strong>Changes<\/strong> from <code>abc1234<\/code> to <code>the working tree<\/code>: 2 changed, 1 added, 1 removed\./);
   assert.match(html, /<p data-diff="changed"><del>Old<\/del><ins>New<\/ins> prose here\.<\/p>/, "prose is rewritten where it stands");

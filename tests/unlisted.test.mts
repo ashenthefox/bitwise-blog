@@ -75,8 +75,6 @@ interface FakeWindow {
   addEventListener: (type: string, fn: () => void) => void;
   document: {
     documentElement: { hasAttribute: (k: string) => boolean; getAttribute: (k: string) => string | null; setAttribute: (k: string, v: string) => void; removeAttribute: (k: string) => void };
-    /** Absent while the script runs in <head>; present when it runs at the end of a bundle's <body>. */
-    body?: { hasAttribute: (k: string) => boolean };
     querySelector: (sel: string) => object | null;
   };
   sessionStorage?: { getItem: (k: string) => string | null; setItem: (k: string, v: unknown) => void; removeItem: (k: string) => void };
@@ -88,9 +86,10 @@ interface FakeWindow {
 }
 
 /** Run theme/unlisted.js as a browser would, in a fresh context. */
-function load(url: string, { bundled = false, unlistedPage = false, store = {}, storageThrows = false, body }: { bundled?: boolean; unlistedPage?: boolean; store?: Store; storageThrows?: boolean; body?: string[] } = {}) {
+function load(url: string, { bundled = false, unlistedPage = false, store = {}, storageThrows = false, diff = false }: { bundled?: boolean; unlistedPage?: boolean; store?: Store; storageThrows?: boolean; diff?: boolean } = {}) {
   const u = new URL(url);
   const attrs = new Map<string, string>(bundled ? [["data-bundled", ""]] : []);
+  if (diff) attrs.set("data-bh-diff", "");
   const listeners: [string, () => void][] = [];
   const storage = {
     getItem: (k: string) => (k in store ? store[k] : null),
@@ -103,7 +102,6 @@ function load(url: string, { bundled = false, unlistedPage = false, store = {}, 
     addEventListener: (type, fn) => { listeners.push([type, fn]); },
     document: {
       documentElement: { hasAttribute: (k) => attrs.has(k), getAttribute: (k) => attrs.get(k) ?? null, setAttribute: (k, v) => { attrs.set(k, v); }, removeAttribute: (k) => { attrs.delete(k); } },
-      ...(body ? { body: { hasAttribute: (k: string) => body.includes(k) } } : {}),
       querySelector: (sel) => (unlistedPage && sel === 'meta[name="bh:unlisted"]' ? {} : null),
     },
   };
@@ -217,16 +215,17 @@ test("pasting a new #unlisted into an open tab reloads only when the choice chan
 // ---- theme/unlisted.js: the state the change highlights open in -----------------------------------
 
 test("change highlights start off, set before first paint; a diff page starts with them on", () => {
-  // In <head> there is no <body> yet: every page gets the off state, and bh.js settles it.
+  // The script runs in <head>, where there is no <body> yet (the fake document has none): every page
+  // gets the off state, and bh.js settles it.
   const page = load("https://bitwise.john-ky.io/docs/x.html");
   assert.equal(page.attrs.get("data-changes"), "off");
   assert.equal(must(page.context.bhChanges, "the script publishes bhChanges").startsOn(), false);
-  // A diff page is a bundle: its scripts run at the end of <body>, where the marker has been parsed.
-  const diff = load("file:///tmp/dist/diff/x.html", { bundled: true, body: ["data-bh-diff"] });
+  // A diff page says so on <html>, which is all a script in <head> can read.
+  const diff = load("file:///tmp/dist/diff/x.html", { bundled: true, diff: true });
   assert.equal(diff.attrs.has("data-changes"), false);
   assert.equal(must(diff.context.bhChanges, "the script publishes bhChanges").startsOn(), true);
   assert.equal(heard(diff, "load").length, 0);
-  const bundle = load("file:///tmp/dist/x.html", { bundled: true, body: [] });
+  const bundle = load("file:///tmp/dist/x.html", { bundled: true });
   assert.equal(bundle.attrs.get("data-changes"), "off");
 });
 
@@ -416,6 +415,28 @@ test("bundle --all leaves out an unlisted page, and naming it bundles it", (t) =
   assert.ok(!fs.existsSync(f.file("dist/quiet-demo.html")));
   assert.equal(f.bh("bundle", "docs/quiet-demo.html").status, 0);
   assert.ok(fs.existsSync(f.file("dist/quiet-demo.html")));
+});
+
+test("a bundle keeps a synchronous head script in <head> whatever its text says, and moves a module to the end", (t) => {
+  const f = fixture(t);
+  // Text that the bundler's own replacements look for, and that would end the inline script early.
+  const odd = `/* odd text: </head> </body> <a href="../index.html">← All documents</a> $& </script> */`;
+  fs.appendFileSync(f.file("theme/unlisted.js"), `\n${odd}\n`);
+  fs.writeFileSync(f.file("theme/late.js"), "window.lateMarker = 1;\n");
+  f.edit("docs/how-deflate-works.html", /(<script src="\.\.\/theme\/unlisted\.js"><\/script>\n)/, `$1  <script src="../theme/late.js" type='module'></script>\n  <script src="../theme/late.js" type=module></script>\n  <script src="../theme/late.js" async></script>\n`);
+  const made = f.bh("bundle", "docs/how-deflate-works.html");
+  assert.equal(made.status, 0, made.stderr);
+  const html = f.read("dist/how-deflate-works.html");
+  assert.doesNotMatch(html, /<script\b[^>]*\ssrc=|bh-head-script/, "every script is inline, and no placeholder is left");
+  const at = (text: string, from = 0) => html.indexOf(text, from);
+  const comment = at(odd.replace("</script>", "<\\/script>"));
+  assert.ok(comment > 0, "the head script's text is whole, with its </script> escaped");
+  const order = [at("g.bhExamples = api"), at("g.bhUnlisted = api"), at("g.bhChanges = api"), comment, at('<meta name="bh:source"'), at("<main"), at("</main>"), at("window.lateMarker = 1;"), at("window.bhModules"), html.lastIndexOf("</body>")];
+  assert.ok(order.every((x, i) => x > 0 && (i === 0 || x > order[i - 1]!)), `head scripts, the bh:source meta, the body, then the other scripts (${order})`);
+  assert.match(html.slice(order[4]), /^<meta name="bh:source" content="docs\/how-deflate-works\.html">\n<\/head>\s*<body\b/, "the meta was added at the real end of <head>");
+  assert.equal(at('<meta name="bh:source"', order[4]! + 1), -1);
+  assert.equal(html.split("window.lateMarker = 1;").length - 1, 3, "a module or async script is not a synchronous one: all three went to the end");
+  assert.match(html, /<\/script>\n<\/body>\s*<\/html>\s*$/, "the other scripts end the body");
 });
 
 // ---- check ----------------------------------------------------------------------------------------

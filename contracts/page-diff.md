@@ -25,7 +25,7 @@ reader would see it, in three places that share one function, `diffPages` (`scri
   and any `<script>` are never word-diffed. When one changes, the old and new figures are shown as a
   `<bh-versions>` pair, and each part with a `data-id` is marked `data-change` (removed, added, changed)
   unless the author marked it already. Those marks obey the page's change-highlight switch (the top
-  bar's button, off when a page opens), so a diff turns it on: a diff page (`data-bh-diff`) starts with
+  bar's button, off when a page opens), so a diff turns it on: a diff page (`<html data-bh-diff>`) starts with
   it on (the rule is `bhChanges.startsOn()` in `theme/unlisted.js`, see [Unlisted pages](unlisted-pages.md#change-highlights-before-first-paint)), and `diff.js` calls `bh.showChanges()` when it places a changed diagram. A copy drawn in a
   shadow tree cannot see the switch on its ancestors, so `bh.mirrorChanges()` writes `data-changes="off"`
   onto the tree's content whenever an ancestor has it; `upgrade` calls it for a new tree.
@@ -129,5 +129,6 @@ anything else, use `npm run diff`.
   mark lands, the outdated-thread jump, the Review panel, and phone width. It also covers the
   change-highlight switch, by the computed style of each marked part rather than its attribute: off to on
   for `?diff=` on a page with marks of its own, the late-built button on a page with none, and a diff page
-  written by the real `bh diff` command, which opens with the highlights on. It is skipped without Chrome.
+  written by the real `bh diff` command, which opens with the highlights on, also when its scripts arrive late; and a bundle
+  that arrives slowly, which never paints its highlights before the off state. It is skipped without Chrome.
 - The component gallery's "Diff marks" section is the visual regression sample.

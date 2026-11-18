@@ -1764,7 +1764,7 @@
         settle(loadModule("diff.js").then(() => window.bh.diff && window.bh.diff.show(diffBase)).then((res) => { if (!res) toast("No record of the changes since that version"); }));
       }
       // A standalone diff page (`npm run diff`): its styled copies are drawn by the same module.
-      if (doc.body.hasAttribute("data-bh-diff") && doc.querySelector(".bh-diff-shadow")) {
+      if (root.hasAttribute("data-bh-diff") && doc.querySelector(".bh-diff-shadow")) {
         settle(loadModule("diff.js").then(() => {
           const css = doc.getElementById("bh-diff-old-style");
           if (window.bh.diff) window.bh.diff.upgrade(doc, css ? JSON.parse(css.textContent) : "");
