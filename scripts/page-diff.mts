@@ -285,6 +285,9 @@ export interface PageDiff {
   /** Set when the <title> or the description differs. */
   title: { old: string; new: string } | null;
   description: { old: string; new: string } | null;
+  /** Each version's page CSS (the <style> elements of its head): what a copy scoped by id is drawn with. */
+  oldStyle: string;
+  newStyle: string;
   /** The new page around its article. */
   before: string;
   after: string;
@@ -378,6 +381,11 @@ function alignBlocks(oldB: Block[], newB: Block[]): Entry[] {
 }
 
 const headValue = (html: string, re: RegExp) => collapse(decodeEntities((html.replace(/<!--[\s\S]*?-->/g, "").match(re) ?? [])[1] ?? ""));
+/** A page's own CSS: the content of every <style> in its head. */
+export function pageStyle(html: string): string {
+  const head = html.replace(/<!--[\s\S]*?-->/g, "").split(/<body\b/i)[0];
+  return [...head.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi)].map((m) => m[1].trim()).filter(Boolean).join("\n");
+}
 const pageTitle = (html: string) => headValue(html, /<title>([^<]*)<\/title>/i);
 const pageDescription = (html: string) => headValue(html, /<meta\s+name="description"\s+content="([^"]*)"/i);
 
@@ -389,7 +397,7 @@ export function diffPages(oldHtml: string, newHtml: string): PageDiff | null {
   const stats: DiffStats = { changed: 0, added: 0, removed: 0, moved: 0 };
   for (const e of entries) if (e.status !== "same" && !e.movedTo) stats[e.status]++;
   const pair = (a: string, b: string) => (a === b ? null : { old: a, new: b });
-  return { entries, stats, title: pair(pageTitle(oldHtml), pageTitle(newHtml)), description: pair(pageDescription(oldHtml), pageDescription(newHtml)), before: n.before, after: n.after, blocks: n.blocks.length };
+  return { entries, stats, title: pair(pageTitle(oldHtml), pageTitle(newHtml)), description: pair(pageDescription(oldHtml), pageDescription(newHtml)), oldStyle: pageStyle(oldHtml), newStyle: pageStyle(newHtml), before: n.before, after: n.after, blocks: n.blocks.length };
 }
 
 /** "2 changed, 1 added", or "no changes". */
@@ -459,7 +467,13 @@ function mergeShortRuns(ops: Op[], aKeys: string[], bKeys: string[]): Op[] {
 }
 
 /** How a copy of a block is written: in place (ids kept) or as an inert copy beside the live block. */
-interface Emit { inert: boolean; prefix: string; marks?: Map<Tok, string> }
+interface Emit {
+  inert: boolean;
+  prefix: string;
+  marks?: Map<Tok, string>;
+  /** Keep every id as written: for a copy that will live in a shadow tree of its own, where the version's page CSS can find it by id. */
+  keepIds?: boolean;
+}
 
 // Attributes that tie an element to another by id, or to a script: an inert copy keeps none of them.
 const INERT_DROP = new Set(["for", "data-ref", "data-linkable", "aria-labelledby", "aria-describedby", "aria-controls", "aria-owns", "name", "data-bind", "data-expr", "data-label", "autofocus", "tabindex", "contenteditable"]);
@@ -478,10 +492,14 @@ function inertTag(t: Tok, emit: Emit, extra: Attr[] = []): string {
     const key = k.toLowerCase();
     let v = value;
     if (key.startsWith("on") || INERT_DROP.has(key)) continue;
-    if (key === "id") { if (t.svg && t.name !== "svg" && v) list.push(["id", emit.prefix + v]); continue; }
+    if (key === "id") {
+      if (emit.keepIds) { if (v) list.push(["id", v]); }
+      else if (t.svg && t.name !== "svg" && v) list.push(["id", emit.prefix + v]);
+      continue;
+    }
     if (t.name === "a" && !t.svg && (key === "href" || key === "target" || key === "rel" || key === "download")) continue;
     if (key === "class") { cls.unshift(...(v ?? "").split(/\s+/).filter((c) => c && !/^(?:wide|full)$/.test(c))); continue; }
-    if (t.svg && v) {
+    if (t.svg && v && !emit.keepIds) {
       v = v.replace(/url\(\s*#/g, `url(#${emit.prefix}`);
       if ((key === "href" || key === "xlink:href") && v.startsWith("#")) v = `#${emit.prefix}${v.slice(1)}`;
     }
@@ -799,35 +817,75 @@ export function whatChanged(e: Entry): string[] {
 /** Whether the word diff can replace the block where it stands: no script reads its content, and no picture changed. */
 const inPlace = (e: Entry) => !!e.old && !!e.new && e.text && !e.visual && !e.new.custom;
 
+/** Whether a version's page CSS styles this block by id (`#its-id …`): a copy without its ids would lose that. */
+export function styledById(b: Block, style: string): boolean {
+  if (!style) return false;
+  return b.toks.some((t) => {
+    const id = isTag(t) ? getAttr(t.attrs, "id") : "";
+    return !!id && new RegExp(`#${id.replace(/[^\w-]/g, "\\$&")}(?![\\w-])`).test(style);
+  });
+}
+
+/**
+ * A copy that the browser moves into a shadow tree of its own (theme/modules/diff.js), where it keeps
+ * its ids and is drawn with its own version's page CSS. `fallback`, the ordinary inert copy, is what
+ * shows until then, and without script.
+ */
+const shadowed = (fallback: string, styled: string, version: "old" | "new") =>
+  `<div class="bh-diff-shadow" data-style="${version}">${fallback}<template>${styled}</template></div>`;
+
+/** What decides how the copies in a mark are written. */
+export interface MarkOptions {
+  /** Show the details expanded. */
+  open: boolean;
+  /** Include the word diff as an inert copy (the diff page leaves it out where the diff replaces the block itself). */
+  copy: boolean;
+  /** Each version's page CSS (see `styledById`). */
+  oldStyle?: string;
+  newStyle?: string;
+}
+
 /**
  * The mark that sits before a changed block: its status, and (in a <details>) what the old version
  * said. Every copy inside is inert: no ids (ids inside a picture are prefixed), no links, no scripts,
- * headings and custom elements turned into plain blocks.
- *
- * `open` shows the details expanded; `copy` includes the word diff as an inert copy (the diff page
- * leaves it out where the diff replaces the block itself).
+ * headings and custom elements turned into plain blocks. A block that its page's CSS styles by id
+ * also carries a second copy with its ids kept, for a shadow tree (see `shadowed`).
  */
-export function renderMark(e: Entry, { open, copy }: { open: boolean; copy: boolean }): string {
+export function renderMark(e: Entry, { open, copy, oldStyle = "", newStyle = "" }: MarkOptions): string {
   const emit: Emit = { inert: true, prefix: `bh-d${e.n}-` };
+  const kept: Emit = { inert: true, prefix: "", keepIds: true };
   const head = statusTag(e.status);
   const attrs = `class="bh-diff-mark" data-diff="${e.status}" id="bh-change-${e.n}"`;
   if (e.status === "added") return `<p ${attrs}>${head}</p>`;
   if (e.status === "removed" && e.movedTo) {
     return `<p ${attrs} data-moved>${statusTag("moved")} <span class="bh-diff-what">“${escapeHtml(e.label)}” was here: <a href="#bh-change-${e.movedTo}">see where it is now</a></span></p>`;
   }
+  const oldNeeds = !!e.old && styledById(e.old, oldStyle), newNeeds = !!e.new && styledById(e.new, newStyle);
   const parts: string[] = [];
   let what = whatChanged(e).join(", ");
-  if (e.status === "removed") parts.push(`<div class="bh-diff-old">${emitBlock(e.old!.toks, emit)}</div>`);
-  else {
+  if (e.status === "removed") {
+    const plain = emitBlock(e.old!.toks, emit);
+    parts.push(`<div class="bh-diff-old">${oldNeeds ? shadowed(plain, emitBlock(e.old!.toks, kept), "old") : plain}</div>`);
+  } else {
     if (e.status === "moved") what = [e.movedFrom ? `from “${escapeHtml(e.movedFrom)}”` : "from elsewhere", what].filter(Boolean).join("; ");
-    if (e.text && copy) parts.push(`<div class="bh-diff-copy">${inlineDiff(e.old!.toks, e.new!.toks, emit).html}</div>`);
+    if (e.text && copy) {
+      const plain = inlineDiff(e.old!.toks, e.new!.toks, emit).html;
+      parts.push(`<div class="bh-diff-copy">${newNeeds ? shadowed(plain, inlineDiff(e.old!.toks, e.new!.toks, kept).html, "new") : plain}</div>`);
+    }
     if (e.visual) {
       const marks = changeMarks(e.old!.toks, e.new!.toks);
-      const before = emitBlock(e.old!.toks, { ...emit, prefix: emit.prefix + "a-", marks }, isPicture(e.old!) ? [["data-label", "Before"]] : []);
-      if (isPicture(e.old!) && isPicture(e.new!)) {
-        const after = emitBlock(e.new!.toks, { ...emit, prefix: emit.prefix + "b-", marks }, [["data-label", "After"]]);
-        parts.push(`<bh-versions class="bh-diff-versions">\n${before}\n${after}\n</bh-versions>`);
-      } else parts.push(`<div class="bh-diff-old"><p class="bh-diff-caption">Before</p>${before}</div>`);
+      const pair = isPicture(e.old!) && isPicture(e.new!), styled = oldNeeds || newNeeds;
+      // In a pair, a styled figure sits inside a plain one: <bh-versions> wants figures as its children.
+      const label = (which: string): Attr[] => (pair && !styled ? [["data-label", which]] : []);
+      const side = (b: Block, prefix: string, which: string, version: "old" | "new") => {
+        const plain = emitBlock(b.toks, { ...emit, prefix: emit.prefix + prefix, marks }, label(which));
+        if (!styled) return plain;
+        const both = shadowed(plain, emitBlock(b.toks, { ...kept, marks }), version);
+        return pair ? `<figure class="bh-diff-side" data-label="${which}">${both}</figure>` : both;
+      };
+      const before = side(e.old!, "a-", "Before", "old");
+      if (pair) parts.push(`<bh-versions class="bh-diff-versions">\n${before}\n${side(e.new!, "b-", "After", "new")}\n</bh-versions>`);
+      else parts.push(`<div class="bh-diff-old"><p class="bh-diff-caption">Before</p>${before}</div>`);
     }
   }
   const summary = `${head}${what ? ` <span class="bh-diff-what">${what}</span>` : ""}`;
@@ -865,16 +923,17 @@ function summaryBlock(diff: PageDiff, labels: DiffLabels): string {
 export function renderDiffPage(diff: PageDiff, labels: DiffLabels): string {
   const out: string[] = [];
   const live: Emit = { inert: false, prefix: "" };
+  const styles = { oldStyle: diff.oldStyle, newStyle: diff.newStyle };
   let summarised = false;
   const summarise = () => { if (!summarised) { out.push(summaryBlock(diff, labels)); summarised = true; } };
   for (const e of diff.entries) {
     const hero = !!e.new && e.new.tag === "header";
     if (!hero) summarise();
     if (e.status === "same") out.push(e.new!.html);
-    else if (e.status === "removed") out.push(renderMark(e, { open: true, copy: true }));
+    else if (e.status === "removed") out.push(renderMark(e, { open: true, copy: true, ...styles }));
     else {
       const mark: Attr[] = [["data-diff", e.status]];
-      out.push(renderMark(e, { open: true, copy: !inPlace(e) }));
+      out.push(renderMark(e, { open: true, copy: !inPlace(e), ...styles }));
       out.push(inPlace(e) ? inlineDiff(e.old!.toks, e.new!.toks, live, mark).html : emitBlock(e.new!.toks, live, mark));
     }
     if (hero) summarise();
@@ -883,7 +942,10 @@ export function renderDiffPage(diff: PageDiff, labels: DiffLabels): string {
   const before = diff.before
     .replace(/<title>([^<]*)<\/title>/i, (_m, t) => `<title>Diff: ${t}</title>\n  <meta name="robots" content="noindex">`)
     .replace(/<body\b([^>]*)>/i, (_m, attrs) => `<body${String(attrs).replace(/\sdata-(?:present|review)="[^"]*"/g, "")} data-present="off" data-review="off" data-bh-diff>`);
-  return `${before}\n\n${out.join("\n\n")}\n\n${diff.after}`;
+  const body = out.join("\n\n");
+  // The old version's CSS, for the copies that need it (theme/modules/diff.js reads it). JSON in a script: "</" must not end the element.
+  const oldCss = body.includes('data-style="old"') ? `\n\n<script type="application/json" id="bh-diff-old-style">${JSON.stringify(diff.oldStyle).replace(/</g, "\\u003c")}</script>` : "";
+  return `${before}\n\n${body}\n\n${diff.after.replace(/^<\/article>/i, (m) => m + oldCss)}`;
 }
 
 // ---- Data for the Review panel ---------------------------------------------------------------
@@ -914,6 +976,8 @@ export interface DiffData {
   title: { old: string; new: string } | null;
   /** How many blocks the new version has: the live page must agree, or the indexes mean nothing. */
   blocks: number;
+  /** The old version's page CSS, when a copy needs it (one styled by id). */
+  oldStyle?: string;
   changes: DiffChange[];
 }
 
@@ -929,9 +993,11 @@ export function diffData(diff: PageDiff, base: string): DiffData {
     tag: e.new ? e.new.tag : "", id: e.new ? e.new.id : "", probe: e.new ? probe(e.new) : "",
     section: e.section, sectionTitle: e.sectionTitle, label: e.label,
     oldText: e.old && !e.movedTo ? e.old.text : "",
-    html: renderMark(e, { open: false, copy: true }),
+    html: renderMark(e, { open: false, copy: true, oldStyle: diff.oldStyle, newStyle: diff.newStyle }),
   }));
-  return { base, stats: diff.stats, title: diff.title, blocks: diff.blocks, changes };
+  const data: DiffData = { base, stats: diff.stats, title: diff.title, blocks: diff.blocks, changes };
+  if (changes.some((c) => c.html.includes('data-style="old"'))) data.oldStyle = diff.oldStyle;
+  return data;
 }
 
 /** A data file the page loads on demand: `window.BH_DIFFS["docs/x.html@<commit>"]`. */
