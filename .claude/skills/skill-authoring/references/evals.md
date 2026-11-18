@@ -206,7 +206,7 @@ claude plugin eval .claude/skills/<name> \
   -j 4 --max-cost-usd 15 --no-publish
 ```
 
-- Add `--case '<glob>'` or `--tag <tag>` to run part of the suite, `--runs N` to change the
+- Add `--case '<glob>'` (`*` and `?` only: `{a,b}` and `[ab]` match no case) or `--tag <tag>` to run part of the suite, `--runs N` to change the
   runs per arm, `--ablation none` to skip the baseline while tuning graders (halves cost),
   `--keep-temp` to look at what a run left behind, `--allow-tools "Bash(node *)"` only for a case
   that needs `Bash` (see the sandbox notes above). Put the target before `--tag` and

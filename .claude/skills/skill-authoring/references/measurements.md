@@ -37,6 +37,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-17: `pedagogical-writing` grades pages, and the grader's calibration (#242)
 - 2026-11-18: why the `pedagogical-diagrams` output scores fell with no change, and the judge (#237)
 - 2026-11-18: every output suite with the Sonnet judge, both arms, and what it costs (#248)
+- 2026-11-18: `fix-confusing-figure` graded on what the skill adds, and the two dropped conditions (#249)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -1462,3 +1463,108 @@ directory; it now creates it.
 - **The low rows and `needs-a-script` were not investigated.** Whether each is the grader, the case or the skill
   needs the answers read, and the baselines hold them.
 - **`advisors` is one case and six judged verdicts.** Its 1.00 is three answers.
+
+## 2026-11-18: `fix-confusing-figure` graded on what the skill adds, and the two dropped conditions (#249)
+
+Claude Code 2.1.318, agent and judge `claude-sonnet-5-5`, three runs per case per arm, `-j 4`. No change to the
+skill: one prompt and eight grader files changed. US$9.25 in all: $3.39 for a first run of the three changed cases
+(`claude plugin eval --case`, twice) and $5.86 for the whole suite through
+`npm run skill-evals -- --skills pedagogical-diagrams --kind output` on commit `33d60a3`. No run errored, and the
+skill loaded in every with-skill run (21 of 21).
+
+**What the answers showed.** The six `fix-confusing-figure` answers of #248's first two-arm run were read, three
+from each arm. Every no-skill answer already named the point, collapsed the replicas, dropped the queue and the
+logger, gave each arrow style one meaning, deleted the legend and drew hit and miss in one layout. So graders 01,
+02, 03 and 05 passed 6 of 6, 5 of 6, 6 of 6 and 6 of 6 across the arms and measured nothing. Three things
+were in the with-skill answers and not in the others:
+
+- **What the prose should carry.** All three with-skill answers gave the paragraph to what the picture cannot
+  show (why a hit can skip the services, what decides a hit, how much it saves). All three no-skill answers
+  replaced the paragraph with two or three sentences that walk through the hit path and the miss path, which the
+  redrawn figure already shows. The old grader 04 passed that, because "which words move into the figure as
+  labels" was one of its ways to pass.
+- **A caption that says what to notice.** Three with-skill answers, one no-skill answer.
+- **The repo's component by name** (`<bh-versions>` or `<bh-stepper>`). Three with-skill answers, none without.
+
+**What changed.**
+
+- **`fix-confusing-figure`.** Graders 02 (one meaning per arrow style) and 03 (labels in the figure, no legend)
+  are deleted: the no-skill arm passed each 3 of 3. Grader 04 now asks one thing, what the prose should carry
+  that the figure cannot show, and fails a replacement that only walks through the two paths. Grader 07 (the
+  caption tells the reader what to notice) and grader 08 (a regex for `bh-versions` or `bh-stepper`) are new. The
+  prompt now says the page is in the blog's repo and names its components, as `design-lz77-figure` does, so that
+  08 is a fair question in both arms. 01 and 05 stay as the check that the answer still does the main job.
+- **`design-lz77-figure` 07, new: the figure holds one idea.** This is "everything in the figure serves the
+  point", the condition #247 dropped from grader 03, written as something a judge can apply: no second token or
+  warm-up copy, no naive version, no toggle between variants. The skill teaches it (rule 2 lists "a second idea"
+  among the usual cuts, and rule 9 asks that a second picture have a stated job), and the two no-skill answers
+  read both added a shorter non-overlapping copy as a second version behind a toggle.
+- **`review-stepper-boundary` 06, new: each pointer's marking stays the same wherever the pointer appears** (every
+  step, other figures, the step text). This is the condition #247 dropped from grader 02. The three with-skill
+  answers read all said it ("use them everywhere", "kept the same across every frame"); none of the no-skill
+  answers did. Grader 02 now names 06 where it said no grader asks this.
+
+**Result**, the suite run, with #248's two runs of the suite before the change beside it:
+
+| Case | With | Without | Δ | Δ before, run 1 | Δ before, run 2 |
+| --- | --- | --- | --- | --- | --- |
+| `design-lz77-figure` | 0.86 | 0.14 | +0.71 | +0.78 | +0.78 |
+| `fix-confusing-figure` | 0.89 | 0.28 | +0.61 | +0.06 | +0.11 |
+| `review-deflate-figures` | 0.95 | 0.57 | +0.38 | +0.14 | +0.14 |
+| `review-stepper-boundary` | 0.94 | 0.67 | +0.28 | +0.20 | 0.00 |
+| Mean | 0.91 | 0.42 | +0.50 | +0.29 | +0.26 |
+
+`fix-confusing-figure` scored 0.89 and 0.89 with the skill and 0.83 and 0.78 without before the change. In the
+first run of the three changed cases it was 1.00 and 0.39 (+0.61), `design-lz77-figure` 0.76 and 0.19 (+0.57) and
+`review-stepper-boundary` 0.83 and 0.61 (+0.22).
+
+Passes of each changed or new grader, with the skill and without, in the first run and then the suite run:
+
+| Grader | With, first run | Without, first run | With, suite run | Without, suite run |
+| --- | --- | --- | --- | --- |
+| `fix-confusing-figure` 01, names the point and cuts | 3 of 3 | 3 of 3 | 3 of 3 | 3 of 3 |
+| `fix-confusing-figure` 04, what the prose carries | 3 of 3 | 1 of 3 | 3 of 3 | 0 of 3 |
+| `fix-confusing-figure` 05, hit and miss in one layout | 3 of 3 | 3 of 3 | 3 of 3 | 2 of 3 |
+| `fix-confusing-figure` 06, says what is left out | 3 of 3 | 0 of 3 | 1 of 3 | 0 of 3 |
+| `fix-confusing-figure` 07, caption says what to notice | 3 of 3 | 0 of 3 | 3 of 3 | 0 of 3 |
+| `fix-confusing-figure` 08, names the component | 3 of 3 | 0 of 3 | 3 of 3 | 0 of 3 |
+| `design-lz77-figure` 07, one idea | 3 of 3 | 0 of 3 | 3 of 3 | 0 of 3 |
+| `review-stepper-boundary` 06, markings stay the same | 3 of 3 | 1 of 3 | 3 of 3 | 1 of 3 |
+
+- **Every new or rewritten grader fails more often without the skill than with it, in both runs.** The Sonnet
+  judge split its votes on none of the 48 verdicts of 04, 07, `design-lz77-figure` 07 and `review-stepper-boundary`
+  06. Over the suite run it split on 2 of 69 with-skill verdicts and 7 of 69 without.
+- **Every case has a Δ of +0.2 or more in the suite run**, which is what #249 asks. Read the next list before
+  relying on that for the two cases that did not change.
+- **The with-skill mean is 0.91**, where four earlier Sonnet-judged runs had 0.94, 0.91, 0.93 and 0.94. The suite
+  has 23 `llm` graders now, not 22, and the run cost $5.86 ($3.47 of it the judge) against $5.48 and $5.41.
+- **A baseline is kept**: `pedagogical-diagrams/evals/baselines/2026-11-18-two-arm-249.json`, the suite run (24
+  answers, both arms), trimmed with `rejudge.mjs --trim --commit 33d60a3`. The earlier baselines were graded with
+  the old grader files, so their per-case scores do not compare with this one's.
+
+**What this does not show.**
+
+- **`review-deflate-figures` did not change and its Δ went from +0.14 twice to +0.38.** Its no-skill arm scored
+  0.86 and 0.86 before and 0.57 here: graders 05 and 07 passed 0 of 3 and 1 of 3 without the skill, where they had
+  passed 2 of 3 and 3 of 3 in #248's first run. That is the no-skill arm moving, as `review-stepper-boundary`'s did in #248 (0.73 and
+  0.93). One run above the bar is not evidence that the case separates the arms.
+- **`review-stepper-boundary` is +0.22 and +0.28 only because of grader 06.** Without it the case would be
+  +0.13 and +0.20 on these answers, and it was 0.00 in one earlier run. Graders 02, 03 and 04 pass about as often
+  without the skill as with it: over these two runs and #248's first, 6 of 9 with and 7 of 9 without, 8 and 7, and
+  9 and 9. The rule that removed 02 and 03 from `fix-confusing-figure` applies to them too. They were left alone:
+  #249 is about the other case.
+- **The new graders were fitted to answers that had been read**, as the 2026-11-10 and #237 graders were. The two
+  runs here are fresh answers, which is the check `evals.md` asks for, and they are two runs on one day.
+- **Two of the six `fix-confusing-figure` graders ask about this repo and its house style** (07 is the caption
+  rule in the skill's "In this repo" table, 08 a component name). A reader who wants the case to measure only
+  design judgment should read 04 and 06: 6 of 6 and 4 of 6 with the skill, 1 of 6 and 0 of 6 without.
+- **`fix-confusing-figure` 06 moved from 3 of 3 to 1 of 3 with the skill**, and two of its six verdicts in the
+  suite run were split (both failed, one vote to two). The two failing answers were not read: this is the
+  unsteady grader of the case.
+- **`design-lz77-figure` 06 (cover the prose) passed 0 of 3 and then 2 of 3 with the skill**, and 05 passed 2 of
+  3 and 1 of 3 in each arm. Neither grader changed. 05 no longer separates the arms on these two runs.
+- **`design-lz77-figure` 07 fails a design that opens with a shorter, non-overlapping copy.** That can be defended
+  as teaching the plain case first. The grader takes the skill's side (one figure, one point; a second picture
+  needs a stated job), and a future change to the skill there should change the grader with it.
+- **`--case` takes `*` and `?` only.** `{a,b}` and `[ey]` match nothing, at no cost, so two cases that share no
+  pattern need two runs.
