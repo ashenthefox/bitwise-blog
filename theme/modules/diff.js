@@ -175,6 +175,8 @@
       body.append(host.querySelector(":scope > template").content.cloneNode(true));
       root.append(body);
     }
+    // A tree cannot see whether the change highlights are off around it, so bh.js writes it in.
+    bh.mirrorChanges();
   }
 
   function hide() {

@@ -171,6 +171,20 @@ test("the diff module marks a live page with what changed since a commit", { ski
     assert.equal(await p.evaluate(side(0, `!!root.querySelector("#bh-arrow") && getComputedStyle(root.querySelector(".edge")).markerEnd.includes("bh-arrow")`)), true, "arrowheads resolve inside the tree");
     assert.equal(await p.evaluate(side(0, `root.querySelector("figcaption").textContent`)), "The client calls the service.");
     assert.equal(await p.evaluate(`getComputedStyle(document.querySelector(".bh-diff-ui bh-versions .bh-versions-caption")).display`), "none", "the pair's shared caption would repeat it");
+    // The copies obey the change-highlight switches, though a shadow tree cannot see its ancestors.
+    const calm = (what: string) => `new Promise((r) => setTimeout(r, 400)).then(() => ${what})`; // let a stroke transition end
+    const mark = side(1, `[...root.querySelectorAll("[data-change]")].map((n) => { const s = getComputedStyle(n.matches(".node") ? n.querySelector("rect") : n); return s.stroke + " " + s.strokeDasharray; }).join(" | ")`);
+    const lit = await p.evaluate(calm(mark));
+    assert.equal(await p.evaluate("document.querySelector('.bh-diff-ui bh-versions .bh-versions-changes').getAttribute('aria-pressed')"), "true", "the pair has its own button");
+    await p.evaluate("document.querySelector('.bh-diff-ui bh-versions .bh-versions-changes').click()");
+    const plain = await p.evaluate(calm(mark));
+    assert.notEqual(plain, lit, "the pair's button turns the marks off inside the shadow tree");
+    await p.evaluate("document.querySelector('.bh-diff-ui bh-versions .bh-versions-changes').click()");
+    assert.equal(await p.evaluate(calm(mark)), lit, "and on again");
+    await p.evaluate("document.documentElement.setAttribute('data-changes', 'off')");
+    assert.equal(await p.evaluate(calm(mark)), plain, "the page's switch reaches the tree too");
+    await p.evaluate("document.documentElement.removeAttribute('data-changes')");
+    assert.equal(await p.evaluate(calm(mark)), lit);
     // Expand all, and step through the changes.
     await p.evaluate("document.querySelector('.bh-diff-bar [data-expand]').click()");
     assert.equal(await p.evaluate("document.querySelectorAll('details.bh-diff-mark:not([open])').length"), 0);

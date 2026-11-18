@@ -267,6 +267,22 @@
   // Where there is no button to ask with, the marks show: without JavaScript, on paper, and in
   // the slides (the top bar is hidden while presenting).
 
+  /**
+   * A page diff draws some copies in a shadow tree (`.bh-diff-shadow`, see diff.js). A selector there
+   * cannot see an ancestor outside the tree, so what the copy's ancestors say is written onto its content.
+   */
+  function mirrorChanges() {
+    for (const host of doc.querySelectorAll(".bh-diff-shadow")) {
+      const body = host.shadowRoot && host.shadowRoot.querySelector(".bh-article");
+      if (!body) continue;
+      if (host.closest('[data-changes="off"]')) body.dataset.changes = "off";
+      else delete body.dataset.changes;
+    }
+  }
+  // Whoever sets the attribute (either button, a page script), the copies follow. Changes inside a
+  // shadow tree are not observed from here, so mirroring cannot set itself off again.
+  if ("MutationObserver" in window) new MutationObserver(mirrorChanges).observe(root, { attributes: true, attributeFilter: ["data-changes"], subtree: true });
+
   /** Turn the page's switch on: for code that shows the reader a change they asked for (diff.js). */
   let showChanges = () => {};
 
@@ -299,10 +315,12 @@
   addEventListener("beforeprint", () => {
     changesOffBeforePrint = [...doc.querySelectorAll('[data-changes="off"]')];
     for (const n of changesOffBeforePrint) delete n.dataset.changes;
+    mirrorChanges();
   });
   addEventListener("afterprint", () => {
     for (const n of changesOffBeforePrint) n.dataset.changes = "off";
     changesOffBeforePrint = [];
+    mirrorChanges();
   });
 
   // ---- Auto meta (from <meta name="bh:*">) into <dl class="bh-meta" data-auto> ------
@@ -1702,7 +1720,7 @@
   window.bh = {
     applyTheme, whenReady, el, format, copyText, copyLink, toast, linkLabel, settle,
     reducedMotion, LINK_ICON, ensureMarkers: () => injectMarkers(true), loadScript, siteRoot: SITE_ROOT,
-    showChanges: () => showChanges(),
+    showChanges: () => showChanges(), mirrorChanges,
     sitePath, meta, storage, loadModule, examples: EXAMPLES, fragment,
     // Unlisted pages: whether to surface them, and their data (null while the flag is off).
     unlisted: { visible: UNLISTED.visible, page: UNLISTED.page, data: loadUnlisted },

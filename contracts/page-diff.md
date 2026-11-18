@@ -26,7 +26,9 @@ reader would see it, in three places that share one function, `diffPages` (`scri
   `<bh-versions>` pair, and each part with a `data-id` is marked `data-change` (removed, added, changed)
   unless the author marked it already. Those marks obey the page's change-highlight switch (the top
   bar's button, off when a page opens), so a diff turns it on: a diff page (`data-bh-diff`) starts with
-  it on, and `diff.js` calls `bh.showChanges()` when it places a changed diagram.
+  it on, and `diff.js` calls `bh.showChanges()` when it places a changed diagram. A copy drawn in a
+  shadow tree cannot see the switch on its ancestors, so `bh.mirrorChanges()` writes `data-changes="off"`
+  onto the tree's content whenever an ancestor has it; `upgrade` calls it for a new tree.
 - **How the source is wrapped or indented is not a change.** Comments are ignored.
 - Each difference says what differs: `text`, `figure` (a picture), or `markup` (attributes or structure only).
 
