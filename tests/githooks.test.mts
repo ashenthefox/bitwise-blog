@@ -109,6 +109,32 @@ test("pre-push: a checkout with no private data is not blocked and is told the c
   assert.equal(pushed(remote), true);
 });
 
+test("pre-push: a checkout with no node_modules is blocked with a line saying to run npm ci, not a stack trace", (t) => {
+  const { repo, remote } = setup(t, { withData: true });
+  // Take away the install `setup` linked in, so this checkout is as a new worktree is.
+  fs.rmSync(path.join(repo, "node_modules"));
+  assert.equal(fs.existsSync(path.join(repo, "node_modules")), false, "the fault was injected");
+  const probe = spawnSync(process.execPath, ["--input-type=module", "-e", 'import.meta.resolve("yaml")'], { cwd: repo, encoding: "utf8" });
+  assert.match(probe.stderr, /ERR_MODULE_NOT_FOUND/, "yaml really is unresolvable from the checkout");
+  fs.writeFileSync(path.join(repo, "leak.html"), `<p>${QUOTE}</p>\n`);
+  ok(repo, "add", "leak.html");
+  ok(repo, "commit", "-q", "-m", "second");
+
+  const r = git(repo, "push", "origin", "main");
+  assert.notEqual(r.code, 0, `it must not fail open: ${r.text}`);
+  assert.match(r.text, /no node_modules/);
+  assert.match(r.text, /`npm ci`/);
+  assert.match(r.text, /push is blocked/);
+  assert.doesNotMatch(r.text, /ERR_MODULE_NOT_FOUND|\n\s+at /, "no stack trace");
+  assert.equal(pushed(remote), false, "nothing reached the remote");
+  // The same checkout with the install back is judged as before, so the line comes from the missing package alone.
+  fs.symlinkSync(path.join(ROOT, "node_modules"), path.join(repo, "node_modules"));
+  const back = git(repo, "push", "origin", "main");
+  assert.notEqual(back.code, 0, back.text);
+  assert.doesNotMatch(back.text, /npm ci/);
+  assert.match(back.text, /12-word run/);
+});
+
 test("pre-push: a linked worktree shares the setting and runs the hook against its own files", (t) => {
   const { repo, remote, dir } = setup(t, { withData: true });
   const wt = path.join(dir, "wt");
