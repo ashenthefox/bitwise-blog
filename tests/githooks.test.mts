@@ -105,7 +105,10 @@ test("pre-push: a checkout with no private data is not blocked and is told the c
   ok(repo, "commit", "-q", "-m", "would leak, if there were data to know it");
   const r = git(repo, "push", "origin", "main");
   assert.equal(r.code, 0, r.text);
-  assert.match(r.text, /leak-check --pushed skipped: .*Nothing was checked; `npm run advisor -- link <path>`/);
+  // The hint names the directory to run in and what the argument is (#323).
+  const hint = /leak-check --pushed skipped: .*Nothing was checked\. .*run `npm run advisor -- link <path-to-data-clone>` in (\S+) \(the checkout to link; the argument is your clone of the private data repo, not a checkout of this one\)/.exec(r.text);
+  assert.ok(hint, r.text);
+  assert.equal(fs.realpathSync(hint[1]!), fs.realpathSync(repo), "the directory it names is this checkout");
   assert.equal(pushed(remote), true);
 });
 

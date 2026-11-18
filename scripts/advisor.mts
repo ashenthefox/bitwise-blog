@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The advisor tools: everything that reads a writer's corpus. See corpus/README.md.
 //
-//   npm run advisor -- link <path>                 point corpus/private at a clone of the data repo
+//   npm run advisor -- link <path-to-data-clone>   point this checkout's corpus/private at a clone of the data repo
 //   npm run advisor -- index [<writer>]            regenerate the INDEX.md catalogues
 //   npm run advisor -- holdout <writer> [--check]  choose (or check) the eval holdout
 //   npm run advisor -- leak-check [--history | --pushed <remote>]
@@ -13,6 +13,7 @@
 //
 // Exit code: 0 on success, 1 if a check or a command failed, 2 on a usage error.
 
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
@@ -28,7 +29,8 @@ import { parity } from "./advisor/parity.mts";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const USAGE = `usage: npm run advisor -- <command>
-  link <path> [--force]                  point corpus/private at a clone of the private data repo
+  link <path-to-data-clone> [--force]    point this checkout's corpus/private at a clone of the private data repo (run it in
+                                         the checkout to link; each git worktree needs its own)
   index [<writer>]                       regenerate the INDEX.md catalogues
   holdout <writer> [--check] [--fraction F] [--seed N]
                                          choose the eval holdout, or check it is current
@@ -60,7 +62,28 @@ export interface AdvisorContext {
   readItem?: (title: string, vault: string) => string;
 }
 
-/** Make corpus/private a symlink to the data repo. One per worktree, since worktrees don't share ignored files. */
+/** How the hints name the command: where to run it, and that its argument is the data clone, not a checkout to link (#323). */
+const linkHint = (repoRoot: string) => `run \`npm run advisor -- link <path-to-data-clone>\` in ${repoRoot} (the checkout to link; the argument is your clone of the private data repo, not a checkout of this one)`;
+
+/**
+ * The real path of the git directory that every worktree of `dir`'s repository shares, or undefined when `dir`
+ * is in no git repository (or git can't say). Two directories with the same one are checkouts of one repository.
+ */
+function gitCommonDir(dir: string): string | undefined {
+  // Without git's own variables: GIT_DIR (set when a hook or an alias runs this) would answer for both directories alike.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_PREFIX"].includes(name)));
+  const r = spawnSync("git", ["-C", dir, "rev-parse", "--git-common-dir"], { encoding: "utf8", env, timeout: 30_000 });
+  const printed = r.status === 0 ? r.stdout.replace(/\r?\n$/, "") : "";
+  if (!printed) return undefined;
+  // git prints it relative to `dir` in a main checkout (".git") and absolute in a linked worktree.
+  const common = path.resolve(dir, printed);
+  return fs.existsSync(common) ? fs.realpathSync(common) : undefined;
+}
+
+/**
+ * Make corpus/private a symlink to the data repo. One per worktree, since worktrees don't share ignored files:
+ * run in the checkout to link, with the data clone as the argument.
+ */
 function cmdLink(target: string, force: boolean, corpusRoot: string, repoRoot: string, out: Output): number {
   const resolved = path.resolve(target);
   if (!fs.statSync(resolved, { throwIfNoEntry: false })?.isDirectory()) {
@@ -72,6 +95,13 @@ function cmdLink(target: string, force: boolean, corpusRoot: string, repoRoot: s
   const relative = path.relative(fs.realpathSync(repoRoot), fs.realpathSync(resolved));
   if (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)) {
     out.error(`error: ${resolved} is inside this repository; the private data must live outside it`);
+    return 1;
+  }
+  // Another worktree or checkout of this repository is not the private data: linked, it would make this checkout
+  // look linked while leak-check found no posts and checked nothing, and it would dangle once the worktree went (#323).
+  const ours = gitCommonDir(repoRoot);
+  if (ours !== undefined && gitCommonDir(resolved) === ours) {
+    out.error(`error: ${resolved} is a checkout of this repository, not the private data. The argument is your clone of the private data repo; to link a worktree, run this command in that worktree with the data clone's path. Nothing was changed.`);
     return 1;
   }
   const link = privateDir(corpusRoot);
@@ -98,6 +128,8 @@ function cmdLink(target: string, force: boolean, corpusRoot: string, repoRoot: s
   fs.symlinkSync(resolved, link, "dir");
   const found = writers(corpusRoot);
   out.log(`corpus/private -> ${resolved} (${found.length ? `writers: ${found.join(", ")}` : "no writers yet"})`);
+  // Linked all the same: a new, empty clone is a fair target before the first `sync-posts`. But say what it means.
+  if (!found.length) out.error(`warning: ${resolved} holds no writer (no <writer>/posts/ directory), so leak-check has nothing to compare with and will skip. If that is not your clone of the private data repo, repoint the link: \`npm run advisor -- link --force <path-to-data-clone>\`.`);
   return 0;
 }
 
@@ -140,7 +172,7 @@ function cmdLeakCheck(repoRoot: string, corpusRoot: string, scope: LeakScope, ou
     : scope.kind === "pushed" ? leakCheckPushed(repoRoot, () => parsePushUpdates(scope.stdin()), scope.remote, corpusRoot)
     : leakCheck(repoRoot, corpusRoot);
   if (result.status === "skipped") {
-    out.log(`${name} skipped: ${result.reason}. Nothing was checked; \`npm run advisor -- link <path>\` points this checkout at the private data.`);
+    out.log(`${name} skipped: ${result.reason}. Nothing was checked. To point this checkout at the private data, ${linkHint(repoRoot)}.`);
     return 0;
   }
   // Only places and lengths, never the words: this output may end up somewhere public.
@@ -240,7 +272,7 @@ export async function main(argv: string[] = process.argv.slice(2), context: Advi
   if ((values.head !== undefined || values.base !== undefined) && !values.hashed) return usageError("--head and --base only apply to leak-check --hashed");
   // Without this, leak-check would report "skipped" and exit 0 having checked nothing.
   if (command !== "link" && danglingLink(corpusRoot)) {
-    out.error(`error: corpus/private points at ${fs.readlinkSync(privateDir(corpusRoot))}, which doesn't exist; run \`npm run advisor -- link <path>\``);
+    out.error(`error: corpus/private points at ${fs.readlinkSync(privateDir(corpusRoot))}, which doesn't exist; ${linkHint(repoRoot)}`);
     return 1;
   }
   try {
