@@ -1,0 +1,236 @@
+import assert from "node:assert/strict";
+import type http from "node:http";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { test } from "node:test";
+import { fileURLToPath } from "node:url";
+import { findChrome, launchChrome, serveStatic, sleep } from "../scripts/chrome.mts";
+
+// bh.js is deferred, and it builds the table of contents. The reading column must not wait for it:
+// while the script is still loading, and with JavaScript off, the article and its text sit where
+// they sit once the script has run. Otherwise a slow connection shows one layout and then another,
+// and a reader without JavaScript keeps the wrong one (the article was once laid out in the 14rem
+// column meant for the table of contents).
+//
+// PRE_SCRIPT_TABLE=1 prints every measurement as a table row.
+const skip = !findChrome() || typeof WebSocket === "undefined" ? "needs Chrome and Node >= 22" : false;
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const table = !!process.env.PRE_SCRIPT_TABLE;
+
+const DESKTOP = 1280, PHONE = 390;
+/** The table of contents takes a column from 1100px: one view on each side of that. */
+const BREAKPOINT = [1100, 1099];
+
+interface Case {
+  /** The path the server answers on. */
+  path: string;
+  widths: number[];
+  /** For a fixture: whether bh.js builds a table of contents for it. */
+  toc?: boolean;
+}
+
+/** Every page in docs/ but the sealed ones, whose content a plain request cannot render. Unlisted pages render like any other. */
+const docs = readdirSync(join(root, "docs"))
+  .filter((f) => f.endsWith(".html") && !f.endsWith(".private.html"))
+  .filter((f) => !/<meta name="bh:sealed"/.test(readFileSync(join(root, "docs", f), "utf8")));
+/** Pages measured on both sides of the breakpoint as well: with a table of contents, and without one. */
+const AT_BREAKPOINT = ["token-bucket-rate-limiting.html", "edge-rate-limiting-design.html", "glossary.html"];
+const templates = readdirSync(join(root, "templates")).filter((f) => f.endsWith(".html"));
+
+/**
+ * Pages made here, to pin the count that decides whether there is a table of contents: bh.js builds
+ * one from three headings (h2 or h3, directly in the article, not .no-toc), and layout.css must
+ * reach the same answer from the markup. No real page sits on the boundary.
+ */
+const fixture = (body: string) => `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fixture</title>
+  <link rel="stylesheet" href="../theme/bh.css">
+  <script src="../theme/bh.js" defer></script>
+</head>
+<body data-home="../index.html">
+<main class="bh-page">
+  <article class="bh-article">
+    <header class="bh-hero"><h1>Fixture</h1></header>
+    <p>A paragraph in the reading column, long enough to fill its line and wrap onto a second one at any width.</p>
+${body}
+  </article>
+</main>
+</body>
+</html>
+`;
+const h = (tag: string, n: number, attrs = "") => `    <${tag} id="s${n}"${attrs}>Section ${n}</${tag}>\n    <p>Text.</p>`;
+const FIXTURES: { name: string; toc: boolean; body: string }[] = [
+  { name: "two-headings", toc: false, body: [h("h2", 1), h("h2", 2)].join("\n") },
+  { name: "three-headings", toc: true, body: [h("h2", 1), h("h3", 2), h("h2", 3)].join("\n") },
+  { name: "three-headings-one-no-toc", toc: false, body: [h("h2", 1), h("h2", 2, ' class="no-toc"'), h("h2", 3)].join("\n") },
+  { name: "four-headings-one-no-toc", toc: true, body: [h("h2", 1), h("h2", 2, ' class="no-toc"'), h("h3", 3), h("h2", 4)].join("\n") },
+  // An h4, and headings inside a component, are not sections.
+  { name: "two-headings-and-others", toc: false, body: [h("h2", 1), h("h2", 2), h("h4", 3), '    <div class="card"><h3>In a card</h3><h3>And another</h3></div>'].join("\n") },
+  // Only the page's own article counts, not a block inside it that borrows the class.
+  { name: "two-headings-nested-article", toc: false, body: [h("h2", 1), h("h2", 2), '    <div class="bh-article"><h2>One</h2><h2>Two</h2><h2>Three</h2></div>'].join("\n") },
+];
+const fixturePath = (name: string) => `/docs/pre-script-fixture-${name}.html`;
+
+const cases: Case[] = [
+  ...docs.map((f) => ({ path: `/docs/${f}`, widths: [DESKTOP, PHONE, ...(AT_BREAKPOINT.includes(f) ? BREAKPOINT : [])] })),
+  { path: "/index.html", widths: [DESKTOP, PHONE] },
+  { path: "/404.html", widths: [DESKTOP, PHONE] },
+  ...templates.map((f) => ({ path: `/templates/${f}`, widths: [DESKTOP, PHONE] })),
+  ...FIXTURES.map((f) => ({ path: fixturePath(f.name), widths: [DESKTOP, ...BREAKPOINT, PHONE], toc: f.toc })),
+];
+
+/**
+ * Pages that are wider than a phone until bh.js runs: a bare table, a long line of code or a diagram's
+ * minimum width overflows, and the phone widens its viewport to fit. bh.js wraps or scrolls them, so
+ * the settled page is 390px. That is a different fault from the one this test is for, and it is on
+ * main too; it has its own follow-up issue. Named here so the check holds for every other page, and
+ * so a page that stops overflowing must be taken off the list.
+ */
+const WIDE_ON_A_PHONE_BEFORE_THE_SCRIPT = new Set([
+  "/docs/component-gallery.html",
+  "/docs/edge-rate-limiting-design.html",
+  "/docs/how-deflate-sends-its-code.html",
+  "/docs/how-deflate-works.html",
+]);
+
+interface Box { x: number; width: number }
+/** `tocRight` is the right edge of the table of contents, or null when the page has none. */
+interface Layout { article: Box; text: Box; toc: boolean; tocRight: number | null; innerWidth: number }
+
+/**
+ * Where the article and its first paragraph are (or, on a page with no paragraph of its own, its first
+ * block in the reading column). The paragraph is in the reading column; the article spans the whole grid.
+ * Read once the fonts are in: the column is 66ch wide, so it is wider while a fallback font is showing
+ * (707px, not 673px, at 1280px).
+ */
+const probe = `(async () => {
+  // A font is requested by the first layout that needs it, so lay out first and then wait.
+  do { document.body.getBoundingClientRect(); await document.fonts.ready; } while (document.fonts.status !== "loaded");
+  const box = (n) => { const r = n.getBoundingClientRect(); return { x: Math.round(r.x * 100) / 100, width: Math.round(r.width * 100) / 100 }; };
+  const article = document.querySelector(".bh-article");
+  // The first one that is shown: the home page starts with a paragraph that is hidden until a filter finds nothing.
+  const shown = (sel) => article && [...article.querySelectorAll(sel)].find((n) => n.getBoundingClientRect().width > 0);
+  const text = shown(":scope > p") || shown(":scope > :not(.bh-hero, .wide, .full, script, style)");
+  if (!article || !text) return null;
+  const toc = document.querySelector(".bh-toc");
+  return { article: box(article), text: box(text), toc: !!toc, tocRight: toc ? Math.round(toc.getBoundingClientRect().right * 100) / 100 : null, innerWidth };
+})()`;
+
+test("the reading column is in place before bh.js runs, and without JavaScript", { skip, timeout: 170000 }, async (t) => {
+  assert.ok(docs.length > 0 && templates.length > 0, "found pages and templates");
+  for (const f of AT_BREAKPOINT) assert.ok(docs.includes(f), `${f} is a page`);
+  for (const p of WIDE_ON_A_PHONE_BEFORE_THE_SCRIPT) assert.ok(cases.some((c) => c.path === p), `${p} is a page`);
+  const routes = new Map(FIXTURES.map((f) => [fixturePath(f.name), { type: "text/html; charset=utf-8", body: fixture(f.body) }]));
+  const server = await serveStatic(root, routes);
+  t.after(() => new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); }));
+  // The server holds the response for bh.js until released.
+  let hold = false, held = 0, release = () => {};
+  const serve = server.listeners("request")[0] as (req: http.IncomingMessage, res: http.ServerResponse) => void;
+  server.removeAllListeners("request");
+  server.on("request", (req: http.IncomingMessage, res: http.ServerResponse) => {
+    if (!hold || !/\/theme\/bh\.js(?:\?|$)/.test(req.url || "")) serve(req, res);
+    else { held++; const before = release; release = () => { before(); serve(req, res); }; }
+  });
+  t.after(() => release());
+  const address = server.address();
+  assert.ok(address && typeof address !== "string", "the server is listening");
+  const base = `http://127.0.0.1:${address.port}`;
+  const chrome = await launchChrome();
+  t.after(() => chrome.close());
+
+  const { targetId } = await chrome.send("Target.createTarget", { url: "about:blank" });
+  const { sessionId } = await chrome.send("Target.attachToTarget", { targetId, flatten: true });
+  t.after(() => chrome.send("Target.closeTarget", { targetId }).catch(() => {}));
+  const s = (method: string, params?: object) => chrome.send(method, params, sessionId);
+  await s("Page.enable");
+  await s("Page.bringToFront");
+  await s("Network.enable");
+  await s("Network.setCacheDisabled", { cacheDisabled: true });
+  await s("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
+  const evaluate = async (expression: string) => {
+    const r = await s("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
+    if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
+    return r.result.value;
+  };
+  const until = async (expression: string, what: string) => {
+    let ok = false;
+    for (let i = 0; i < 150 && !ok; i++) { await sleep(50); ok = await evaluate(expression).catch(() => false); }
+    assert.ok(ok, `${what} within 7.5 seconds`);
+  };
+  const layout = async (what: string): Promise<Layout> => {
+    // Two readings 50 ms apart that agree: a font that arrives just after the first one moves the column.
+    let l: Layout | null = await evaluate(probe);
+    for (let i = 0; i < 40; i++) {
+      await sleep(50);
+      const again: Layout | null = await evaluate(probe);
+      const same = JSON.stringify(again) === JSON.stringify(l);
+      l = again;
+      if (same) break;
+    }
+    assert.ok(l, `${what}: the page has an article with a block in the reading column`);
+    return l;
+  };
+  const row = (path: string, width: number, state: string, l: Layout) => {
+    if (table) console.log(`| ${path} | ${width} | ${state} | ${l.article.x} | ${l.article.width} | ${l.text.x} | ${l.text.width} | ${l.innerWidth} | ${l.toc ? "yes" : "no"} |`);
+  };
+  if (table) console.log("| page | window | state | article x | article width | paragraph x | paragraph width | innerWidth | TOC |\n|---|---|---|---|---|---|---|---|---|");
+
+  // Pages with and without a table of contents must both be covered: bh.js builds none for a page with few headings.
+  const seen = { toc: 0, none: 0 };
+  for (const width of [...new Set(cases.flatMap((c) => c.widths))]) {
+    const phone = width < 640;
+    for (const page of cases.filter((c) => c.widths.includes(width))) {
+      await t.test(`${page.path} at ${width}px`, async () => {
+        await s("Emulation.setDeviceMetricsOverride", { width, height: phone ? 800 : 900, deviceScaleFactor: 1, mobile: phone });
+        // Example pages show their content on a local host only with ?examples.
+        const url = base + page.path + "?examples";
+
+        hold = true; held = 0;
+        await s("Emulation.setScriptExecutionDisabled", { value: false });
+        await s("Page.navigate", { url });
+        // The document is parsed and painted, and the deferred script has not arrived.
+        await until(`document.readyState === "interactive" && performance.getEntriesByType("paint").length > 0`, "the page painted");
+        assert.equal(held, 1, "bh.js was requested and is held");
+        assert.equal(await evaluate("typeof window.bh"), "undefined", "bh.js has not run");
+        const waiting = await layout("bh.js held");
+        row(page.path, width, "bh.js held", waiting);
+        release(); release = () => {}; hold = false;
+        await until("document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')", "the page settled");
+        const settled = await layout("settled");
+        row(page.path, width, "settled", settled);
+        if (width >= 1100) seen[settled.toc ? "toc" : "none"]++;
+
+        await s("Emulation.setScriptExecutionDisabled", { value: true });
+        await s("Page.navigate", { url });
+        // The page's scripts are off; the protocol's own evaluation still runs.
+        await until(`document.readyState === "complete" && !document.documentElement.classList.contains("js")`, "the page loaded without JavaScript");
+        const off = await layout("no JavaScript");
+        row(page.path, width, "no JavaScript", off);
+        await s("Emulation.setScriptExecutionDisabled", { value: false });
+
+        if (page.toc !== undefined) assert.equal(settled.toc, page.toc, "bh.js builds a table of contents from three headings");
+        // Equal positions are not enough: were CSS to count the headings as too few where the script builds a
+        // table of contents, the page would stay one column, the table of contents stacked above an article that never moved.
+        if (width >= 1100 && settled.tocRight !== null) assert.ok(settled.article.x >= settled.tocRight, `the table of contents has its own column, left of the article (${settled.tocRight} <= ${settled.article.x})`);
+        assert.equal(settled.innerWidth, width, "nothing widens the settled page");
+        if (phone && WIDE_ON_A_PHONE_BEFORE_THE_SCRIPT.has(page.path)) {
+          assert.ok(waiting.innerWidth > width || off.innerWidth > width, "the page no longer overflows before the script runs: take it off the list");
+        } else {
+          assert.equal(waiting.innerWidth, width, "nothing widens the page while bh.js loads");
+          assert.equal(off.innerWidth, width, "nothing widens the page without JavaScript");
+        }
+        assert.ok(settled.text.width >= Math.min(320, width - 80), `the settled paragraph is a reading column (${settled.text.width}px)`);
+        assert.deepEqual(waiting.text, settled.text, "the paragraph is in the same place while bh.js loads as after it runs");
+        assert.deepEqual(waiting.article, settled.article, "the article is in the same place while bh.js loads as after it runs");
+        assert.deepEqual(off.text, settled.text, "the paragraph is in the same place without JavaScript");
+        assert.deepEqual(off.article, settled.article, "the article is in the same place without JavaScript");
+      });
+    }
+  }
+  assert.ok(seen.toc > 0, "a page with a table of contents was measured");
+  assert.ok(seen.none > 0, "a page without a table of contents was measured");
+});

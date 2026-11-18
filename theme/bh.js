@@ -414,6 +414,8 @@
     if (!article) return [];
     const used = new Set([...doc.querySelectorAll("[id]")].map((n) => n.id));
     const all = [...article.querySelectorAll(":scope > h2, :scope > h3, :scope > h4")];
+    // The headings the table of contents lists. layout.css counts the same ones with :has() to give a
+    // page with fewer than three one column before this runs (see buildToc): keep the two in step.
     const heads = all.filter((h) => h.tagName !== "H4" && !h.classList.contains("no-toc"));
     let n = 0;
     for (const h of all) {
@@ -632,6 +634,8 @@
     }
   }
 
+  // Fewer than three headings means no table of contents, and one column. layout.css reaches the same
+  // answer from the markup with :has(), so the article does not move when this runs: keep them in step.
   function buildToc(heads) {
     const page = doc.querySelector(".bh-page");
     if (!page || heads.length < 3 || page.classList.contains("no-toc")) {
