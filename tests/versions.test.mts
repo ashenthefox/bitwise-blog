@@ -272,6 +272,60 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
     });
   });
 
+  await t.test("the page's switch stays true to its button through printing, a page script and a wrapper's switch", async () => {
+    const found = await evaluate(`(async () => {
+      const tick = () => new Promise((r) => setTimeout(r, 0));
+      const html = document.documentElement;
+      const page = document.querySelector(".bh-topbar .bh-changes-btn");
+      const state = () => [page.getAttribute("aria-pressed"), html.getAttribute("data-changes")];
+      const fire = async (name) => { window.dispatchEvent(new Event(name)); await tick(); }; // one task each, as a real print is
+      const out = { icon: [innerWidth, page.querySelector("svg").getBoundingClientRect().width] };
+      if (page.getAttribute("aria-pressed") === "true") { page.click(); await tick(); }
+      out.start = state();
+      // A second beforeprint must not forget what the first one lifted.
+      await fire("beforeprint"); await fire("beforeprint");
+      out.printing = state();
+      await fire("afterprint");
+      out.afterTwoBeforeprints = state();
+      // While the page prints, nothing puts the switch back: not a class change on <html> ...
+      await fire("beforeprint");
+      html.classList.add("x-test"); await tick();
+      out.classChangeWhilePrinting = state();
+      html.classList.remove("x-test");
+      // ... and code that turns the switch on meanwhile is not undone when printing ends.
+      window.bh.showChanges(); await tick();
+      await fire("afterprint");
+      out.shownWhilePrinting = state();
+      // A page script that sets the attribute on <html>: the button says what the attribute says.
+      html.setAttribute("data-changes", "off"); await tick();
+      out.scriptOff = state();
+      page.click(); await tick();
+      out.clickAfterScript = state();
+      html.setAttribute("data-changes", "off"); await tick();
+      html.removeAttribute("data-changes"); await tick();
+      out.scriptOn = state();
+      // A switch on a wrapper other than <html> acts like the page's for what is inside it.
+      const v = [...document.querySelectorAll("bh-versions.is-ready")].find((x) => x.querySelector("[data-change]"));
+      const own = v.querySelector(".bh-versions-changes"), rect = v.querySelector(".node[data-change] rect");
+      const lit = getComputedStyle(rect).stroke;
+      const read = () => ({ ownButtonShown: getComputedStyle(own).display !== "none", legend: getComputedStyle(v.querySelector(".bh-versions-legend")).visibility, highlighted: getComputedStyle(rect).stroke === lit });
+      const main = document.querySelector("main");
+      main.setAttribute("data-changes", "off"); await tick();
+      out.wrapperOff = read();
+      main.removeAttribute("data-changes"); await tick();
+      out.wrapperOn = read();
+      return out;
+    })()`);
+    assert.deepEqual(found, {
+      icon: [375, 18], // the bar has room for its five buttons on a phone: a flex row would shrink the icons otherwise
+      start: ["false", "off"], printing: ["false", null], afterTwoBeforeprints: ["false", "off"],
+      classChangeWhilePrinting: ["false", null], shownWhilePrinting: ["true", null],
+      scriptOff: ["false", "off"], clickAfterScript: ["true", null], scriptOn: ["true", null],
+      wrapperOff: { ownButtonShown: false, legend: "hidden", highlighted: false },
+      wrapperOn: { ownButtonShown: true, legend: "visible", highlighted: true },
+    });
+  });
+
   await t.test("a component with no marked part gets no button", async () => {
     const found = await evaluate(`(async () => {
       const v = document.createElement("bh-versions");
