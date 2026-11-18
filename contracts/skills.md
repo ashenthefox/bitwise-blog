@@ -1,6 +1,6 @@
 # Skills
 
-Read this before touching `.claude/skills/`.
+Read this before touching `.claude/skills/` or `.claude/agents/`.
 
 The agent skills in `.claude/skills/` have their own house rules. The `skill-authoring` skill
 holds them, with the reasons; this is the short form.
@@ -17,6 +17,11 @@ holds them, with the reasons; this is the short form.
   the with/without delta. A skill's rules come from a measured gap against the no-skill baseline.
 - **Check:** `npm run lint-skills` must report 0 errors, and `claude plugin validate .claude/skills`
   must pass (it parses the frontmatter, which the lint does not). Re-run the evals when a skill changes.
+- **Agent files:** neither of those checks looks at `.claude/agents/`, so `tests/agent-files.test.mts` does, in
+  `npm test`. For each `*.md` there: the frontmatter is valid YAML, `name` equals the file name, `description` is
+  not empty, and `tools` is present and holds only `Read`, `Glob` and `Grep` (an agent with no `tools` line inherits
+  every tool). Every `subagent_type` the `advisors` skill names must have an agent file, so rename the file, its
+  `name` and the skill's line together.
 - **The full run:** `npm run skill-evals`, or the Skill evals workflow started from the Actions tab,
   runs every skill's evals and fails when a pass rate falls. It runs only when someone starts it,
   never on a schedule, because it costs about US$73: see `skill-authoring/references/maintenance.md`.
