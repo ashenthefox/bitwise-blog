@@ -24,6 +24,7 @@ import {
   KIND_LABELS, escapeHtml, CARD_FILE, KEY_RE, GROUP_RE, cardFromDoc, tryDecryptCard, buildBlob,
   renderCardsFile, parseCardsFile, validateCardsFile, mergeEntries, docCardHtml,
 } from "./private-cards.mts";
+import { inlineScriptProblems } from "./inline-scripts.mts";
 import { pageWeight, pageSizeFinding } from "./page-size.mts";
 import { reviewFiles, readReview, canonicalDocument, isPrivateDocument, reviewRecord, sameReviewMessage, reviewProblems, isSealedFile, isSealedShell, PRIVATE_EXT } from "./reviews.mts";
 import { stripComments, VOID_TAGS, parseTree, nodeAttr, hasClass, walkTree, findNode, nodeText, decodeEntities } from "./html-tree.mts";
@@ -1618,6 +1619,23 @@ function inlineCss(file: string, remote: Set<string>, seen = new Set<string>()):
 const MIME: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".svg": "image/svg+xml", ".webp": "image/webp", ".avif": "image/avif" };
 const CSS_MIME: Record<string, string> = { ...MIME, ".woff2": "font/woff2", ".woff": "font/woff" };
 
+/**
+ * Where the document's head and body really end: the offset of the `</head>` that closes the head and of the
+ * `</body>` that closes the body, or -1 when there is none. A page can say either one inside its own script
+ * (a template string that builds another document), a `<style>`, a `<textarea>`, a `<title>` or a comment, and
+ * a plain search finds that one first. So those are stepped over, as the HTML parser does, and the head ends at the
+ * first `</head>` outside them and the body at the last `</body>`.
+ */
+function documentEnds(html: string): { headEnd: number; bodyEnd: number } {
+  let headEnd = -1, bodyEnd = -1;
+  for (const m of html.matchAll(/<!--[\s\S]*?-->|<(script|style|textarea|title)\b[^>]*>[\s\S]*?<\/\1\s*>|<\/(head|body)\s*>/gi)) {
+    const end = m[2]?.toLowerCase();
+    if (end === "head" && headEnd < 0) headEnd = m.index;
+    else if (end === "body") bodyEnd = m.index;
+  }
+  return { headEnd, bodyEnd };
+}
+
 /** `html`, the content of (or a page made from) `file`, as one self-contained document. `reviews: false` leaves the page's threads out. */
 function bundleHtml(html: string, file: string, reviews = true): string {
   const dir = path.dirname(file);
@@ -1639,7 +1657,7 @@ function bundleHtml(html: string, file: string, reviews = true): string {
   // A head script's text is put in at the very end, where its placeholder stands, so that none of the
   // replacements below can match inside it (a comment that says "</head>", say).
   const headScripts: string[] = [], slot = (i: number) => `<!--bh-head-script-${slotKey}-${i}-->`, slotKey = crypto.randomBytes(8).toString("hex");
-  const headEnd = html.search(/<\/head>/i);
+  const headEnd = documentEnds(html).headEnd;
   html = html.replace(/<script\s+src="([^"]+)"[^>]*><\/script>/g, (m, src, at: number) => {
     if (/^https?:/.test(src)) return m;
     const abs = path.resolve(dir, src);
@@ -1701,13 +1719,20 @@ function bundleHtml(html: string, file: string, reviews = true): string {
   html = html.replace(/<html\b/, "<html data-bundled");
   // Reviews made on a standalone file still know which document and commit they're about.
   const source = path.relative(ROOT, file).split(path.sep).join("/");
-  html = html.replace("</head>", `  <meta name="bh:source" content="${escapeHtml(source)}">\n</head>`);
   scripts.unshift(buildScript(buildInfo()));
   html = html.replace(/<a href="\.\.\/index\.html">← All documents<\/a>/g, "");
-  // A function, so `$&` and friends in a script (Mermaid has dozens) are not read as replacement patterns.
-  html = html.replace("</body>", () => scripts.map((s) => `<script>\n${s}\n</script>`).join("\n") + "\n</body>");
+  // Put in by offset, at the real ends of the head and the body (see documentEnds), and by slicing rather than
+  // `replace`, so `$&` and friends in a script (Mermaid has dozens) are not read as replacement patterns.
+  // The body first: it is later in the document, so the head's offset is still right.
+  const ends = documentEnds(html);
+  if (ends.bodyEnd >= 0) html = html.slice(0, ends.bodyEnd) + scripts.map((s) => `<script>\n${s}\n</script>`).join("\n") + "\n" + html.slice(ends.bodyEnd);
+  if (ends.headEnd >= 0) html = html.slice(0, ends.headEnd) + `  <meta name="bh:source" content="${escapeHtml(source)}">\n` + html.slice(ends.headEnd);
   // Split on the placeholders rather than replace them one by one: a script put in is never searched.
-  return html.split(new RegExp(`<!--bh-head-script-${slotKey}-(\\d+)-->`)).map((part, i) => (i % 2 ? `<script>\n${headScripts[Number(part)]}\n</script>` : part)).join("");
+  const bundled = html.split(new RegExp(`<!--bh-head-script-${slotKey}-(\\d+)-->`)).map((part, i) => (i % 2 ? `<script>\n${headScripts[Number(part)]}\n</script>` : part)).join("");
+  // Every script that went in must still parse: one put in the wrong place fails only in the reader's browser.
+  const broken = inlineScriptProblems(bundled);
+  if (broken.length) throw new Error(`the bundle of ${path.relative(ROOT, file)} has ${broken.length === 1 ? "a script" : "scripts"} that cannot run:\n  ${broken.join("\n  ")}`);
+  return bundled;
 }
 
 function bundleOne(file: string): void {
