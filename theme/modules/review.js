@@ -279,7 +279,8 @@
       const right = article.getBoundingClientRect().right;
       const vw = doc.documentElement.clientWidth, narrow = vw < 640; // phones: no margin to sit in, so a smaller pin hugs the edge
       let top = rect.top + scrollY;
-      while (used.some((u) => Math.abs(u - top) < 22)) top += 24; // don't stack pins
+      // Don't stack pins: each button is 24px square (theme/review.css), so a pin goes just below the one it would cover.
+      for (let u = used.find((v) => Math.abs(v - top) < 24); u !== undefined; u = used.find((v) => Math.abs(v - top) < 24)) top = u + 24;
       used.push(top);
       const n = 1 + t.replies.length;
       const pin = el("button", {
@@ -288,11 +289,12 @@
         text: String(i + 1),
         "data-thread": String(i + 1),
         title: `${t.root.body.slice(0, 100)}${n > 1 ? ` (${n} messages)` : ""}`,
-        "aria-label": `Thread ${i + 1}${t.draft ? " (your draft)" : ""}: ${t.root.body.slice(0, 80)}`,
+        // The name holds the pin's visible number (WCAG 2.5.3) and names the message count drawn beside it.
+        "aria-label": `Thread ${i + 1}${t.draft ? " (your draft)" : ""}${n > 1 ? `, ${n} messages` : ""}: ${t.root.body.slice(0, 80)}`,
         style: `top:${top}px;left:${narrow ? vw - 22 : Math.min(right + 6, vw - 30)}px`,
         onclick: () => openThread(t),
       });
-      if (n > 1) pin.append(el("span", { class: "bh-review-pin-count", text: String(n) }));
+      if (n > 1) pin.dataset.count = String(n); // drawn by CSS: generated text is not part of the pin's visible text, which stays its number
       pinLayer.append(pin);
     });
     pinLayer.hidden = !pinLayer.children.length; // an empty "Review comments" landmark would lead nowhere
@@ -671,7 +673,13 @@
     badge.textContent = String(open);
     badge.classList.toggle("has-drafts", state.comments.length > 0);
     const btn = doc.querySelector(".bh-review-btn");
-    if (btn) btn.title = `Review: ${open} open thread${open === 1 ? "" : "s"}${state.comments.length ? `, ${state.comments.length} unsubmitted draft${state.comments.length === 1 ? "" : "s"}` : ""}`;
+    if (btn) {
+      const text = `${open} open thread${open === 1 ? "" : "s"}${state.comments.length ? `, ${state.comments.length} unsubmitted draft${state.comments.length === 1 ? "" : "s"}` : ""}`;
+      btn.title = `Review: ${text}`;
+      // The badge shows the open count, so the name has to contain it (WCAG 2.5.3) and says what it counts. No
+      // parentheses: axe's name match drops a parenthetical, and with it the count.
+      btn.setAttribute("aria-label", badge.hidden ? "Review: comment on this page" : `Review: comment on this page, ${text}`);
+    }
   }
 
   function setActive(on) {

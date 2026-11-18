@@ -22,6 +22,9 @@ writes to the repo or starts CI on a stranger's input; that is the service's job
 **Published threads.** Every review file in `reviews/` is compiled by `npm run index` into
 `theme/reviews.js`, so once a review PR is merged its comments show on the published page
 for everyone: highlights and pins, opening into threads.
+- The pins and the Review button's count are theme code that only a published thread shows, so `npm run a11y`
+  scans a fixture page with threads ([`contracts/a11y.md`](a11y.md)). A pin's button is 24px square even though it
+  draws smaller, and its name and the button's contain the number they show.
 - Anyone can **Reply** in a thread. A reply is a draft in their browser until exported;
   it's a message with `inReplyTo` (and no target). A reply with `resolves: true` resolves
   the thread, and `false` reopens it.

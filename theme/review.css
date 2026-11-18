@@ -32,24 +32,40 @@
 .kind-blocker    { --kind: var(--danger); }
 
 .bh-review-pins { position: absolute; top: 0; left: 0; width: 0; height: 0; z-index: 45; }
+/* The pin is drawn smaller than its button: the button is at least 24px square (WCAG 2.5.8, axe's target-size),
+   and the drawn pin (::before) sits in the middle of it, so the text beside the pin is covered as before.
+   A negative margin puts the drawn pin where the button's own corner used to be (the script sets top and left). */
 .bh-review-pin {
+  --pin: 1.4rem;                                           /* the drawn pin */
+  --pin-hit: max(var(--pin), 24px);                        /* the button */
+  --pin-pad: calc((var(--pin-hit) - var(--pin)) / 2);      /* what the button adds on each side */
   position: absolute;
+  isolation: isolate;
   display: grid;
   place-items: center;
-  width: 1.4rem;
-  height: 1.4rem;
+  width: var(--pin-hit);
+  height: var(--pin-hit);
+  margin: calc(-1 * var(--pin-pad));
   padding: 0;
-  border: 2px solid var(--surface);
-  border-radius: 50% 50% 50% 4px;
-  background: var(--kind, var(--warn));
+  border: 0;
+  background: none;
   color: var(--surface);
-  box-shadow: var(--shadow-1);
   font-size: 0.7rem;
   font-weight: 700;
   cursor: pointer;
 }
+.bh-review-pin::before {
+  content: "";
+  position: absolute;
+  inset: var(--pin-pad);
+  z-index: -1;
+  border: 2px solid var(--surface);
+  border-radius: 50% 50% 50% 4px;
+  background: var(--kind, var(--warn));
+  box-shadow: var(--shadow-1);
+}
 .bh-review-pin:hover, .bh-review-pin:focus-visible { transform: scale(1.12); }
-@media (max-width: 639px) { .bh-review-pin { width: 1.2rem; height: 1.2rem; font-size: 0.6rem; } }
+@media (max-width: 639px) { .bh-review-pin { --pin: 1.2rem; font-size: 0.6rem; } }
 
 .bh-review-selbtn { position: absolute; z-index: 60; box-shadow: var(--shadow-2); }
 .bh-review-selbtn[hidden] { display: none; }
@@ -175,16 +191,14 @@
 
 /* ---- Threads: published vs your drafts, replies, resolution --------------------------- */
 
-.bh-review-pin.is-draft {
-  background: var(--surface);
-  color: var(--kind, var(--warn));
-  border: 2px dashed var(--kind, var(--warn));
-}
+.bh-review-pin.is-draft { color: var(--kind, var(--warn)); }
+.bh-review-pin.is-draft::before { background: var(--surface); border: 2px dashed var(--kind, var(--warn)); }
 .bh-review-pin.is-resolved { opacity: 0.55; }
-.bh-review-pin-count {
+.bh-review-pin[data-count]::after {
+  content: attr(data-count);
   position: absolute;
-  right: -7px;
-  bottom: -7px;
+  right: calc(var(--pin-pad) - 5px);
+  bottom: calc(var(--pin-pad) - 5px);
   min-width: 0.95rem;
   height: 0.95rem;
   padding: 0 0.2rem;
