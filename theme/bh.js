@@ -41,7 +41,7 @@
   const UNLISTED = window.bhUnlisted || { visible: false, page: false, parseFragment: null };
   // Whether the change highlights start on, by the one rule in theme/unlisted.js, which has already set
   // the off state before first paint. A page without it (an older sealed page) starts with them off too.
-  const CHANGES = window.bhChanges || { startsOn: () => false };
+  const CHANGES = window.bhChanges || { startsOn: () => false, settled: false };
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
   root.classList.add("js");
@@ -185,7 +185,7 @@
 
   function buildChrome() {
     // No top bar, so no button to ask for the change highlights with: they show (see changesButton).
-    if (doc.body.dataset.chrome === "none") { delete root.dataset.changes; return; }
+    if (doc.body.dataset.chrome === "none") { delete root.dataset.changes; CHANGES.settled = true; return; }
     const main = doc.querySelector("main");
     if (main && !main.id) main.id = "main";
     doc.body.prepend(el("a", { class: "skip-link", href: "#" + (main ? main.id : "main"), text: "Skip to content" }));
@@ -240,6 +240,8 @@
     const progress = el("div", { class: "bh-progress", "aria-hidden": "true" });
     const bar = el("header", { class: "bh-topbar" }, [brand, title, el("div", { class: "bh-topbar-actions" }, [searchBtn, changesButton(), reviewBtn, presentBtn, themeBtn].filter(Boolean)), progress]);
     doc.querySelector(".skip-link").after(bar);
+    // The switch agrees with the page and its button is in place: theme/unlisted.js stops standing in.
+    CHANGES.settled = true;
 
     // Show the page title in the bar once the h1 scrolls away.
     if (h1 && "IntersectionObserver" in window) {

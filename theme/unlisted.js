@@ -127,8 +127,13 @@
    at the end of <body>, so the marker has been parsed when this runs. In a <head> there is no
    body yet, and no diff page either.
 
-   The marks must show wherever there is no button to ask with. If bh.js never runs (it failed to
-   load), the off state is lifted once the page has loaded.
+   The marks must show wherever there is no button to ask with, so until bh.js has settled the
+   switch (it sets bhChanges.settled, once the top bar is built) this block stands in for it:
+     - on paper: beforeprint lifts the off state and afterprint puts it back. Once bh.js has
+       settled the switch its own pair of handlers does this, and these two do nothing.
+     - if bh.js never settles it (it failed to load, or threw first), the off state is lifted once
+       the page has loaded, for good. The flag is the test, not window.bh: a script that half ran
+       has made no button.
    ========================================================================== */
 (function (g) {
   "use strict";
@@ -138,14 +143,31 @@
     return !!(doc && doc.body && doc.body.hasAttribute("data-bh-diff"));
   }
 
+  /** `settled` is set by bh.js once it has made the page's switch agree with the page (buildChrome). */
+  var api = { startsOn: function () { return startsOn(g.document); }, settled: false };
+
   var doc = g.document;
   var root = doc && doc.documentElement;
   if (root && !startsOn(doc)) {
     root.setAttribute("data-changes", "off");
     if (g.addEventListener) {
+      // Until bh.js settles the switch, the off state is this block's to lift and put back.
+      var waiting = true, lifted = false;
       // bh.js is deferred, so it has run by now if it is going to.
-      g.addEventListener("load", function () { if (!g.bh) root.removeAttribute("data-changes"); });
+      g.addEventListener("load", function () {
+        waiting = false;
+        if (!api.settled) root.removeAttribute("data-changes");
+      });
+      g.addEventListener("beforeprint", function () {
+        lifted = !api.settled && root.getAttribute("data-changes") === "off";
+        if (lifted) root.removeAttribute("data-changes");
+      });
+      g.addEventListener("afterprint", function () {
+        // Not after the page loaded without bh.js settling: the off state was lifted for good then.
+        if (lifted && waiting && !api.settled) root.setAttribute("data-changes", "off");
+        lifted = false;
+      });
     }
   }
-  g.bhChanges = { startsOn: function () { return startsOn(g.document); } };
+  g.bhChanges = api;
 })(typeof window !== "undefined" ? window : globalThis);

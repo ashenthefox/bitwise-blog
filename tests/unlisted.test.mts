@@ -74,7 +74,7 @@ interface FakeWindow {
   location: { hash: string; reload: () => void };
   addEventListener: (type: string, fn: () => void) => void;
   document: {
-    documentElement: { hasAttribute: (k: string) => boolean; setAttribute: (k: string, v: string) => void; removeAttribute: (k: string) => void };
+    documentElement: { hasAttribute: (k: string) => boolean; getAttribute: (k: string) => string | null; setAttribute: (k: string, v: string) => void; removeAttribute: (k: string) => void };
     /** Absent while the script runs in <head>; present when it runs at the end of a bundle's <body>. */
     body?: { hasAttribute: (k: string) => boolean };
     querySelector: (sel: string) => object | null;
@@ -82,8 +82,8 @@ interface FakeWindow {
   sessionStorage?: { getItem: (k: string) => string | null; setItem: (k: string, v: unknown) => void; removeItem: (k: string) => void };
   window?: FakeWindow;
   bhUnlisted?: UnlistedApi;
-  bhChanges?: { startsOn(): boolean };
-  /** Set by bh.js when it runs. */
+  bhChanges?: { startsOn(): boolean; settled: boolean };
+  /** Set by bh.js when it runs: not what says the switch was settled. */
   bh?: object;
 }
 
@@ -102,7 +102,7 @@ function load(url: string, { bundled = false, unlistedPage = false, store = {}, 
     location: { hash: u.hash, reload: () => { reloads.push(1); } },
     addEventListener: (type, fn) => { listeners.push([type, fn]); },
     document: {
-      documentElement: { hasAttribute: (k) => attrs.has(k), setAttribute: (k, v) => { attrs.set(k, v); }, removeAttribute: (k) => { attrs.delete(k); } },
+      documentElement: { hasAttribute: (k) => attrs.has(k), getAttribute: (k) => attrs.get(k) ?? null, setAttribute: (k, v) => { attrs.set(k, v); }, removeAttribute: (k) => { attrs.delete(k); } },
       ...(body ? { body: { hasAttribute: (k: string) => body.includes(k) } } : {}),
       querySelector: (sel) => (unlistedPage && sel === 'meta[name="bh:unlisted"]' ? {} : null),
     },
@@ -230,14 +230,46 @@ test("change highlights start off, set before first paint; a diff page starts wi
   assert.equal(bundle.attrs.get("data-changes"), "off");
 });
 
-test("change highlights come back when bh.js never ran: there is no button to ask with", () => {
+test("change highlights come back when bh.js never settled the switch: there is no button to ask with", () => {
   const failed = load("https://bitwise.john-ky.io/docs/x.html");
   heard(failed, "load")[0]!();
   assert.equal(failed.attrs.has("data-changes"), false);
+  // A bh.js that ran and threw before the top bar existed has made window.bh, and no button.
+  const halfRan = load("https://bitwise.john-ky.io/docs/x.html");
+  halfRan.context.bh = {};
+  heard(halfRan, "load")[0]!();
+  assert.equal(halfRan.attrs.has("data-changes"), false);
   const ran = load("https://bitwise.john-ky.io/docs/x.html");
-  ran.context.bh = {};
+  must(ran.context.bhChanges, "bhChanges").settled = true;
   heard(ran, "load")[0]!();
-  assert.equal(ran.attrs.get("data-changes"), "off", "bh.js owns the attribute once it has run");
+  assert.equal(ran.attrs.get("data-changes"), "off", "bh.js owns the attribute once it has settled the switch");
+});
+
+test("printing before bh.js has settled the switch lifts the off state, and gives it back", () => {
+  const fire = (found: ReturnType<typeof load>, event: string) => { for (const fn of heard(found, event)) fn(); };
+  const state = (found: ReturnType<typeof load>) => found.attrs.get("data-changes") ?? null;
+  const early = load("https://bitwise.john-ky.io/docs/x.html");
+  fire(early, "beforeprint");
+  assert.equal(state(early), null, "on paper the marks show");
+  fire(early, "afterprint");
+  assert.equal(state(early), "off");
+  // bh.js settles the switch while the page prints: the attribute is its own from then on.
+  const during = load("https://bitwise.john-ky.io/docs/x.html");
+  fire(during, "beforeprint");
+  must(during.context.bhChanges, "bhChanges").settled = true;
+  fire(during, "afterprint");
+  assert.equal(state(during), null, "bh.js's state is left alone");
+  // Settled before printing: bh.js's own handlers lift and restore, and these do nothing.
+  const late = load("https://bitwise.john-ky.io/docs/x.html");
+  must(late.context.bhChanges, "bhChanges").settled = true;
+  fire(late, "beforeprint");
+  assert.equal(state(late), "off");
+  // Loaded without bh.js: the off state was lifted for good, and printing does not bring it back.
+  const never = load("https://bitwise.john-ky.io/docs/x.html");
+  fire(never, "beforeprint"); fire(never, "load"); fire(never, "afterprint");
+  assert.equal(state(never), null);
+  fire(never, "beforeprint"); fire(never, "afterprint");
+  assert.equal(state(never), null);
 });
 
 // ---- the sealed-page shell reads the same fragment ----------------------------------------------

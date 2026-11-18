@@ -300,7 +300,9 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
 // that: theme/unlisted.js sets it in <head>. Without JavaScript nothing sets it, and the marks show.
 const marked = pages.concat(readdirSync(join(root, "docs")).filter((f) => f.endsWith(".html") && !f.endsWith(".private.html") && !pages.includes(f)).filter((f) => {
   const html = readFileSync(join(root, "docs", f), "utf8");
-  return !/<meta name="bh:unlisted" content="true"/.test(html) && /<main\b[\s\S]*\sdata-change="/.test(html);
+  // A real attribute of a tag after <main>, not the text of an example ("&lt;g data-change=…") or a script.
+  const body = html.slice(html.search(/<main\b/)).replace(/<script\b[\s\S]*?<\/script>/g, "");
+  return !/<meta name="bh:unlisted" content="true"/.test(html) && /<[a-z][^<>]*\sdata-change="(?:added|changed|removed)"[^<>]*>/.test(body);
 }));
 
 /**
@@ -336,12 +338,21 @@ test("change highlights: off before a slow bh.js runs, and on without JavaScript
   assert.ok(marked.length > 0, "found pages with marked parts");
   const server = await serveStatic(root);
   t.after(() => new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); }));
-  // What the server does with bh.js: serve it, hold the response until released, or fail it.
-  let mode: "serve" | "hold" | "fail" = "serve", held = 0, release = () => {};
+  // What the server does with bh.js: serve it, hold the response until released, fail it, or send one
+  // that throws after making window.bh and before it builds the top bar.
+  let mode: "serve" | "hold" | "fail" | "broken" = "serve", held = 0, release = () => {};
+  // The first marked page again, with no top bar.
+  const chromeless = "/docs/no-chrome-test.html";
   const serve = server.listeners("request")[0] as (req: http.IncomingMessage, res: http.ServerResponse) => void;
   server.removeAllListeners("request");
   server.on("request", (req: http.IncomingMessage, res: http.ServerResponse) => {
-    if (!/\/theme\/bh\.js(?:\?|$)/.test(req.url || "") || mode === "serve") serve(req, res);
+    if ((req.url || "").startsWith(chromeless)) {
+      const html = readFileSync(join(root, "docs", marked[0]!), "utf8"), bare = html.replace(/<body\b/, '<body data-chrome="none"');
+      assert.notEqual(bare, html, "the page was given data-chrome");
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(bare);
+    }
+    else if (!/\/theme\/bh\.js(?:\?|$)/.test(req.url || "") || mode === "serve") serve(req, res);
+    else if (mode === "broken") res.writeHead(200, { "content-type": "text/javascript" }).end('window.bh = {}; throw new Error("broken on purpose");');
     else if (mode === "fail") res.writeHead(404).end();
     else { held++; const before = release; release = () => { before(); serve(req, res); }; }
   });
@@ -390,15 +401,50 @@ test("change highlights: off before a slow bh.js runs, and on without JavaScript
       const waiting = await parts();
       assert.ok(waiting.length > 0, "the page has marked diagram parts");
       for (const p of waiting) assert.equal(p.looks, p.plain, `${p.id} (${p.kind}) is not highlighted while bh.js loads`);
+      assert.equal((await evaluate("window.__marks")).lit, 0, "no frame so far had marked parts without the off state");
+      // Paper has no button: printing now shows the marks, though bh.js's own handlers are not there yet.
+      await evaluate(`window.dispatchEvent(new Event("beforeprint"))`);
+      assert.equal(await rootAttr(), null, "printing lifts the off state before bh.js runs");
+      for (const p of await parts()) assert.notEqual(p.looks, p.plain, `${p.id} (${p.kind}) is highlighted on paper`);
+      await evaluate(`window.dispatchEvent(new Event("afterprint"))`);
+      assert.equal(await rootAttr(), "off", "and it comes back after printing");
+      await evaluate("new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))");
+      const printed = (await evaluate("window.__marks")).lit;
       release(); release = () => {};
       await until("document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')", "the page settled");
       assert.equal(await rootAttr(), "off", "bh.js keeps the off state");
       assert.equal(await evaluate(`document.querySelector(".bh-topbar .bh-changes-btn").getAttribute("aria-pressed")`), "false");
       const frames = await evaluate("window.__marks");
       assert.ok(frames.frames >= 3, "frames were counted");
-      assert.equal(frames.lit, 0, "no frame had marked parts without the off state");
+      assert.equal(frames.lit, printed, "nor any frame since, but those while printing");
+      // Once bh.js has settled the switch, printing is its own business: lifted once, restored once.
+      assert.equal(await evaluate("window.bhChanges.settled"), true);
+      await evaluate(`window.dispatchEvent(new Event("beforeprint"))`);
+      assert.equal(await rootAttr(), null);
+      await evaluate(`window.dispatchEvent(new Event("afterprint"))`);
+      assert.equal(await rootAttr(), "off");
     });
   }
+
+  await t.test("a page whose bh.js throws before it builds the top bar shows its highlights", async () => {
+    mode = "broken";
+    await s("Page.navigate", { url: base + marked[0] + "?examples" });
+    await until("document.readyState === 'complete'", "the page loaded");
+    assert.deepEqual(await evaluate(`[typeof window.bh, window.bhChanges.settled, !!document.querySelector(".bh-topbar")]`), ["object", false, false], "bh.js ran and built nothing");
+    assert.equal(await rootAttr(), null);
+    for (const p of await parts()) assert.notEqual(p.looks, p.plain, `${p.id} (${p.kind}) is highlighted`);
+  });
+
+  await t.test('a page with no top bar (data-chrome="none") shows its highlights', async () => {
+    mode = "serve";
+    await s("Page.navigate", { url: `http://127.0.0.1:${portOf(server)}${chromeless}?examples` });
+    await until("document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')", "the page settled");
+    assert.deepEqual(await evaluate(`[!!document.querySelector(".bh-topbar"), window.bhChanges.settled]`), [false, true]);
+    assert.equal(await rootAttr(), null);
+    const shown = await parts();
+    assert.ok(shown.length > 0, "the page has marked diagram parts");
+    for (const p of shown) assert.notEqual(p.looks, p.plain, `${p.id} (${p.kind}) is highlighted`);
+  });
 
   await t.test("a page whose bh.js never loads shows its highlights: it has no button to ask with", async () => {
     mode = "fail";
