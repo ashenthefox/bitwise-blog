@@ -5,6 +5,7 @@ import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { test } from "node:test";
 import { findChrome, launchChrome, serveStatic } from "../scripts/chrome.mts";
+import { REVIEW_FIXTURE_PAGE, reviewFixtureRoutes } from "../scripts/a11y-review-fixture.mts";
 import { applyAllowlist, loadAllowlist, normalizeTarget, publicPages, scan, SCHEMES, STATES, VIEWPORTS, type A11yResult, type A11yViolation, type State, type StateResult } from "../scripts/a11y.mts";
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
@@ -213,4 +214,82 @@ test("a state whose trigger is missing is skipped, and one that fails to apply i
   ];
   const rs = await scan(chrome.send, `${base}/good.html`, { scheme: "light", axeSource, blockFonts: true, states });
   assert.deepEqual(rs.map((r) => [r.state, r.error ?? null]), [["page", null], ["broken", "the widget did not open"], ["stuck", null], ["stuck (undo)", "could not close"], ["rounds 1", null], ["rounds 2", null], ["after", null]]);
+});
+
+// ---- A page with a published review thread (#229) ------------------------------------------------------------------
+// No public page has a thread, so the run scans a fixture that does (scripts/a11y-review-fixture.mts). These tests keep
+// it honest: it must be clean, it must contain what the rules need, and each rule must fire when its fix is taken out.
+
+const theme = (file: string) => fs.readFileSync(path.join(root, "theme", file), "utf8");
+/** `text` with `from` replaced by `to`; fails when `from` is not there, so a stale mutation cannot pass as "nothing found". */
+const mutate = (text: string, from: string, to: string) => { assert.ok(text.includes(from), `the injection matched nothing: ${from}`); return text.replace(from, to); };
+const fixtureRoutes = (edits: Record<string, string> = {}) => {
+  const routes = reviewFixtureRoutes();
+  for (const [file, body] of Object.entries(edits)) routes.set(`/theme/${file}`, { type: file.endsWith(".css") ? "text/css" : "text/javascript", body });
+  return routes;
+};
+const fixtureRules = async (t: Parameters<typeof withChrome>[0], edits: Record<string, string> = {}) => {
+  const { chrome, base, axeSource } = await withChrome(t, fixtureRoutes(edits));
+  const rules = new Set<string>();
+  const errors: string[] = [];
+  for (const viewport of VIEWPORTS) {
+    for (const scheme of SCHEMES) {
+      for (const r of await scan(chrome.send, `${base}/${REVIEW_FIXTURE_PAGE}`, { scheme, axeSource, blockFonts: true, viewport, states: STATES, requireSite: true })) {
+        for (const v of r.violations) rules.add(v.id);
+        if (r.error) errors.push(`${viewport.name} ${scheme} ${r.state}: ${r.error}`);
+      }
+    }
+  }
+  return { rules, errors };
+};
+
+test("the review fixture page has pins to check: stacked, with a count, beside a figure", { skip, timeout: 120000 }, async (t) => {
+  const { chrome, base } = await withChrome(t, fixtureRoutes());
+  for (const viewport of VIEWPORTS) {
+    const { targetId } = await chrome.send("Target.createTarget", { url: "about:blank" });
+    const { sessionId } = await chrome.send("Target.attachToTarget", { targetId, flatten: true });
+    const s = (m: string, p?: object) => chrome.send(m, p, sessionId);
+    await s("Page.enable");
+    await s("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: 1, mobile: viewport.mobile });
+    await s("Page.navigate", { url: `${base}/${REVIEW_FIXTURE_PAGE}` });
+    const probe = `new Promise((done) => { const t = Date.now(); (function wait() {
+      if (document.documentElement.hasAttribute("data-bh-ready") && document.querySelector(".bh-review-pin")) return done(JSON.stringify({
+        pins: [...document.querySelectorAll(".bh-review-pin")].map((p) => { const r = p.getBoundingClientRect(); return [p.dataset.thread, p.dataset.count || "", Math.round(r.height * 10) / 10, r.top + scrollY]; }),
+        badge: !!document.querySelector(".bh-review-count:not([hidden])"), resolved: document.querySelectorAll(".bh-review-pin.is-resolved").length }));
+      if (Date.now() - t > 15000) return done("timeout"); setTimeout(wait, 100); })(); })`;
+    const r = await s("Runtime.evaluate", { expression: probe, awaitPromise: true, returnByValue: true });
+    await chrome.send("Target.closeTarget", { targetId });
+    assert.notEqual(r.result.value, "timeout", `${viewport.name}: no pins appeared`);
+    const got = JSON.parse(r.result.value) as { pins: [string, string, number, number][]; badge: boolean };
+    assert.ok(got.pins.length >= 6, `${viewport.name}: ${got.pins.length} pins`);
+    assert.ok(got.pins.some((p) => p[1] !== ""), `${viewport.name}: a pin with a message count`);
+    assert.ok(got.badge, `${viewport.name}: the Review button's count badge shows`);
+    assert.ok(got.pins.every((p) => p[2] >= 24), `${viewport.name}: every pin is at least 24px tall: ${got.pins.map((p) => p[2])}`);
+    const tops = got.pins.map((p) => p[3]).sort((a, b) => a - b);
+    const closest = Math.min(...tops.slice(1).map((v, i) => v - tops[i]));
+    assert.ok(closest >= 24 && closest < 30, `${viewport.name}: the closest pins are ${closest}px apart, a line apart but not overlapping`);
+  }
+});
+
+test("a page with a published review thread has no axe violations, with the panel open too", { skip, timeout: 240000 }, async (t) => {
+  const { rules, errors } = await fixtureRules(t);
+  assert.deepEqual(errors, []);
+  assert.deepEqual([...rules], []);
+});
+
+test("the review fixture fails axe again when the pin's 24px button is taken out", { skip, timeout: 240000 }, async (t) => {
+  // The button is 24px because --pin-hit is; and stacked pins are kept apart by the script, so undo both.
+  const css = mutate(theme("review.css"), "--pin-hit: max(var(--pin), 24px);", "--pin-hit: var(--pin);");
+  const js = mutate(theme("modules/review.js"), "Math.abs(v - top) < 24", "Math.abs(v - top) < 22");
+  const { rules, errors } = await fixtureRules(t, { "review.css": css, "modules/review.js": js });
+  assert.deepEqual(errors, []);
+  assert.ok(rules.has("target-size"), `target-size in ${[...rules]}`);
+});
+
+test("the review fixture fails axe again when the Review button and the pins stop naming their counts", { skip, timeout: 240000 }, async (t) => {
+  let js = mutate(theme("modules/review.js"), 'badge.hidden ? "Review: comment on this page" : `Review: comment on this page, ${text}`', '"Review: comment on this page"');
+  js = mutate(js, "if (n > 1) pin.dataset.count = String(n);", 'if (n > 1) pin.append(el("span", { class: "bh-review-pin-count", text: String(n) }));');
+  const { rules, errors } = await fixtureRules(t, { "modules/review.js": js });
+  assert.deepEqual(errors, []);
+  assert.ok(rules.has("label-content-name-mismatch"), `label-content-name-mismatch in ${[...rules]}`);
 });

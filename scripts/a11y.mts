@@ -15,6 +15,7 @@
 // Findings that are known and tracked live in a11y-allowlist.json, as a rule on a page with the number of
 // distinct elements it covers. Anything else fails the run, and so does an entry whose rule fires on
 // fewer elements than listed (or none), so the list can only shrink.
+// A fixture page that carries a published review thread is scanned too (scripts/a11y-review-fixture.mts), since no public page does.
 // Sealed pages are skipped: their shell is a generic notice and the page is encrypted.
 //
 // The rules are also checked by `npm run check` (contrast tokens, alt text, svg names). This
@@ -26,6 +27,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AddressInfo } from "node:net";
 import { findChrome, launchChrome, serveStatic, sleep, FONT_FILES, type ChromeHandle } from "./chrome.mts";
+import { REVIEW_FIXTURE_PAGE, reviewFixtureRoutes } from "./a11y-review-fixture.mts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"];
@@ -366,11 +368,12 @@ async function main() {
 
   const axeSource = fs.readFileSync(path.join(ROOT, "node_modules", "axe-core", "axe.min.js"), "utf8");
   const allow = loadAllowlist(path.join(ROOT, "a11y-allowlist.json"));
-  const pages = publicPages(ROOT).filter((p) => !only || p.includes(only));
+  // The pages a run scans: the public ones, and the fixture that carries a published review thread, which no public page does yet.
+  const pages = [...publicPages(ROOT), REVIEW_FIXTURE_PAGE].filter((p) => !only || p.includes(only));
   if (!pages.length) { console.error(`No page matches --only ${only}`); process.exitCode = 1; return; }
 
   if (!findChrome()) { console.error("Chrome not found: install it or set CHROME_PATH"); process.exitCode = 2; return; }
-  const server = await serveStatic(ROOT);
+  const server = await serveStatic(ROOT, reviewFixtureRoutes());
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/`;
   let chrome: ChromeHandle | undefined;
   const results: A11yResult[] = [];
