@@ -11,8 +11,9 @@
      (also a range input, so it works by keyboard).
    - Parts marked data-change="added|changed|removed" are highlighted, with a legend.
      "Show changes" turns the highlights and the legend off and on: it sets data-changes="off"
-     on this element, which the change-mark rules in diagrams.css read. The state is kept
-     across versions and Compare, and is not part of a link.
+     on this element, which the change-mark rules in diagrams.css read. The attribute is the
+     state: the button follows it however it is set. It is kept across versions and Compare,
+     is not part of a link, and is lifted while the page prints (the button is not on paper).
    - A link to a version's figure id selects that version (see revealTarget in bh.js).
    Without JS the figures simply stack, each labelled.
    ========================================================================== */
@@ -22,6 +23,8 @@
   const { el, whenReady, linkLabel } = bh;
 
   class BhVersions extends HTMLElement {
+    static get observedAttributes() { return ["data-changes"]; }
+    attributeChangedCallback() { this.syncChanges(); }
     connectedCallback() { whenReady(() => this.init()); }
 
     init() {
@@ -112,7 +115,13 @@
       }
 
       this.classList.add("is-ready");
-      this.setChanges(this.dataset.changes !== "off");
+      this.syncChanges();
+      if (this.changesBtn) {
+        // Paper has no button to turn the highlights back on, so a page always prints with them.
+        let restore = false;
+        window.addEventListener("beforeprint", () => { restore = !this.changesOn; this.setChanges(true); });
+        window.addEventListener("afterprint", () => { if (restore) this.setChanges(false); restore = false; });
+      }
       const initial = Math.max(0, this.figures.findIndex((f) => f.hasAttribute("data-selected")));
       this.show(initial);
       if (this.getAttribute("mode") === "compare") this.setCompare(true);
@@ -140,11 +149,17 @@
       this.renderCaption();
     }
 
+    /** Whether the change highlights are on. The data-changes attribute is the only state. */
+    get changesOn() { return this.dataset.changes !== "off"; }
+
     /** Show or hide the change highlights and their legend. Independent of the version and of Compare. */
     setChanges(on) {
-      this.changesOn = !!on;
       if (on) delete this.dataset.changes;
       else this.dataset.changes = "off";
+    }
+
+    /** Make the button say what the attribute says. */
+    syncChanges() {
       if (this.changesBtn) this.changesBtn.setAttribute("aria-pressed", String(this.changesOn));
     }
 

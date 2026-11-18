@@ -17,12 +17,16 @@ function portOf(server: http.Server): number {
 }
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-/** Pages whose source has a <bh-versions> and a marked part. */
+/**
+ * Pages with a <bh-versions> that has a marked part inside it, and that a plain request renders:
+ * not an unlisted page or a sealed one.
+ */
 const pages = readdirSync(join(root, "docs"))
-  .filter((f) => f.endsWith(".html"))
+  .filter((f) => f.endsWith(".html") && !f.endsWith(".private.html"))
   .filter((f) => {
     const html = readFileSync(join(root, "docs", f), "utf8");
-    return html.includes("<bh-versions") && html.includes("data-change=");
+    if (/<meta name="bh:unlisted" content="true"/.test(html)) return false;
+    return (html.match(/<bh-versions\b[\s\S]*?<\/bh-versions>/g) || []).some((v) => /\sdata-change="/.test(v));
   });
 
 const views = [
@@ -32,7 +36,7 @@ const views = [
   { name: "dark, 375px", scheme: "dark", width: 375, height: 800, mobile: true },
 ];
 
-interface Part { id: string; kind: string; looks: string; plain: string | null }
+interface Part { id: string; kind: string; looks: string; plain: string }
 interface State {
   pressed: string | null;
   label: string;
@@ -48,8 +52,8 @@ interface State {
 
 /**
  * The state of every enhanced <bh-versions> that has marked parts. A part's "looks" is the computed
- * style the marks change. "plain" is the same for an unmarked part of the same kind and colour in
- * the same component (null when there is none to compare with).
+ * style the marks change. "plain" is the same part's looks with its data-change attribute taken
+ * away for the reading: what it would be had it never been marked.
  */
 const probe = `(() => [...document.querySelectorAll("bh-versions.is-ready")].filter((v) => v.querySelector("[data-change]")).map((v) => {
   const shape = (n) => n.matches(".node") ? n.querySelector("rect, circle, ellipse, polygon, path") : n;
@@ -57,8 +61,6 @@ const probe = `(() => [...document.querySelectorAll("bh-versions.is-ready")].fil
     const a = getComputedStyle(shape(n)), b = getComputedStyle(n);
     return [a.stroke, a.strokeWidth, a.strokeDasharray, b.opacity, b.filter].join(" | ");
   };
-  const key = (n) => [...n.classList].filter((c) => /^(node|edge|c[1-6])$/.test(c)).sort().join(".");
-  const unmarked = [...v.querySelectorAll(".node:not([data-change]), .edge:not([data-change])")];
   const btn = v.querySelector(".bh-versions-changes");
   const legend = v.querySelector(".bh-versions-legend");
   const r = btn ? btn.getBoundingClientRect() : null;
@@ -69,8 +71,11 @@ const probe = `(() => [...document.querySelectorAll("bh-versions.is-ready")].fil
     legendVisibility: legend ? getComputedStyle(legend).visibility : "",
     legendHeight: legend ? legend.getBoundingClientRect().height : 0,
     parts: [...v.querySelectorAll("[data-change]")].map((n) => {
-      const twin = unmarked.find((u) => key(u) === key(n));
-      return { id: n.dataset.id || "", kind: n.dataset.change, looks: looks(n), plain: twin ? looks(twin) : null };
+      const kind = n.dataset.change, marked = looks(n);
+      n.removeAttribute("data-change");
+      const plain = looks(n);
+      n.setAttribute("data-change", kind);
+      return { id: n.dataset.id || "", kind, looks: marked, plain };
     }),
     index: v.index,
     comparing: !!v.comparing,
@@ -98,9 +103,7 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
     if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
     return r.result.value;
   };
-  // Under reduced motion the theme gives every transition a token duration, so a computed style read
-  // in the same task as the change is still the old one. Wait a moment before reading.
-  const states = async (): Promise<State[]> => { await sleep(60); return await evaluate(probe); };
+  const states = async (): Promise<State[]> => await evaluate(probe);
   /** Run `code` with `v` bound to each marked component. A real click, so the button's own handler is what is tested. */
   const each = (code: string) =>
     evaluate(`document.querySelectorAll("bh-versions.is-ready").forEach((v) => { if (v.querySelector("[data-change]")) { ${code} } })`);
@@ -113,10 +116,15 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
         await s("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: view.scheme }, { name: "prefers-reduced-motion", value: "reduce" }] });
         // Example pages show their content on a local host only with ?examples.
         await s("Page.navigate", { url: base + page + "?examples" });
-        for (let i = 0; i < 100; i++) {
+        let ready = false;
+        for (let i = 0; i < 150 && !ready; i++) {
           await sleep(100);
-          if (await evaluate("document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')").catch(() => false)) break;
+          ready = await evaluate("document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')").catch(() => false);
         }
+        assert.ok(ready, "the page settled within 15 seconds");
+        // A computed style read in the same task as a change is the old value while a transition runs
+        // (under reduced motion the theme gives every transition a token duration, not none). So none run.
+        await evaluate(`document.head.append(Object.assign(document.createElement("style"), { textContent: "*, *::before, *::after { transition: none !important; }" }))`);
 
         const on = await states();
         assert.ok(on.length > 0, "the page has an enhanced <bh-versions> with marked parts");
@@ -126,9 +134,8 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
           assert.equal(v.attr, null);
           assert.equal(v.legendVisibility, "visible");
           assert.ok(v.legendHeight > 0, "the legend is shown");
-          const compared = v.parts.filter((p) => p.plain !== null);
-          assert.ok(compared.length > 0, "at least one marked part has an unmarked part to compare with");
-          for (const p of compared) assert.notEqual(p.looks, p.plain, `${p.id} (${p.kind}) is highlighted`);
+          assert.ok(v.parts.length > 0, "the component has marked parts");
+          for (const p of v.parts) assert.notEqual(p.looks, p.plain, `${p.id} (${p.kind}) is highlighted`);
           assert.equal(v.innerWidth, view.width, "nothing widens the page");
           assert.ok(v.buttonInView, "the button is inside the viewport");
         }
@@ -141,7 +148,7 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
             assert.equal(v.attr, "off", `data-changes="off" ${when}`);
             assert.equal(v.legendVisibility, "hidden", `the legend is hidden ${when}`);
             assert.equal(v.legendHeight, on[i]!.legendHeight, `the legend keeps its space ${when}`);
-            for (const p of v.parts) if (p.plain !== null) assert.equal(p.looks, p.plain, `${p.id} (${p.kind}) looks like an unmarked part ${when}`);
+            for (const p of v.parts) assert.equal(p.looks, p.plain, `${p.id} (${p.kind}) looks like an unmarked part ${when}`);
           }
         };
         isOff(off, "after the click");
@@ -169,6 +176,29 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
       });
     }
   }
+
+  await t.test("the button follows the attribute, and printing lifts the off state", async () => {
+    const found = await evaluate(`(() => {
+      const v = [...document.querySelectorAll("bh-versions.is-ready")].find((x) => x.querySelector("[data-change]"));
+      const pressed = () => v.querySelector(".bh-versions-changes").getAttribute("aria-pressed");
+      const out = {};
+      v.setAttribute("data-changes", "off");
+      out.setFromOutside = pressed();
+      window.dispatchEvent(new Event("beforeprint"));
+      out.printing = [v.getAttribute("data-changes"), pressed()];
+      window.dispatchEvent(new Event("afterprint"));
+      out.afterPrint = [v.getAttribute("data-changes"), pressed()];
+      v.removeAttribute("data-changes");
+      out.removedFromOutside = pressed();
+      window.dispatchEvent(new Event("beforeprint"));
+      window.dispatchEvent(new Event("afterprint"));
+      out.printWhileOn = [v.getAttribute("data-changes"), pressed()];
+      return out;
+    })()`);
+    assert.deepEqual(found, {
+      setFromOutside: "false", printing: [null, "true"], afterPrint: ["off", "false"], removedFromOutside: "true", printWhileOn: [null, "true"],
+    });
+  });
 
   await t.test("a component with no marked part gets no button", async () => {
     const found = await evaluate(`(async () => {

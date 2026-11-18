@@ -169,7 +169,8 @@
 /* ---- Change marks: data-change="added|changed|removed" on diagram parts ------------------
    In the diagrams layer so they win over node/edge colours (cascade layers beat specificity).
    An ancestor with data-changes="off" (the "Show changes" button of <bh-versions> sets it)
-   switches every mark below it off: the part falls back to its ordinary node or edge style. */
+   switches every mark below it off: the part falls back to its ordinary node or edge style.
+   Every rule in this block carries the :not(), and a new one must too. */
 
 .diagram .node[data-change]:not([data-changes="off"] *) > :is(rect, circle, ellipse, polygon, path) { stroke-width: 2.5; }
 .diagram .node[data-change="added"]:not([data-changes="off"] *) > :is(rect, circle, ellipse, polygon, path) { stroke: var(--ok); }
@@ -180,8 +181,6 @@
 .diagram .edge[data-change="changed"]:not([data-changes="off"] *) { stroke: var(--warn); }
 .diagram .edge[data-change="removed"]:not([data-changes="off"] *) { stroke: var(--danger); stroke-dasharray: 5 4; }
 .diagram [data-change="added"]:not([data-changes="off"] *) { filter: drop-shadow(0 0 5px color-mix(in oklab, var(--ok) 55%, transparent)); }
-/* The legend keeps its space while the marks are off, so nothing below it moves. */
-[data-changes="off"] .bh-versions-legend { visibility: hidden; }
 .legend .change-added   { --tone: var(--ok); }
 .legend .change-changed { --tone: var(--warn); }
 .legend .change-removed { --tone: var(--danger); }
