@@ -13,7 +13,9 @@
      "Show changes" turns the highlights and the legend off and on: it sets data-changes="off"
      on this element, which the change-mark rules in diagrams.css read. The attribute is the
      state: the button follows it however it is set. It is kept across versions and Compare,
-     is not part of a link, and is lifted while the page prints (the button is not on paper).
+     and is not part of a link. The top bar's button is the page's switch (the same attribute
+     on <html>): while it is off no mark is highlighted and this button is hidden, and this
+     component's own choice comes back with it. bh.js lifts both while the page prints.
    - A link to a version's figure id selects that version (see revealTarget in bh.js).
    Without JS the figures simply stack, each labelled.
    ========================================================================== */
@@ -116,12 +118,6 @@
 
       this.classList.add("is-ready");
       this.syncChanges();
-      if (this.changesBtn) {
-        // Paper has no button to turn the highlights back on, so a page always prints with them.
-        let restore = false;
-        window.addEventListener("beforeprint", () => { restore = !this.changesOn; this.setChanges(true); });
-        window.addEventListener("afterprint", () => { if (restore) this.setChanges(false); restore = false; });
-      }
       const initial = Math.max(0, this.figures.findIndex((f) => f.hasAttribute("data-selected")));
       this.show(initial);
       if (this.getAttribute("mode") === "compare") this.setCompare(true);

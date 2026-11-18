@@ -234,7 +234,7 @@
     }) : null;
 
     const progress = el("div", { class: "bh-progress", "aria-hidden": "true" });
-    const bar = el("header", { class: "bh-topbar" }, [brand, title, el("div", { class: "bh-topbar-actions" }, [searchBtn, reviewBtn, presentBtn, themeBtn].filter(Boolean)), progress]);
+    const bar = el("header", { class: "bh-topbar" }, [brand, title, el("div", { class: "bh-topbar-actions" }, [searchBtn, changesButton(), reviewBtn, presentBtn, themeBtn].filter(Boolean)), progress]);
     doc.querySelector(".skip-link").after(bar);
 
     // Show the page title in the bar once the h1 scrolls away.
@@ -255,6 +255,47 @@
       update();
     }
   }
+
+  // ---- Change highlights: data-change marks, switched off by data-changes="off" ----------------
+  //
+  // Two levels, one attribute. On <html> it is the page's switch: no mark is highlighted anywhere,
+  // and each <bh-versions> hides its own "Show changes" button. On a <bh-versions> it is that
+  // component's switch, which its button sets and which only shows while the page's is on. A
+  // component keeps its own choice while the page's switch is off.
+
+  /** The top bar's switch for the whole page, or null when the page marks no change. */
+  function changesButton() {
+    if (!doc.querySelector("main [data-change]")) return null;
+    const btn = el("button", {
+      class: "btn ghost icon bh-changes-btn", type: "button", "aria-label": "Show change highlights",
+      // A square holding + and −; the stroke through it appears only while the highlights are off.
+      html: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 9h6M12 6v6M9 16.5h6"/><path class="bh-changes-off" d="M3 21 21 3"/></svg>',
+      onclick: () => {
+        if (root.dataset.changes === "off") delete root.dataset.changes;
+        else root.dataset.changes = "off";
+      },
+    });
+    // The attribute is the state, so the button follows it however it is set.
+    const sync = () => {
+      const on = root.dataset.changes !== "off";
+      btn.setAttribute("aria-pressed", String(on));
+      btn.title = "Change highlights: " + (on ? "on" : "off");
+    };
+    if ("MutationObserver" in window) new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ["data-changes"] });
+    sync();
+    return btn;
+  }
+
+  // Paper has no button to turn the highlights back on, so a page always prints with them.
+  let changesOffBeforePrint = [];
+  addEventListener("beforeprint", () => {
+    changesOffBeforePrint = [...doc.querySelectorAll('[data-changes="off"]')];
+    for (const n of changesOffBeforePrint) delete n.dataset.changes;
+  });
+  addEventListener("afterprint", () => {
+    for (const n of changesOffBeforePrint) n.dataset.changes = "off";
+    changesOffBeforePrint = [];
+  });
 
   // ---- Auto meta (from <meta name="bh:*">) into <dl class="bh-meta" data-auto> ------
 

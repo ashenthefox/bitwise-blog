@@ -168,8 +168,9 @@
 
 /* ---- Change marks: data-change="added|changed|removed" on diagram parts ------------------
    In the diagrams layer so they win over node/edge colours (cascade layers beat specificity).
-   An ancestor with data-changes="off" (the "Show changes" button of <bh-versions> sets it)
-   switches every mark below it off: the part falls back to its ordinary node or edge style.
+   An ancestor with data-changes="off" switches every mark below it off: the part falls back to
+   its ordinary node or edge style. The top bar's button sets it on <html>, for the whole page, and
+   the "Show changes" button of a <bh-versions> on that component (see bh.js, "Change highlights").
    Every rule in this block carries the :not(), and a new one must too. */
 
 .diagram .node[data-change]:not([data-changes="off"] *) > :is(rect, circle, ellipse, polygon, path) { stroke-width: 2.5; }

@@ -200,6 +200,46 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
     });
   });
 
+  await t.test("the top bar's button is the page's switch: off, nothing is highlighted and each figure's button is hidden", async () => {
+    const found = await evaluate(`(async () => {
+      const tick = () => new Promise((r) => setTimeout(r, 0)); // the button follows the attribute through a MutationObserver
+      const page = document.querySelector(".bh-topbar .bh-changes-btn");
+      const v = [...document.querySelectorAll("bh-versions.is-ready")].find((x) => x.querySelector("[data-change]"));
+      const own = v.querySelector(".bh-versions-changes");
+      // A marked diagram outside any <bh-versions> has no button but the page's.
+      const lone = document.createElement("figure");
+      lone.className = "diagram"; lone.id = "lone-marked";
+      lone.innerHTML = '<svg viewBox="0 0 100 40" role="img" aria-label="one marked node"><g class="node c1" data-id="n" data-change="added"><rect x="2" y="2" width="96" height="36" rx="6"/><text x="50" y="20">n</text></g></svg>';
+      document.querySelector(".bh-article").append(lone);
+      const stroke = (n) => getComputedStyle(n).stroke;
+      const inside = v.querySelector('.bh-version.is-current .node[data-change] rect, .node[data-change] rect');
+      const marked = [stroke(lone.querySelector("rect")), stroke(inside)];
+      const shown = (n) => getComputedStyle(n).display !== "none";
+      const read = () => ({
+        page: page.getAttribute("aria-pressed"), root: document.documentElement.getAttribute("data-changes"),
+        ownButtonShown: shown(own), own: own.getAttribute("aria-pressed"), compareShown: !v.compareBtn || shown(v.compareBtn),
+        legend: getComputedStyle(v.querySelector(".bh-versions-legend")).visibility,
+        loneHighlighted: stroke(lone.querySelector("rect")) === marked[0], insideHighlighted: stroke(inside) === marked[1],
+        slash: shown(page.querySelector(".bh-changes-off")), buttonInView: page.getBoundingClientRect().right <= document.documentElement.clientWidth,
+      });
+      const out = { label: page.getAttribute("aria-label"), start: read() };
+      page.click(); await tick(); out.pageOff = read();
+      window.dispatchEvent(new Event("beforeprint")); await tick(); out.printing = read();
+      window.dispatchEvent(new Event("afterprint")); await tick(); out.afterPrint = read();
+      page.click(); await tick(); out.pageOn = read();
+      // A figure's own choice is kept while the page's switch is off, and comes back with it.
+      own.click(); await tick(); out.figureOff = read();
+      page.click(); await tick(); page.click(); await tick(); out.figureStillOff = read();
+      own.click(); await tick();
+      lone.remove();
+      return out;
+    })()`);
+    const on = { page: "true", root: null, ownButtonShown: true, own: "true", compareShown: true, legend: "visible", loneHighlighted: true, insideHighlighted: true, slash: false, buttonInView: true };
+    const off = { ...on, page: "false", root: "off", ownButtonShown: false, legend: "hidden", loneHighlighted: false, insideHighlighted: false, slash: true };
+    const figureOff = { ...on, own: "false", legend: "hidden", insideHighlighted: false };
+    assert.deepEqual(found, { label: "Show change highlights", start: on, pageOff: off, printing: on, afterPrint: off, pageOn: on, figureOff, figureStillOff: figureOff });
+  });
+
   await t.test("a component with no marked part gets no button", async () => {
     const found = await evaluate(`(async () => {
       const v = document.createElement("bh-versions");
@@ -209,5 +249,15 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
       return { ready: v.classList.contains("is-ready"), compare: !!v.querySelector(".bh-versions-compare"), changes: !!v.querySelector(".bh-versions-changes") };
     })()`);
     assert.deepEqual(found, { ready: true, compare: true, changes: false });
+  });
+  await t.test("a page with no marked part gets no button in the top bar", async () => {
+    await s("Page.navigate", { url: base + "glossary.html" });
+    let ready = false;
+    for (let i = 0; i < 150 && !ready; i++) {
+      await sleep(100);
+      ready = await evaluate("document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')").catch(() => false);
+    }
+    assert.ok(ready, "the page settled within 15 seconds");
+    assert.deepEqual(await evaluate(`[!!document.querySelector(".bh-topbar"), !!document.querySelector(".bh-changes-btn"), !!document.querySelector("[data-change]")]`), [true, false, false]);
   });
 });

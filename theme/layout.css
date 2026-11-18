@@ -81,6 +81,9 @@
 .bh-topbar.show-title .bh-topbar-title { opacity: 1; transform: none; }
 
 .bh-topbar-actions { display: flex; gap: var(--space-1); margin-left: auto; }
+/* Change highlights for the whole page. The stroke through the icon carries "off" without colour. */
+.bh-changes-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.bh-changes-btn:not([aria-pressed="false"]) .bh-changes-off { display: none; }
 
 /* Reading progress: CSS scroll-driven where supported, JS sets --progress otherwise. */
 .bh-progress {
