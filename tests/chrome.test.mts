@@ -43,15 +43,21 @@ function run(args: string[], env: Record<string, string>, timeout = 10000): Prom
 function fixture(t: TestContext, body: string): FixtureEnv {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bh-chrome-test-"));
   t.after(() => {
-    // Also stop fixture children if the code under test regresses and times out.
-    for (const name of ["browser.pid", "helper.pid"]) {
-      const file = path.join(dir, name);
-      if (fs.existsSync(file)) {
-        try { process.kill(Number(fs.readFileSync(file, "utf8")), "SIGKILL"); }
+    try {
+      // Also stop fixture children if the code under test regresses and times out.
+      for (const name of ["browser.pid", "helper.pid"]) {
+        const file = path.join(dir, name);
+        if (!fs.existsSync(file)) continue;
+        const text = fs.readFileSync(file, "utf8");
+        // Only ever a positive pid: Number("") is 0, and process.kill(0) signals the whole process group,
+        // which is npm test, its runner and every test file.
+        assert.match(text, /^[1-9][0-9]*$/, `${name} is not a pid: ${JSON.stringify(text)}`);
+        try { process.kill(Number(text), "SIGKILL"); }
         catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error; }
       }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
     }
-    fs.rmSync(dir, { recursive: true, force: true });
   });
   const exe = path.join(dir, "chrome");
   // Use the exact Node binary, including when running the suite on Node 22.
@@ -68,11 +74,15 @@ function rendererFixture(env: FixtureEnv, renderer = "visual.mts"): string {
   return path.join(scripts, renderer);
 }
 
+// launchChrome may SIGTERM a fake that has not started at any moment, mid-write included, and writeFileSync
+// creates an empty file before it writes. So each record is written under a temporary name and renamed into
+// place: it is either missing or whole. The temporary file lies beside the record, outside TMPDIR.
 const profileRecorder = `const fs = require('node:fs');
 const path = require('node:path');
+const record = (file, text) => { fs.writeFileSync(file + '.' + process.pid, text); fs.renameSync(file + '.' + process.pid, file); };
 const profile = process.argv.find(a => a.startsWith('--user-data-dir=')).split('=')[1];
-fs.writeFileSync(process.env.PROFILE_RECORD, profile);
-fs.writeFileSync(path.join(path.dirname(process.env.PROFILE_RECORD), 'browser.pid'), String(process.pid));`;
+record(process.env.PROFILE_RECORD, profile);
+record(path.join(path.dirname(process.env.PROFILE_RECORD), 'browser.pid'), String(process.pid));`;
 
 /**
  * No profile `launchChrome` made is left: it makes them in `os.tmpdir()`, the fixture's `TMPDIR`, which must end
@@ -218,7 +228,7 @@ test("shutdown deadline handles a helper retaining stderr after the browser exit
   const env = fixture(t, `${profileRecorder}
 const { spawn } = require('node:child_process');
 const helper = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: ['ignore', 'ignore', 2] });
-fs.writeFileSync(require('node:path').join(require('node:path').dirname(process.env.PROFILE_RECORD), 'helper.pid'), String(helper.pid));
+record(path.join(path.dirname(process.env.PROFILE_RECORD), 'helper.pid'), String(helper.pid));
 helper.unref();
 console.error('DevTools listening on ws://fake');
 setInterval(() => {}, 1000);`);
