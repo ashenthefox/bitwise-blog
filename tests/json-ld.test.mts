@@ -9,6 +9,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { test, type TestContext } from "node:test";
 import { load } from "cheerio";
+import { metaOf } from "./support/page-meta.mts";
 
 const source = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SITE = JSON.parse(fs.readFileSync(path.join(source, "package.json"), "utf8")).homepage;
@@ -46,7 +47,6 @@ const parsedLd = (html: string): Record<string, any>[] => {
   const $ = load(html);
   return $('script[type="application/ld+json"]').toArray().map((el) => JSON.parse($(el).text()));
 };
-const metaOf = (html: string, name: string) => (html.match(new RegExp(`<meta name="${name}" content="([^"]*)"`)) || [])[1] || "";
 const propOf = (html: string, name: string) => (html.match(new RegExp(`<meta property="${name}" content="([^"]*)"`)) || [])[1] || "";
 /** check's messages for one file, without colour codes. */
 const messagesFor = (out: string, rel: string) => {

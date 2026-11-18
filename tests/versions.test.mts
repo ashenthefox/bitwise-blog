@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { findChrome, launchChrome, serveStatic, sleep, FONT_FILES } from "../scripts/chrome.mts";
+import { metaOf } from "./support/page-meta.mts";
 
 // <bh-versions> highlights the parts marked data-change. "Show changes" turns the highlights and
 // their legend off and on again: off, a marked part must look exactly like an unmarked one, and
@@ -25,7 +26,7 @@ const pages = readdirSync(join(root, "docs"))
   .filter((f) => f.endsWith(".html") && !f.endsWith(".private.html"))
   .filter((f) => {
     const html = readFileSync(join(root, "docs", f), "utf8");
-    if (/<meta name="bh:unlisted" content="true"/.test(html)) return false;
+    if (metaOf(html, "bh:unlisted") === "true") return false;
     return (html.match(/<bh-versions\b[\s\S]*?<\/bh-versions>/g) || []).some((v) => /\sdata-change="/.test(v));
   });
 
@@ -532,7 +533,7 @@ const marked = pages.concat(readdirSync(join(root, "docs")).filter((f) => f.ends
   const html = readFileSync(join(root, "docs", f), "utf8");
   // A real attribute of a tag after <main>, not the text of an example ("&lt;g data-change=…") or a script.
   const body = html.slice(html.search(/<main\b/)).replace(/<script\b[\s\S]*?<\/script>/g, "");
-  return !/<meta name="bh:unlisted" content="true"/.test(html) && /<[a-z][^<>]*\sdata-change="(?:added|changed|removed)"[^<>]*>/.test(body);
+  return metaOf(html, "bh:unlisted") !== "true" && /<[a-z][^<>]*\sdata-change="(?:added|changed|removed)"[^<>]*>/.test(body);
 }));
 
 /**

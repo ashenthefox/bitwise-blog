@@ -5,6 +5,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { test, type TestContext } from "node:test";
+import { metaOf } from "./support/page-meta.mts";
 
 const source = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SITE = JSON.parse(fs.readFileSync(path.join(source, "package.json"), "utf8")).homepage;
@@ -31,7 +32,6 @@ function fixture(t: TestContext) {
   return { root, bh, read, edit, feed };
 }
 const ids = (xml: string) => [...xml.matchAll(/<entry>\s*<id>([^<]*)<\/id>/g)].map((m) => m[1]);
-const metaOf = (html: string, name: string) => (html.match(new RegExp(`<meta name="${name}" content="([^"]*)"`)) || [])[1] || "";
 
 const title = (html: string) => (html.match(/<title>([^<]*)<\/title>/) || [])[1] || "";
 

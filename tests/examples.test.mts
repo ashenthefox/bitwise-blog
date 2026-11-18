@@ -6,6 +6,7 @@ import vm from "node:vm";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { test, type TestContext } from "node:test";
+import { classifyPage } from "../scripts/hidden-pages.mts";
 
 const source = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const script = fs.readFileSync(path.join(source, "theme/examples.js"), "utf8");
@@ -163,9 +164,36 @@ test("a bundled single file always shows its own content", () => {
 interface PageRef { href: string; kind?: string; example?: boolean }
 
 const read = (f: string) => fs.readFileSync(path.join(source, f), "utf8");
-const marked = fs.readdirSync(path.join(source, "docs")).filter((f) => f.endsWith(".html"))
-  .filter((f) => /<meta\s+name="bh:example"\s+content="true"/.test(read(`docs/${f}`)))
+/**
+ * The pages under `<root>/docs` marked as examples, as root-relative paths. It asks `classifyPage`
+ * (scripts/hidden-pages.mts), which `check`, the feed and `publish` use: a marker in a comment does
+ * not count, and every template carries one in a comment that `npm run new` copies into the page.
+ */
+const examplePages = (root: string) => fs.readdirSync(path.join(root, "docs")).filter((f) => f.endsWith(".html"))
+  .filter((f) => classifyPage(f, fs.readFileSync(path.join(root, "docs", f), "utf8")) === "example")
   .map((f) => `docs/${f}`).sort();
+const marked = examplePages(source);
+
+test("a marker that is only in a comment does not make a page an example, a real <meta> does", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bh-example-finder-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, "docs"));
+  const page = (head: string) => `<!doctype html><html><head>\n  <title>T</title>\n${head}\n</head><body></body></html>\n`;
+  const marker = '<meta name="bh:example" content="true">';
+  // The comment is the one every template carries.
+  const comment = `  <!-- Optional: ${marker} marks a page that only demonstrates the theme or a template. -->`;
+  fs.writeFileSync(path.join(dir, "docs/commented.html"), page(comment));
+  fs.writeFileSync(path.join(dir, "docs/real.html"), page(`${comment}\n  ${marker}`));
+  fs.writeFileSync(path.join(dir, "docs/real-only.html"), page(`  ${marker}`));
+  assert.deepEqual(examplePages(dir), ["docs/real-only.html", "docs/real.html"]);
+  // The same, for a page made by `npm run new` from every template, with its comments kept.
+  for (const template of fs.readdirSync(path.join(source, "templates")).filter((f) => f.endsWith(".html"))) {
+    const text = fs.readFileSync(path.join(source, "templates", template), "utf8");
+    assert.ok(text.includes(`<!-- Optional: ${marker}`), `${template} should still carry the commented marker this test is about`);
+    fs.writeFileSync(path.join(dir, "docs/from-template.html"), text);
+    assert.deepEqual(examplePages(dir), ["docs/real-only.html", "docs/real.html"], `${template} with its comments kept is not an example`);
+  }
+});
 
 test("there are example pages to test against", () => {
   assert.ok(marked.length > 0, "docs/ should keep at least one page marked bh:example");

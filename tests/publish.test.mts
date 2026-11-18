@@ -9,6 +9,7 @@ import { test, type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import { preparePublishedSite } from "../scripts/publish.mts";
 import { encryptCard, renderCardsFile } from "../scripts/private-cards.mts";
+import { metaOf } from "./support/page-meta.mts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 function portOf(server: http.Server): number {
@@ -372,7 +373,7 @@ test("JSON-LD: posts and the home page ship their blocks; an unlisted page carry
     assert.deepEqual(ld(published).map((d) => d["@type"]), ["TechArticle"]);
     for (const page of fs.readdirSync(path.join(f.stage, "docs")).filter((n) => n.endsWith(".html"))) {
       const html = fs.readFileSync(path.join(f.stage, "docs", page), "utf8");
-      if (/<meta name="bh:unlisted" content="true">/.test(html)) assert.equal(ld(html).length, 0, `${page} is unlisted and carries no JSON-LD`);
+      if (metaOf(html, "bh:unlisted") === "true") assert.equal(ld(html).length, 0, `${page} is unlisted and carries no JSON-LD`);
     }
   }
   {
