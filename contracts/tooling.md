@@ -21,3 +21,7 @@ by Node itself, which strips the types (on by default from Node 22.18). There is
   `theme/bh.js`, `theme/modules/*.js`, and the per-page `<script>` blocks. So do `.claude/skills/**` and `figures/**`.
 - `scripts/cards.mts` is a social-card staleness input, so editing it (types included) makes every card stale:
   re-run `npm run cards`.
+- `bundle` (and `diff`, which builds its pages with the same `bundleHtml`) puts its scripts and the `bh:source` meta at the
+  real end of the body and of the head (`documentEnds` in `scripts/bh.mts`): a page may say `</body>` or `</head>` in a
+  script, a `<style>` or a comment. It then parses every inline script of the result (`scripts/inline-scripts.mts`) and fails
+  naming the one that does not, so `npm run bundle:all` in CI catches a script put in the wrong place.
