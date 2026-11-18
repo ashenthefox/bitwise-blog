@@ -185,6 +185,16 @@
   &.edge[data-change="changed"] { stroke: var(--warn); }
   &.edge[data-change="removed"] { stroke: var(--danger); stroke-dasharray: 5 4; }
   &[data-change="added"] { filter: drop-shadow(0 0 5px color-mix(in oklab, var(--ok) 55%, transparent)); }
+  /* A sequence (sequence.js) marks an actor's lifeline with its box, and a message's label with its
+     path. As on a node, colour is never alone: a marked label is bold, a removed one struck through
+     (and an added part glows, a removed box is dashed). --ok, --warn, --danger on --surface are in CONTRAST_PAIRS. */
+  &.seq-lifeline[data-change="added"] { stroke: var(--ok); }
+  &.seq-lifeline[data-change="changed"] { stroke: var(--warn); }
+  &.seq-lifeline[data-change="removed"] { stroke: var(--danger); }
+  &.seq-label[data-change] { font-weight: 600; }
+  &.seq-label[data-change="added"] { fill: var(--ok); }
+  &.seq-label[data-change="changed"] { fill: var(--warn); }
+  &.seq-label[data-change="removed"] { fill: var(--danger); text-decoration: line-through; }
 }
 .legend .change-added   { --tone: var(--ok); }
 .legend .change-changed { --tone: var(--warn); }

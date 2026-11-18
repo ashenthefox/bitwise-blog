@@ -67,6 +67,8 @@
         this.tabs[this.index].focus();
       });
       const bar = el("div", { class: "bh-versions-bar" }, [list]);
+      // A <bh-sequence> may not have drawn itself yet: its source parts and its drawing carry the same
+      // marks (sequence.js), so the count is the same whichever of the two components is set up first.
       const kinds = ["added", "changed", "removed"].filter((k) => this.querySelector(`[data-change="${k}"]`));
       const actions = [];
       // Change highlights on or off, only if any part is marked. The label stays the same and
