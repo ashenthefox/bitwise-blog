@@ -42,6 +42,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-18: six `pedagogical-writing` graders that rejected correct answers or passed in no arm (#299)
 - 2026-11-18: "or reading any file" in `skill-authoring`'s description does not make Sonnet load other skills (#306)
 - 2026-11-18: the Haiku misses of `pedagogical-writing` labelled from traces, and seven queries reworded (#308)
+- 2026-11-18: the two `pedagogical-diagrams` review cases graded on what the skill adds, and three unsteady graders (#301)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -1698,7 +1699,7 @@ the saved answers through `rejudge.mjs`; the fresh run is new answers through th
 Claude Code 2.1.318, agent and judge `claude-sonnet-5-5`, three runs per case per arm, `-j 4`. No change to the
 skill: four grader files changed and two were deleted, so the suite has 59 `llm` graders, not 61. US$9.31 in all:
 $2.17 for judging saved answers again with `rejudge.mjs` and $7.14 for a fresh run of five cases, both arms
-(`claude plugin eval --case`, three times, on commit `7affb26`). No run errored, and the skill loaded in every
+(`claude plugin eval --case`, three times, on commit `c707b27`). No run errored, and the skill loaded in every
 with-skill run (15 of 15).
 
 The answers read are those of #248's run, kept in `pedagogical-writing/evals/baselines/2026-11-18.json`: all
@@ -1830,7 +1831,7 @@ has six scored graders now, not eight, so its score moves by construction.
 - **Cost.** $3.70 (`outline-*`, 174 s), $1.89 (plan, 95 s) and $1.55 (prompt, 62 s): $7.14, of which the judge
   was $4.38. Judging again cost $1.42 for the five `llm` graders as recorded (90 votes) and $0.75 for the three
   reworded ones (54 votes): about $0.015 a vote, where `evals.md` says about $0.01.
-- **Baselines kept**, trimmed with `rejudge.mjs --trim --commit 7affb26`: `2026-11-18-299-outline.json` (18
+- **Baselines kept**, trimmed with `rejudge.mjs --trim --commit c707b27`: `2026-11-18-299-outline.json` (18
   answers), `2026-11-18-299-plan.json` (6) and `2026-11-18-299-opus.json` (6), beside `2026-11-18.json` in
   `pedagogical-writing/evals/baselines/`. None of the five cases has a fixture. The `05-effort` verdicts in the
   last file are from the pattern as run, one alternative short of the committed one.
@@ -2044,3 +2045,171 @@ description misses.
   verbs are drafting, outlining, restructuring, rewriting, reviewing and grading.
 - **Not run**: the full Sonnet suite with the new wording, Opus, and the old wording of the seven on Sonnet today
   (the last full Sonnet run, #242, had #25 as its one miss).
+
+## 2026-11-18: the two `pedagogical-diagrams` review cases graded on what the skill adds, and three unsteady graders (#301)
+
+Claude Code 2.1.318, agent and judge `claude-sonnet-5-5`, three runs per case per arm, `-j 4`. No change to the
+skill or to any prompt: four grader files deleted, five rewritten (two of them renamed), one added. US$19.36 in
+all: $10.96 for two runs of the whole suite on commit `1011231` (`claude plugin eval`, $5.30 and $5.67), $1.01 for
+one more run of `fix-confusing-figure` on `7692c0b`, and $7.39 of re-judging saved answers with `rejudge.mjs`. No
+run errored, and the skill loaded in every with-skill run (27 of 27).
+
+**What the answers showed.** For each review case 15 saved answers were read: three with the skill from each of
+the three baselines, and three without from each of the two-arm ones (#248 and #249).
+
+- **`review-deflate-figures`.** Every answer in both arms opens with one named figure, says what a reader would
+  miss, and lists the figures that work. So graders 01, 02 and 06 passed 6, 5 and 6 of 6 in each arm. The arms do
+  not agree on the figure to lead with: the nine with-skill answers lead with `window` six times (the overlapping
+  copy is said in the caption and not drawn), the six no-skill answers with `send-steps` five times (the densest
+  figure). Four things were in the with-skill answers and mostly not in the others:
+  - **Calibration.** All nine with-skill answers call their findings hypotheses about the reader or give a
+    confidence. None of the six no-skill answers does: they say what they did not read or render, which is a
+    statement about the method. This is the Calibration section of the skill's `review.md`.
+  - **A change with each finding.** The with-skill answers end each finding with a change. The no-skill answers
+    give one fix for the lead figure and a table of verdicts for the rest. Grader 05 already asks this (6 of 6
+    and 2 of 6).
+  - **Alignment and scale.** The with-skill answers say that the token row does not line up with the byte row,
+    that two bars of unequal amounts have one width, or that the window zone covers cells not yet read. The old
+    grader 04 also passed "it is 1168 units wide, so it will be small on a phone", which is how the no-skill arm
+    passed it 4 of 6.
+  - **The picture against its caption** (grader 03): 6 of 6 and 3 of 6.
+- **`review-stepper-boundary`.** Every answer in both arms fixes the layout, gives the pointers two colours and
+  a label each, and highlights what changed. Two things separate the arms:
+  - **What the step text is for.** Seven of nine with-skill answers give the text the reason ("the tail stays,
+    because nothing was read") and leave the move to the figure, or cut text that restates the figure (rule 7).
+    All six no-skill answers rewrite the text as the operation plus the state (`enqueue(D)`: "tail 3 → 4, count
+    3 → 4") and add a readout of `head`, `tail` and `count`. The old grader 03 passed both.
+  - **Drawing the move.** Eight of nine with-skill answers draw an arrow from the pointer's old position to its
+    new one (rule 6: draw the motion). One of six no-skill answers does; the others highlight the changed slot,
+    and two add a ghost with no arrow, one of them as an option. The old grader 04 passed any mark on what
+    changed.
+
+**What changed.**
+
+- **`review-deflate-figures`.** Graders 01, 02 and 06 are deleted. Grader 04 now asks for marks that correspond
+  and are not aligned or joined, or a size or position that misleads; a remark about width on a phone, and praise
+  for a figure drawn to scale, no longer pass. Grader 08 is new: the review calls its findings hypotheses, or
+  says how confident it is, and saying what was not read or rendered does not pass. 03, 05 and 07 stay.
+- **`review-stepper-boundary`.** Grader 02 (distinct markings and a label) is deleted. Grader 03 now asks that
+  the step text give the reason and leave the move to the figure, and fails a rewrite that records the state.
+  Grader 04 now asks for an arrow from the old position to the new one, and fails a highlight, a ghost with no
+  arrow, and an arrow offered as optional. Both files are renamed after what they ask. 01, 05 and 06 stay.
+- **`fix-confusing-figure` 06** says where the note must be (the caption, or a note on or next to the figure)
+  and lists what does not pass: a "×3" on a box, a mention in the body text or "if they matter", a note offered
+  as optional, a caption that says only what a greyed box means.
+- **`design-lz77-figure` 05** passes either a named misreading with what prevents it, or a caption that tells
+  the reader what not to read into the drawing, and lists what does not pass (a caption that only says what is
+  left out, a wrong idea about the algorithm, a note on colour, the choice of example bytes).
+- **`design-lz77-figure` 06** is unchanged: see below.
+
+A new grader's name is not in a baseline, and `rejudge.mjs --rubrics` judges only the names it finds there. So
+each new rubric was tried under the recorded name of a grader it replaces, from a scratch directory given to
+`--rubrics`. On the saved answers, with and without the skill: `review-deflate-figures` 04 passed 9 of 9 and 1
+of 6, and 08 passed 9 of 9 and 0 of 6; `review-stepper-boundary` 03 passed 7 of 9 and 0 of 6, and 04 passed 8 of
+9 and 1 of 6. One of the 60 verdicts had a split vote.
+
+**Result.** Two runs of the suite on `1011231`, made after the rubrics were fixed. Nothing was tuned to them
+except one clause of `fix-confusing-figure` 06, which is said below.
+
+| Case | With, run 1 | With, run 2 | Without, run 1 | Without, run 2 | Δ, run 1 | Δ, run 2 | Δ in #249 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `design-lz77-figure` | 1.00 | 0.95 | 0.19 | 0.19 | +0.81 | +0.76 | +0.71 |
+| `fix-confusing-figure` | 0.78 | 0.89 | 0.44 | 0.28 | +0.33 | +0.61 | +0.61 |
+| `review-deflate-figures` | 0.93 | 0.93 | 0.47 | 0.40 | +0.47 | +0.53 | +0.38 |
+| `review-stepper-boundary` | 0.87 | 0.93 | 0.40 | 0.33 | +0.47 | +0.60 | +0.28 |
+| Mean | 0.89 | 0.93 | 0.38 | 0.30 | +0.52 | +0.63 | +0.50 |
+
+Passes of each grader of the two review cases, with the skill and without:
+
+| Grader | With, run 1 | Without, run 1 | With, run 2 | Without, run 2 |
+| --- | --- | --- | --- | --- |
+| `review-deflate-figures` 03, the picture against its caption | 3 of 3 | 2 of 3 | 3 of 3 | 3 of 3 |
+| `review-deflate-figures` 04, alignment and scale (rewritten) | 3 of 3 | 2 of 3 | 3 of 3 | 0 of 3 |
+| `review-deflate-figures` 05, a change with each finding | 3 of 3 | 0 of 3 | 2 of 3 | 0 of 3 |
+| `review-deflate-figures` 07, no claim to have seen it rendered | 3 of 3 | 3 of 3 | 3 of 3 | 3 of 3 |
+| `review-deflate-figures` 08, hypotheses or a confidence (new) | 2 of 3 | 0 of 3 | 3 of 3 | 0 of 3 |
+| `review-stepper-boundary` 01, the layout change comes first | 3 of 3 | 2 of 3 | 3 of 3 | 1 of 3 |
+| `review-stepper-boundary` 03, the text gives the reason (rewritten) | 2 of 3 | 0 of 3 | 2 of 3 | 0 of 3 |
+| `review-stepper-boundary` 04, the move drawn as an arrow (rewritten) | 2 of 3 | 0 of 3 | 3 of 3 | 0 of 3 |
+| `review-stepper-boundary` 05, ranks the problems | 3 of 3 | 1 of 3 | 3 of 3 | 2 of 3 |
+| `review-stepper-boundary` 06, markings stay the same | 3 of 3 | 3 of 3 | 3 of 3 | 2 of 3 |
+
+- **Both review cases are above +0.2 in both runs, and neither needs any one grader for that.** With each grader
+  left out in turn, `review-deflate-figures` is at least +0.33 in run 1 (without 05) and +0.42 in run 2 (without
+  04 or 08), and `review-stepper-boundary` at least +0.42 and +0.50.
+- **The four rewritten or new graders passed 20 of 24 with the skill and 2 of 24 without.** The judge split its
+  votes on 2 of those 48 verdicts, and on 6 of 120 and 7 of 120 over the two runs.
+- **The with-skill mean is 0.89 and 0.93**, where five earlier Sonnet-judged runs had 0.94, 0.91, 0.93, 0.94 and
+  0.91. The no-skill mean is 0.38 and 0.30, where #249 had 0.42. The suite has 20 `llm` graders now, not 23, and
+  the judge was $3.06 and $3.30 of the two runs.
+- **A baseline is kept**: `pedagogical-diagrams/evals/baselines/2026-11-18-two-arm-301.json`, run 2 (24 answers,
+  both arms), trimmed with `rejudge.mjs --trim --commit 1011231`. Its `fix-confusing-figure` 06 rubric is the
+  text of that commit, one clause short of the present one.
+
+**The three unsteady graders.** Each was judged again on saved answers: the built-in judge's verdict is in the
+record, and `rejudge.mjs` gave a second and a third. Where the judgings agree and the count still moves between
+runs, the answers moved.
+
+| Grader | Old text: same verdict from the record and from `rejudge.mjs`, and split votes | New text: the same, on the two new runs | With, run 1 and 2 | Without, run 1 and 2 |
+| --- | --- | --- | --- | --- |
+| `fix-confusing-figure` 06 | 11 of 12, 1 split (a second pass: 11 of 12, none) | 11 of 12, none | 2 of 3, 1 of 3 | 0 of 3, 0 of 3 |
+| `design-lz77-figure` 05 | 8 of 12, 3 split (a second pass: 7 of 12, 4 split) | 11 of 12, 1 split | 3 of 3, 2 of 3 | 1 of 3, 2 of 3 |
+| `design-lz77-figure` 06, unchanged | 12 of 12, none | not judged again | 3 of 3, 3 of 3 | 0 of 3, 0 of 3 |
+
+- **`fix-confusing-figure` 06 is steady as a judge and the answers are not.** With the old text the judges
+  disagreed on one kind of answer: the simplification is told in the paragraph under the figure, or only as a
+  "×3" on a box. One such answer got a failing 1 to 2 in the record, then 2 to 1 and 3 to 0 from `rejudge.mjs`.
+  The new text names those cases. Run 2 found one more: "You can mention it in the caption" failed 1 to 2 in the
+  record and passed 3 to 0 with `rejudge.mjs`. A clause for a note offered as optional was added after the two
+  runs (`7692c0b`); with it the 18 answers of the two runs and of #249's baseline got no split vote, and one more
+  run of the case had none either (3 of 3 with the skill, 0 of 3 without). What is left is the answers: over six
+  sets of three with-skill answers the grader passed 3, 2, 1, 2, 1 and 3. The skill says "say in the caption what
+  was simplified" (rule 2), and about two answers in three do it. A grader cannot steady that. No no-skill
+  answer of the last four sets passed.
+- **`design-lz77-figure` 05 is steadier as a judge and separates the arms weakly.** The old text did not say
+  whether a caption line such as "the wrapping is only for drawing" names a misreading, and the judges split on
+  it. With the new text two judgings of the 15 saved answers gave the same 15 verdicts, with one split vote in
+  30. "The example bytes" was then cut from its first line, before any run, which failed one no-skill answer
+  whose only note was that the letters stand for any bytes. On the two new runs the record and `rejudge.mjs`
+  differ on one answer, whose caption says why the strip wraps ("so that back 12 is straight up") and not what
+  the wrap must not be taken for. A clause that failed such a caption was tried on the answers of the two runs
+  and dropped: it also failed an answer that every earlier judging had passed, and split the votes on another.
+  The counts move because the answers do, in both arms: most designs wrap the strip at 12, and a no-skill answer
+  that wraps it also tends to say how to read the rows. Over all saved answers and the two runs the new text
+  passes 13 of 15 with the skill and 6 of 12 without. It is the weakest grader of its case and it is kept: the
+  case is +0.83 and +0.89 without it.
+- **`design-lz77-figure` 06 needed no rewording.** The record and `rejudge.mjs` gave the same verdict on all 12
+  saved answers, with no split vote, and both new runs are 3 of 3 with the skill and 0 of 3 without. The 0 of 3
+  and 2 of 3 of #249 were the answers: the cover-the-prose check is step 9 of the skill's checklist, and a design
+  answer mentions it when it ends with what to do before shipping. Thirteen of the 15 saved or new with-skill
+  answers do (the three of #249's first run were not kept). No no-skill answer does.
+
+**What this does not show.**
+
+- **The new rubrics were fitted to answers that had been read**, as in #249. The two suite runs are fresh
+  answers, which is the check `evals.md` asks for, and they were made five minutes apart on one day.
+- **The last clause of `fix-confusing-figure` 06 was written after the two runs**, for one answer of run 2. One
+  run of one case stands behind it, not two.
+- **`review-deflate-figures` 07 passed every answer in both arms in both runs**, and 4 of 6 without the skill
+  before. It adds nothing to Δ. It is kept as a guard: the skill's procedure says to look at each figure in a
+  browser, which a run in the sandbox cannot do, and the grader fails an answer that says it did. Without it the
+  case is +0.58 and +0.67.
+- **`review-deflate-figures` 03 passed 2 of 3 and 3 of 3 without the skill**, and
+  **`review-stepper-boundary` 06 passed 3 of 3 and 2 of 3**, where 06 had passed 1 of 3 twice in #249 and carried
+  the case. Neither changed here. In these runs the Δ of both cases comes from the other graders.
+- **Two of the six with-skill answers failed the rewritten `review-stepper-boundary` 03, and one of them 04 as
+  well.** That one marks the old position with "a faint ghost or a short trail" and no arrow. Both rewrite the
+  step text as what happened ("tail advances to slot 3, count is now 3") with no reason. All three verdicts were
+  3 votes to 0. The case's with-skill score is 0.87 and 0.93 for that reason, where it was 0.94.
+- **Other graders moved and were not looked at.** `fix-confusing-figure` 05 passed 1 of 3 with the skill in run
+  1, two of the three verdicts split, then 3 of 3 twice. `fix-confusing-figure` 04 passed 3 of 3 without the
+  skill in run 1, where it passed 1, 0, 1 and 1 of 3 in the other four runs. `design-lz77-figure` 07 passed 2 of 3
+  without the skill in run 1 and 0 of 3 in the three other runs.
+- **`rejudge.mjs` is not the built-in judge.** On the 24 verdicts of the two reworded graders in the new runs
+  the two agreed on 22. A verdict the built-in judge splits on can still go either way in a run.
+- **A grader that asks for calibration, and one that asks for an arrow, take the skill's side.** A review with
+  no hedge, or a stepper that marks a move with a ghost alone, can be defended. A change to the skill there
+  should change the grader with it.
+- **The first two baselines were graded with files that no longer exist** (`review-deflate-figures` 01, 02 and
+  06, `review-stepper-boundary` 02, and the old 03 and 04 under their old names), so per-case scores before and
+  after this section do not compare.

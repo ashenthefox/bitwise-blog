@@ -7,7 +7,7 @@
   "judge": "claude-sonnet-5-5"
  },
  "ablation": "with-without",
- "commit": "7affb26",
+ "commit": "c707b27",
  "cases": [
   {
    "name": "outline-amortised-append",
