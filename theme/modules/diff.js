@@ -165,6 +165,11 @@
     else for (const n of themeNodes()) root.append(n.cloneNode(true));
   }
 
+  // A copy that scrolls (a wide table, code, and below 640px a diagram) must be reachable by keyboard, as on
+  // the page. bh.js decides that for a tree as for the page, but it cannot see a tree being drawn, and a
+  // copy in a closed mark has no size: so it is asked to measure when one is drawn and when its mark opens.
+  const measure = () => { if (bh.scrollRegions) bh.scrollRegions(); };
+
   /** Move each `.bh-diff-shadow` copy in `scope` into a shadow tree styled by its version's page CSS. */
   function upgrade(scope, oldStyle) {
     const hosts = [...scope.querySelectorAll(".bh-diff-shadow")].filter((h) => !h.shadowRoot && h.querySelector(":scope > template"));
@@ -179,8 +184,13 @@
       if (markers) root.append(markers.cloneNode(true));
       const body = el("div", { class: "bh-article" });
       body.append(host.querySelector(":scope > template").content.cloneNode(true));
+      // Below 640px a diagram keeps its width and scrolls in its figure, which bh.js does not look at unless it is named.
+      for (const fig of body.querySelectorAll("figure.diagram:not([data-scroll-region])")) fig.dataset.scrollRegion = "Diagram";
       root.append(body);
+      const mark = host.closest("details.bh-diff-mark");
+      if (mark) mark.addEventListener("toggle", measure); // the same listener however many copies the mark holds
     }
+    measure();
     // A tree cannot see whether the change highlights are off around it, so bh.js writes it in.
     bh.mirrorChanges();
   }

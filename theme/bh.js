@@ -556,14 +556,19 @@
    * not the container's) and when the viewport changes.
    * Candidates: wide tables, code blocks (a <bh-codewalk>'s too), and anything marked data-scroll-region="Name"
    * (page-specific strips). An authored tabindex is left alone.
+   * A page diff draws some copies in a shadow tree (`.bh-diff-shadow`, see diff.js), which neither a selector
+   * nor a mutation observer on the article reaches: the candidates in those trees are looked for too, and
+   * diff.js calls `bh.scrollRegions()` when it has drawn one or opened the mark around one.
    */
   const SCROLL_REGIONS = ".bh-article .table-wrap, .bh-article pre:not(.mermaid), .bh-article [data-scroll-region]";
+  let measureScrollRegions = () => {}; // until setupScrollRegions has run; it measures every region then anyway
   function setupScrollRegions() {
     const article = doc.querySelector(".bh-article");
     if (!article) return;
     const ours = new WeakSet(); // regions whose tabindex/role/label this function set
     const watched = new WeakSet();
-    const regions = () => article.querySelectorAll(SCROLL_REGIONS);
+    const trees = () => [article, ...[...doc.querySelectorAll(".bh-diff-shadow")].map((h) => h.shadowRoot).filter(Boolean)];
+    const regions = () => trees().flatMap((t) => [...t.querySelectorAll(SCROLL_REGIONS)]);
     const nameOf = (r) => {
       if (r.dataset.scrollRegion) return r.dataset.scrollRegion;
       if (r.matches("pre")) return "Code";
@@ -573,15 +578,17 @@
     function sync(r) {
       // A pixel of slack: sub-pixel sizes round, and a container that fits must not become a tab stop.
       const scrolls = r.scrollWidth - r.clientWidth > 1 || r.scrollHeight - r.clientHeight > 1;
+      // A figure with a caption has its role and its name already, and may take no other role.
+      const named = r.matches("figure") && !!r.querySelector(":scope > figcaption");
       if (scrolls && !r.hasAttribute("tabindex")) {
         r.tabIndex = 0;
-        r.setAttribute("role", "group");
-        r.setAttribute("aria-label", nameOf(r));
+        if (!named) r.setAttribute("role", "group");
+        if (!named) r.setAttribute("aria-label", nameOf(r));
         ours.add(r);
       } else if (!scrolls && ours.has(r)) {
         r.removeAttribute("tabindex");
-        r.removeAttribute("role");
-        r.removeAttribute("aria-label");
+        if (!named) r.removeAttribute("role");
+        if (!named) r.removeAttribute("aria-label");
         ours.delete(r);
       }
     }
@@ -599,6 +606,7 @@
     scan();
     let queued = false;
     const syncAll = () => regions().forEach(sync);
+    measureScrollRegions = () => { scan(); syncAll(); };
     if (doc.fonts) {
       doc.fonts.addEventListener("loadingdone", syncAll);
       if (doc.fonts.ready) doc.fonts.ready.then(syncAll);
@@ -1802,7 +1810,7 @@
   window.bh = {
     applyTheme, whenReady, el, format, copyText, copyLink, toast, linkLabel, settle,
     reducedMotion, LINK_ICON, ensureMarkers: () => injectMarkers(true), loadScript, siteRoot: SITE_ROOT,
-    showChanges: () => showChanges(), mirrorChanges,
+    showChanges: () => showChanges(), mirrorChanges, scrollRegions: () => measureScrollRegions(),
     sitePath, meta, storage, loadModule, examples: EXAMPLES, fragment,
     // Unlisted pages: whether to surface them, and their data (null while the flag is off).
     unlisted: { visible: UNLISTED.visible, page: UNLISTED.page, data: loadUnlisted },

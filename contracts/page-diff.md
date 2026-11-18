@@ -68,6 +68,15 @@ plain copy stays as the fallback until then, and without script. Three limits:
   custom property the old CSS declared on `:root` is not set there: the copy inherits the live page's value.
   So scope page CSS by the block's id, and declare its custom properties on the block.
 
+**A copy that scrolls is reachable by keyboard, like the page's own.** `setupScrollRegions` in `bh.js` gives a
+scrolling table, code block or `data-scroll-region` element a `tabindex` only while it overflows, and it looks
+in the shadow trees too. It cannot see a tree being drawn, so `upgrade` calls `bh.scrollRegions()` when it has
+drawn one and when the mark around one opens (where a closed `<details>` is not laid out, a copy in it has no
+size until then). `upgrade` also names each `figure.diagram` in a tree as a scroll region, because below 640px
+a diagram scrolls in its figure. Such a figure keeps its own role and its caption as its name. The plain copies
+in a mark are in the article, so they were already covered. `tests/page-diff-browser.test.mts` opens a mark
+on a wide table and on a diagram at phone width, focuses the copy, scrolls it with a key, and makes it fit again.
+
 **A copy is not one of the page's figures.** It shows no "Figure N" and does not count towards it, in the
 mark (`theme/diff.css`) and in a shadow tree (`SHADOW_CSS` in `diff.js`: a counter crosses into a shadow tree).
 Otherwise an open mark renumbers every figure after it.
