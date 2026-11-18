@@ -81,7 +81,10 @@ jobs:
       contents: read
       actions: read
     steps:
+      # The full history (under 1 MB): a pull request's pages are diffed against its base commit.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -112,6 +115,17 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           SAVES_BASELINE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
 
+      # What the words say: each page a pull request changes, with its changes marked (one
+      # self-contained file per page in the artifact, under diff/), and the changed sections
+      # listed in the job summary. It only reports, like the pixel diff above.
+      - name: Diff the changed pages
+        if: github.event_name == 'pull_request'
+        run: |
+          node scripts/bh.mts diff --changed "$BASE_SHA" --out .visual/system-fonts/diff --summary .visual/system-fonts/page-changes.md \
+            || echo "::warning::The page diff did not finish (see the log)"
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+
       # report.html with the baseline, current and diff images of every change.
       - uses: actions/upload-artifact@v4
         id: report
@@ -138,6 +152,7 @@ jobs:
           summary=.visual/system-fonts/summary.md
           if [ -f "$summary" ]; then cat "$summary" >> "$GITHUB_STEP_SUMMARY"; else echo "## Visual regression"$'\n\n'"The renders did not finish, so there is nothing to compare (see the log)." >> "$GITHUB_STEP_SUMMARY"; fi
           if [ -n "$REPORT_URL" ]; then echo $'\n'"[Download the report](${REPORT_URL}) (open \`report.html\`)." >> "$GITHUB_STEP_SUMMARY"; fi
+          if [ -f .visual/system-fonts/page-changes.md ]; then echo >> "$GITHUB_STEP_SUMMARY"; cat .visual/system-fonts/page-changes.md >> "$GITHUB_STEP_SUMMARY"; fi
 
   # Off until you opt in (a repository setting, so it's yours to change):
   #   1. Settings → Pages → Build and deployment → Source: GitHub Actions
@@ -164,7 +179,11 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # The full history (under 1 MB): publish.mts diffs each reviewed page against the commits its
+      # review threads name (theme/diffs/), and a shallow clone has none of them.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:

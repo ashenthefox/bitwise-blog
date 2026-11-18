@@ -110,6 +110,8 @@ export interface ReviewComment {
   inReplyTo?: string;
   resolves?: boolean;
   author?: string | null;
+  /** The commit the page was built from when this was written (untrusted, like every field). */
+  commit?: unknown;
   outdated?: unknown;
   target?: { quote?: { exact?: unknown } };
 }

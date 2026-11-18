@@ -347,6 +347,19 @@ impl TokenBucket {
       </figure>
     </bh-versions>
 
+    <h3 id="diff-marks">Diff marks</h3>
+    <p>What <code>npm run diff</code> and the Review panel's "changes since" put on a page. A mark names the kind of change before the block it is about, the block gets a bar, and the words that differ are <del>struck through</del><ins>underlined</ins>. Authors never write these by hand.</p>
+    <p class="bh-diff-mark" data-diff="changed"><span class="badge plain warn bh-diff-tag">Changed</span> <span class="bh-diff-what">text</span></p>
+    <p data-diff="changed">The limiter refills its bucket <del>on a timer</del><ins>lazily, on each request</ins>, so an idle client costs nothing.</p>
+    <p class="bh-diff-mark" data-diff="added"><span class="badge plain ok bh-diff-tag">Added</span></p>
+    <p data-diff="added">A rejected request never reaches the service.</p>
+    <details class="bh-diff-mark" data-diff="removed" open>
+      <summary><span class="badge plain danger bh-diff-tag">Removed</span></summary>
+      <div class="bh-diff-old"><p class="bh-diff-h bh-diff-h3">A heading that is gone</p><p>The old version of a block is an inert copy: no ids, and <span class="bh-diff-link">links</span> are plain text.</p></div>
+    </details>
+    <p class="bh-diff-mark" data-diff="moved"><span class="badge plain info bh-diff-tag">Moved</span> <span class="bh-diff-what">from “Typography”</span></p>
+    <p data-diff="moved">A block that turns up elsewhere is a move, not a removal and an addition.</p>
+
     <h3 id="sequence-diagrams">Sequence diagrams</h3>
     <p>Describe actors and messages, and <code>&lt;bh-sequence&gt;</code> lays them out with the theme's vocabulary. Replies are dashed, notes sit over one or more lifelines, and every part keeps its <code>data-id</code>, so a stepper can walk through the exchange.</p>
     <figure class="diagram wide" id="seq-limited-request">

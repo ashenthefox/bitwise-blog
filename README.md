@@ -91,6 +91,7 @@ npm run new -- explainer consistent-hashing "Consistent hashing"
 npm run check                                       # lint links, ids, stepper refs, a11y basics
 npm run cards                                       # render each page's social card (needs Chrome)
 npm run bundle -- docs/consistent-hashing.html      # → dist/consistent-hashing.html
+npm run diff -- docs/consistent-hashing.html main   # what changed since main → dist/diff/consistent-hashing.html
 npm run seal                                        # encrypt docs/*.private.html (keys in 1Password)
 npm run unseal                                      # recreate docs/*.private.html from sealed pages
 npm run visual                                      # screenshot diff vs your baselines (Node ≥ 22 + Chrome)

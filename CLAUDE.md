@@ -28,6 +28,8 @@ when a visibility mechanism or its check changes.
 5. `npm run cards` renders the page's social card (needs Chrome). Look at the PNG, then commit
    it with the page. See [Social cards](contracts/social-cards.md).
 6. For sharing outside the repo, run `npm run bundle -- docs/<slug>.html` and send `dist/<slug>.html`.
+7. To see what an edit changed as a reader would, run `npm run diff -- docs/<slug>.html [base]` and open
+   `dist/diff/<slug>.html` (see [Page diffs](contracts/page-diff.md)).
 
 Once per clone, run `npm run hooks`: it points `core.hooksPath` at the tracked `.githooks/`, whose
 `pre-push` runs `leak-check --pushed`, which scans the blobs the pushed commits add (not the working tree) and
@@ -72,6 +74,7 @@ Read it before you use or change the feature; `check` fails if a file named here
 - An interactive isometric figure (the `anatomy` skill, `figures/`, `embed.mjs`)? Read [`contracts/anatomy-figures.md`](contracts/anatomy-figures.md).
 - Defining a term, `docs/glossary.html`, or the glossary popup in `bh.js`? Read [`contracts/glossary.md`](contracts/glossary.md).
 - Applying or answering a review file, `reviews/`, or the Review panel? Read [`contracts/reviews.md`](contracts/reviews.md).
+- `npm run diff`, `scripts/page-diff.mts`, `theme/diffs/`, `?diff=` or "changes since this comment"? Read [`contracts/page-diff.md`](contracts/page-diff.md).
 - An `npm run a11y` failure, `scripts/a11y.mts` or `a11y-allowlist.json`? Read [`contracts/a11y.md`](contracts/a11y.md).
 - Anything in `.claude/skills/`? Read [`contracts/skills.md`](contracts/skills.md), then load the `skill-authoring` skill.
 <!-- /bh:contracts -->

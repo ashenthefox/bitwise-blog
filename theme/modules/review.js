@@ -17,7 +17,8 @@
      target.anchor    nearest stable id (a section heading, figure, step, …)
      target.quote     the exact text (whitespace collapsed) plus 32 chars either side
      target.position  offsets of that text within the anchor's text
-   and stamped with the commit the page was built from (theme/build.js).
+   and stamped with the commit the page was built from (theme/build.js). That commit is
+   also what "Changes since this comment" compares the page with (theme/modules/diff.js).
    ========================================================================== */
 (function () {
   "use strict";
@@ -33,7 +34,7 @@
     ".cw-layer", ".bh-stepper-bar", ".bh-tablist", ".bh-versions-bar", ".bh-versions-caption",
     ".bh-versions-tag", ".bh-versions-divider", ".bh-versions-range", ".mx-bar", ".chart-legend", ".chart-plot",
     ".chart-data > summary", ".bh-backlinks", ".glossary-az", ".bh-toc", ".bh-meta", ".visually-hidden",
-    "pre.mermaid", ".bh-review-ui", ".bh-review-add",
+    "pre.mermaid", ".bh-review-ui", ".bh-review-add", ".bh-diff-ui",
   ].join(",");
   const BLOCKS = "figure[id], dt[id], [data-linkable][id], bh-step[id], bh-cw-step[id], bh-codewalk[id], bh-matrix[id]";
   const HEADINGS = ":scope > h2[id], :scope > h3[id], :scope > h4[id]";
@@ -303,6 +304,34 @@
     return rects[0] || range.getBoundingClientRect();
   }
 
+  // ---- Changes since a comment (theme/modules/diff.js does the work) -------------------------------
+
+  const COMMIT = /^[0-9a-f]{7,40}$/;
+  /** Whether the page may differ from what a message's author saw: another commit, or local edits on top of the same one. */
+  const mayDiffer = (m) => !!bh.siteRoot && typeof m.commit === "string" && COMMIT.test(m.commit) && (m.commit !== build().commit || build().dirty === true);
+
+  /** Show the page's changes since `commit`; with a thread, go to the ones where its comment is. */
+  function showChanges(commit, t) {
+    const target = t && t.root.target;
+    const opts = target ? { section: target.anchor, quote: target.quote ? target.quote.exact : "" } : {};
+    return bh.loadModule("diff.js").then(() => (bh.diff ? bh.diff.show(commit, opts) : null)).then((res) => {
+      if (!res) announce("No record of the changes since that version");
+      else if (!res.total) announce("Nothing on this page has changed since then");
+      else if (t) announce(res.here ? `${res.here} change${res.here === 1 ? "" : "s"} here since this comment` : `Nothing here has changed since this comment (${res.total} elsewhere)`);
+      return res;
+    });
+  }
+
+  /** The versions this page can be compared with: one per commit that a thread's first message names, oldest first. */
+  function baselines() {
+    const seen = new Map();
+    for (const t of current) {
+      const m = t.root;
+      if (mayDiffer(m) && !seen.has(m.commit)) seen.set(m.commit, `${new Date(m.created).toLocaleDateString()} · ${m.author || m.reviewer || "a reviewer"}’s comment (${m.commit.slice(0, 7)})`);
+    }
+    return [...seen];
+  }
+
   // ---- Popover: composer & thread ---------------------------------------------------------------------
 
   function closePop() {
@@ -421,6 +450,7 @@
         el("a", { href: `https://github.com/${build().repo}/blob/${t.root.commit}/${docPath()}`, target: "_blank", rel: "noopener", text: "See it as it was" }),
       ]) : null,
       el("ol", { class: "bh-review-msgs" }, [t.root, ...t.replies].map((m) => message(m, t))),
+      mayDiffer(t.root) ? el("button", { type: "button", class: "btn bh-review-since", text: "Changes since this comment", onclick: () => { closePop(); showChanges(t.root.commit, t); } }) : null,
       reply,
       el("div", { class: "bh-review-actions" }, [
         el("label", { class: "bh-review-resolve" }, [resolve, t.resolved ? " Reopen" : " Mark resolved"]),
@@ -540,6 +570,11 @@
     panel.querySelectorAll("[data-export]").forEach((b) => { b.disabled = !draftCount; });
     panel.querySelector("[data-clear]").disabled = !draftCount;
     panel.querySelector(".bh-review-resolved").hidden = pub.length === open.length;
+    const since = panel.querySelector(".bh-review-since-select"), bases = baselines(), shownBase = bh.diff ? bh.diff.base : null;
+    since.replaceChildren(el("option", { value: "", text: "Off" }), ...bases.map(([commit, label]) => el("option", { value: commit, text: label })));
+    if (shownBase && !bases.some(([commit]) => commit === shownBase)) since.append(el("option", { value: shownBase, text: shownBase.slice(0, 7) }));
+    since.value = shownBase || "";
+    panel.querySelector(".bh-review-changes").hidden = !bases.length && !shownBase;
   }
 
   function buildPanel() {
@@ -556,6 +591,8 @@
     });
     const resolvedToggle = el("input", { type: "checkbox" });
     resolvedToggle.addEventListener("change", () => { showResolved = resolvedToggle.checked; paint(); });
+    const since = el("select", { class: "bh-review-since-select" });
+    since.addEventListener("change", () => { if (since.value) showChanges(since.value, null); else if (bh.diff) bh.diff.hide(); });
     const pageToggle = el("input", { type: "checkbox", checked: showOnPage });
     pageToggle.addEventListener("change", () => { showOnPage = pageToggle.checked; bh.storage(() => localStorage.setItem("bh-review/v1/show", showOnPage ? "on" : "off")); paint(); });
     panel = el("aside", { class: "bh-review-panel bh-review-ui", "aria-label": "Review" }, [
@@ -566,6 +603,7 @@
       el("p", { class: "bh-review-sec bh-review-pubhead" }),
       el("ol", { class: "bh-review-list bh-review-publist" }),
       el("label", { class: "bh-review-check bh-review-resolved" }, [resolvedToggle, " Show resolved threads"]),
+      el("label", { class: "bh-review-label bh-review-changes" }, ["Show changes since", since]),
       el("p", { class: "bh-review-sec bh-review-mine" }),
       el("ol", { class: "bh-review-list bh-review-mylist" }),
       el("label", { class: "bh-review-label" }, ["Your name", reviewer]),
@@ -662,6 +700,7 @@
         let t = 0;
         const later = () => { clearTimeout(t); t = setTimeout(relocateAll, 150); };
         addEventListener("resize", later);
+        doc.addEventListener("bh-diff", () => renderPanel()); // the panel's "Show changes since" follows the page
         new ResizeObserver(later).observe(article);
         relocateAll();
       }

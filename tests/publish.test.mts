@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
@@ -383,5 +384,34 @@ test("JSON-LD: posts and the home page ship their blocks; an unlisted page carry
     f.assemble();
     assert.throws(() => preparePublishedSite(f.stage, f.source), /Refusing to publish JSON-LD on the unlisted page docs\/quiet-stale\.html/);
     assert.ok(fs.existsSync(path.join(f.stage, example)), "failure before pruning");
+  }
+});
+
+test("publication writes diff data for the versions review threads name: for a post, not for a removed example, and listed nowhere", (t) => {
+  const f = fixture(t);
+  const git = (...args: string[]) => execFileSync("git", ["-C", f.source, "-c", "user.name=T", "-c", "user.email=t@example.test", "-c", "commit.gpgsign=false", ...args], { stdio: ["ignore", "pipe", "pipe"], timeout: 60_000 }).toString().trim();
+  git("init", "-q");
+  git("add", "docs/announcing-patchcov.html", "docs/edge-rate-limiting-design.html");
+  git("commit", "-q", "-m", "as reviewed");
+  const commit = git("rev-parse", "HEAD");
+  for (const document of [example, post]) {
+    const file = path.join(f.source, document);
+    fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("</article>", "<p>A sentence added after the review.</p></article>"));
+    fs.writeFileSync(path.join(f.source, "reviews", path.basename(document) + ".json"), JSON.stringify({
+      format: "bh-review/1", document, reviewer: "Reader", build: { commit }, comments: [{ id: document, kind: "comment", body: "Review words", created: "2026-10-13T00:00:00Z", commit }],
+    }));
+  }
+  f.assemble();
+  fs.mkdirSync(path.join(f.stage, "theme/diffs"));
+  fs.writeFileSync(path.join(f.stage, "theme/diffs/stale.js"), "left over from another build");
+  preparePublishedSite(f.stage, f.source);
+  assert.deepEqual(fs.readdirSync(path.join(f.stage, "theme/diffs")), [`announcing-patchcov.${commit}.js`], "one file, for the post; none for the example page, and nothing left over");
+  const diffs = data(f.stage, `diffs/announcing-patchcov.${commit}.js`, "BH_DIFFS");
+  const added = diffs[`${post}@${commit}`].changes.filter((c: { status: string }) => c.status === "added");
+  assert.equal(added.length, 1);
+  assert.match(added[0].label, /A sentence added after the review/);
+  // Nothing else in the site names the files: no index of them exists for a crawler or a curious reader.
+  for (const file of ["index.html", "sitemap.xml", "feed.xml", "robots.txt", "theme/site.js", "theme/search-index.js", "theme/reviews.js"]) {
+    assert.ok(!fs.readFileSync(path.join(f.stage, file), "utf8").includes(`.${commit}.js`), file);
   }
 });
