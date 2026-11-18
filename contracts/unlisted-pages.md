@@ -24,7 +24,10 @@ private.
 - **What stays.** The page is published at its normal address and is checked like any other. It
   keeps a social card, so a pasted link unfurls well. The build adds
   `<meta name="robots" content="noindex, nofollow">` to its generated social block; write nothing.
-  `noindex` stops compliant crawlers, not anyone who has the URL.
+  `noindex` stops compliant crawlers, not anyone who has the URL. It keeps review as well, with the
+  same instruction to submit in a public pull request: the pull request quotes the page and names its
+  path, both public already (the path is in `theme/unlisted-slugs.js`), though easier to come across
+  there. A private page, whose text is secret, has no review.
 - **What is left out** unless the flag is on: the home page's cards (`cmdIndex` does not write them
   into `index.html`), header search (`theme/search-index.js`), backlinks and "Referenced by"
   (`theme/site.js`), review summaries, and `bundle --all` (naming a page still bundles it).
