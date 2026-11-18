@@ -119,8 +119,14 @@ The working directory is empty. A query that points at a file the user has ("the
 coding explainer", "my lecture notes") sends Claude looking for it; finding nothing, it answers
 or asks for the file, and the skill never loads, whatever the description says. Put the material
 in the prompt (quote the passage, give the numbers), or expect a miss that measures the sandbox.
-Not every query that names a missing page misses (#1 to #5 of `pedagogical-writing` name pages
-the sandbox lacks and fire 3 of 3), so read the trace before blaming the sandbox.
+Not every query that names a missing page misses (#1 to #4 of `pedagogical-writing` name pages
+the sandbox lacks and fire 3 of 3 on Sonnet), so read the trace before blaming the sandbox.
+Raising `--max-turns` does not rescue such a query: on Haiku, 16 of 21 runs at 10 turns ended on
+their own without the skill, saying the page was not found (#308). A file hunt in a trace does
+not make the miss the sandbox's either: of seven Haiku misses that looked that way, three still
+missed with the material quoted, answered in one turn with no tool call, so they were
+description misses. And a quoted passage does not always stop the hunt: a request to edit ("fix
+the flow") sends Haiku searching for the file that holds the quoted text.
 
 To search for a better description, edit by hand against the failing queries, or let
 skill-creator's `run_loop.py` propose rewrites (it needs `PYTHONPATH` set to skill-creator's

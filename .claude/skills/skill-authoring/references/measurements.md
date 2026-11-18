@@ -41,6 +41,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-18: why `needs-a-script` scored lower with the skill on two graders (#300)
 - 2026-11-18: six `pedagogical-writing` graders that rejected correct answers or passed in no arm (#299)
 - 2026-11-18: "or reading any file" in `skill-authoring`'s description does not make Sonnet load other skills (#306)
+- 2026-11-18: the Haiku misses of `pedagogical-writing` labelled from traces, and seven queries reworded (#308)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -1927,3 +1928,119 @@ loaded, so every `Skill` call in every kept trace was counted by skill name.
 - **The sandbox is empty and the cap is three turns.** A run that hunts for a file finds nothing. In a real repo the
   hunt succeeds, and what Sonnet does after reading a file was not measured. User-level skills are not loaded
   either.
+
+## 2026-11-18: the Haiku misses of `pedagogical-writing` labelled from traces, and seven queries reworded (#308)
+
+Claude Code 2.1.318, agent `claude-haiku-5-5` unless a row says Sonnet, three runs per query, `--keep` on every
+run. The description did not change. Seven queries changed. US$3.57 in all: $1.71 for six Haiku runs and $1.86
+for one Sonnet run of the seven changed queries.
+
+**Baseline**, the description on `main` and the queries as they were: 49 of 58, should-fire 20 of 29, quiet 29 of
+29, held-out 17 of 20, $0.68. Nine should-fire queries missed. In seven of them every missing run searched the
+empty working directory and never called `Skill`; two were answered in one turn.
+
+| Query, old wording | Fired | Runs that missed: tool calls in order, and the end | Label from this trace |
+| --- | --- | --- | --- |
+| #5 "make the token bucket page easier to understand…" | 1 of 3 | `Grep, Glob, Bash (error), Grep, Glob`; `Grep, Glob, Grep (error), Glob (error), Read (error)`; both at the turn cap | sandbox |
+| #6 "…a tutorial on monad transformers… what order?" | 0 of 3 | no tool calls, three times; answered in one turn | description |
+| #11 "the paragraphs in the select section are hard to read…" | 0 of 3 | `Grep, Glob, Bash (error)`; `Grep, Glob, Glob`; `Grep, Glob, Grep (error)`; all at the turn cap | sandbox |
+| #12 "write a predict-before-reveal question for the huffman page…" | 0 of 3 | `Grep, Grep, Glob, Grep, Grep (error)` and two like it; all at the turn cap | sandbox |
+| #25 held-out "…a better running example for the arithmetic coding explainer…" | 0 of 3 | `Grep, Grep (error), Glob, Glob` and two like it; all at the turn cap | sandbox |
+| #34 "the step captions under my stepper just narrate motion…" | 1 of 3 | `Grep, Grep, Glob, Bash (error), Grep, Glob`; `Grep, Bash (error), Glob`; both at the turn cap | sandbox |
+| #35 "is the token bucket playground worth building at all…" | 0 of 3 | no tool calls, three times; answered in one turn | description |
+| #38 held-out "after the stepper on the rank page, what question…" | 1 of 3 | `Grep, Glob, Glob, Grep`; `Grep, Glob, Glob, Grep (error)`; both then said the page was not found and ended on their own | sandbox |
+| #53 held-out "give the huffman tutorial a pass/fail mark…" | 0 of 3 | `Grep, Glob, Grep (error), Glob`, twice at the turn cap and once ending with "I couldn't find the Huffman tutorial" | sandbox |
+
+The `(error)` calls are a search outside the working directory, which the sandbox denies, or `Bash`, which the
+case does not grant. #233 named #4 and #10 as misses too. Here they passed 2 of 3, as #1, #51 and #52 did, and
+the one missing run of each was the same file hunt.
+
+**Raising `--max-turns` does not help.** The seven sandbox queries were run again at `--max-turns 10` ($0.09).
+All 21 runs ended on their own, in 4 to 18 turns, and 16 of them never called `Skill`: 0 of 3 on #11, #12 and #25,
+1 of 3 on #5, #38 and #53, 2 of 3 on #34. A run that does not find the page says so ("I couldn't find the file, so I
+haven't changed anything yet") and asks for the path, or answers from memory. It does not load the skill after the
+search fails. This is what #91 found for #25 on Sonnet.
+
+**The seven queries were reworded once, with the material in the prompt**, and were not reworded again after they
+were scored. This is a change to the queries, not a result. Each keeps its intent, its `should_trigger` and its
+held-out mark.
+
+| Query | What the new wording adds |
+| --- | --- |
+| #5 | "make this opening of my token bucket page easier…", then the opening quoted (five sentences on b tokens, r per second, 429) |
+| #11 | the same request, then the first paragraph of the select section quoted (eight short sentences) |
+| #12 | "my huffman page", then the paragraph before the question quoted (bit 0 first, the code A=0, B=10, C=11, the byte 0x0D) |
+| #25 held-out | "my arithmetic coding explainer", then the example it uses now: 'ABAC', P(A)=0.6, P(B)=0.3, P(C)=0.1, the interval [0.4572, 0.468) |
+| #34 | what the stepper shows (rank(11), 8-bit blocks) and its four captions, numbered |
+| #38 held-out | "my rank page", then what the stepper walks through: rank(11) on 10110100 11010010, 4 plus 2 is 6 |
+| #53 held-out | "my huffman tutorial… it is short, here is all of it", then a nine-sentence tutorial quoted |
+
+**What the reworded queries score.** Two Haiku runs of the seven ($0.08 each), one Sonnet run ($1.86), then the
+whole suite on Haiku ($0.70), then one more Haiku run of the queries that had flipped ($0.08).
+
+| Query | Haiku, old wording | Haiku, new wording, each run | A missing run with the new wording | Sonnet, new wording | Label |
+| --- | --- | --- | --- | --- | --- |
+| #5 | 1 of 3 | 3, 3, 3 of 3 | none | 3 of 3 | sandbox miss, fixed |
+| #53 held-out | 0 of 3 | 3, 3, 3 of 3 | none | 3 of 3 | sandbox miss, fixed |
+| #12 | 0 of 3 | 0, 0, 0 of 3 | no tool calls; a question written in one turn | 3 of 3 | description miss |
+| #25 held-out | 0 of 3 | 0, 0, 0 of 3 | no tool calls, or one `Grep` for "0.4572"; then a new example in the same answer | 0 of 3, no tool calls | description miss, on Sonnet too |
+| #38 held-out | 1 of 3 | 0, 0, 0 of 3 | no tool calls; a question written in one turn | 3 of 3 | description miss |
+| #11 | 0 of 3 | 1, 1, 0, 0 of 3 | `Grep, Grep (error), Glob`; turn cap. The first `Grep` is for a quoted sentence ("Every 512th 1 bit") | 3 of 3 | sandbox miss, not fixed |
+| #34 | 1 of 3 | 0, 1, 2, 2 of 3 | `Grep, Grep, Glob, Bash (error)`; turn cap. The first `Grep` is for the quoted captions | 3 of 3 | sandbox miss, not fixed; passes or fails by the run |
+
+- **Three of the seven were description misses that the sandbox hid.** With the paragraph, the numbers or the
+  stepper's steps in the prompt, Haiku stops searching on #12, #25 and #38 and answers at once without the skill,
+  0 of 9 each. Their old traces looked the same as #5's and #53's. A file hunt in a trace says the run never
+  reached the question; it does not say the skill would have loaded if it had.
+- **Quoting the passage does not always stop the hunt.** #11 and #34 ask for an edit ("fix the flow", "rewrite
+  them"), and Haiku searches for the file that holds the quoted text before it does anything else. Their wording
+  stays as it is now: one rewrite was the rule.
+- **#25 is a description miss on Sonnet too.** With the numbers in the prompt Sonnet makes no tool call and writes
+  a new example in one turn, three times. #91 read its old misses as the sandbox's. Asking for a better running
+  example does not read to either model as a request the skill covers. #25 has been Sonnet's one miss in every
+  full run since.
+- **Sonnet passes the other six**, 3 of 3 each. The full Sonnet suite was not run.
+
+**The suite's Haiku should-fire rate**, the full run with the new wording: 50 of 58, should-fire 21 of 29, quiet
+29 of 29, train 33 of 38, held-out 17 of 20.
+
+| Should-fire rate on Haiku | Baseline, old wording | Final run, new wording |
+| --- | --- | --- |
+| All 29 queries | 20 of 29 | 21 of 29 |
+| Sandbox misses set aside | 20 of 22 (seven set aside by their traces) | 21 of 26 (#4, #11 and #51 set aside) |
+| Description misses | 2 (#6, #35) | 5 (#6, #12, #25, #35, #38) |
+
+The eight misses of the final run, each labelled from its trace:
+
+| Query | Fired | Trace | Label |
+| --- | --- | --- | --- |
+| #4 "the section on code-length codes in the deflate page…" (unchanged) | 1 of 3 | `Grep, Glob, Grep (error), Glob, Glob (error), Glob`; turn cap | sandbox, set aside |
+| #6 | 0 of 3 | no tool calls; answered in one turn | description |
+| #11 | 0 of 3 | `Grep, Grep (error), Glob`; turn cap | sandbox, set aside |
+| #12 | 0 of 3 | no tool calls; answered in one turn | description |
+| #25 held-out | 0 of 3 | one `Grep`, then the answer | description |
+| #35 | 0 of 3 | no tool calls twice, one `Grep` then the answer once | description |
+| #38 held-out | 0 of 3 | no tool calls; answered in one turn | description |
+| #51 held-out "which of these posts needs work first: the three deflate pages or the token bucket one?" (unchanged) | 1 of 3 | `Glob, Grep, Grep (error), Glob, Glob (error)`; turn cap | sandbox, set aside |
+
+So with the sandbox set aside, Haiku loads the skill on 21 of the 26 should-fire queries it can be judged on.
+The 20 of 22 that the baseline's traces gave was too high: three of the seven queries it set aside were
+description misses.
+
+**What this does not show.**
+
+- **Which unchanged queries miss is partly chance.** #4 fired 2, 1 and 0 of 3 in three runs and #51 fired 2, 1 and
+  2 of 3; #1, #10 and #52 fired 2 of 3 once and 3 of 3 after. Each names a page the sandbox lacks, and every
+  missing run is the file hunt. The set of sandbox misses changes from run to run, so "21 of 26" is one run's
+  count. #4 and #51 passed at the baseline and were not reworded.
+- **The three held-out queries that changed were reworded after their traces had been read.** The description was
+  not tuned against them, and none was reworded after it was scored, but they are no longer queries nobody
+  looked at. The held-out score of 17 of 20 is the same before and after, with different queries missing: #25, #38
+  and #53 before, #25, #38 and #51 after.
+- **The reworded queries were written by the person who read the traces**, one wording each. Another wording of
+  #11 or #34 that reads less like an edit to a file might stop the hunt; that was not tried.
+- **Nothing here says how to fix the five description misses.** They are planning or judgement questions (what
+  order, is it worth building, which question to ask, a better example) answered from memory. The description's
+  verbs are drafting, outlining, restructuring, rewriting, reviewing and grading.
+- **Not run**: the full Sonnet suite with the new wording, Opus, and the old wording of the seven on Sonnet today
+  (the last full Sonnet run, #242, had #25 as its one miss).
