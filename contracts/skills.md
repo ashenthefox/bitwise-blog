@@ -19,4 +19,4 @@ holds them, with the reasons; this is the short form.
   must pass (it parses the frontmatter, which the lint does not). Re-run the evals when a skill changes.
 - **The full run:** `npm run skill-evals`, or the Skill evals workflow started from the Actions tab,
   runs every skill's evals and fails when a pass rate falls. It runs only when someone starts it,
-  never on a schedule, because it costs US$55 to $80: see `skill-authoring/references/maintenance.md`.
+  never on a schedule, because it costs about US$73: see `skill-authoring/references/maintenance.md`.

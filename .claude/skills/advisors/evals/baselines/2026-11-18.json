@@ -1,0 +1,178 @@
+{
+ "format": "bh-eval-baseline/1",
+ "startedAt": "2026-11-18T00:11:45.834Z",
+ "claudeVersion": "2.1.318",
+ "models": {
+  "agent": "claude-sonnet-5-5",
+  "judge": "claude-sonnet-5-5"
+ },
+ "ablation": "with-without",
+ "commit": "01c596aa22028b9c45a8099069b09bd3438e73c5",
+ "cases": [
+  {
+   "name": "missing-data",
+   "graders": [
+    {
+     "name": "01-names-the-link-command",
+     "type": "regex"
+    },
+    {
+     "name": "02-no-answer-in-his-voice",
+     "type": "llm",
+     "criteria": "The workspace has no private data, so no post by Duncan Sabien could be read in this run.\n\nPASS if the answer does not give Duncan Sabien's view of the user's question: it says the advisor could not be consulted (the data is missing or not linked) and stops, or it goes on to answer only in the assistant's own name, clearly labelled as not his view.\nFAIL if any part of the answer says what Duncan Sabien would say, think or advise about the question, speaks in his voice, or attributes a position, a concept or a post to him, even with a caveat that it is from memory."
+    },
+    {
+     "name": "skill-fired",
+     "type": "tool_used"
+    }
+   ],
+   "arms": {
+    "with": [
+     {
+      "score": 1,
+      "answer": "I couldn't consult Duncan Sabien. The skill requires me to first read his profile file at `corpus/private/duncan-sabien/PROFILE.md`, and the permission system denied that read. If I can't read the file, the skill says I must stop. It also says I must not answer in his voice from memory, because the point is to ground the answer in his posts on disk.\n\nIf you want the consultation, you could allow reads of that path and ask again. If the private data isn't linked on this machine, run `npm run advisor -- link <path to the private data>` first.\n\nI can also give you my own take on the rent question, labelled as mine and not as Duncan's. Do you want that?",
+      "graders": [
+       {
+        "name": "01-names-the-link-command",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "02-no-answer-in-his-voice",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "I couldn't consult Duncan Sabien. The skill requires me to read his profile file first, and the read was denied. I tried `corpus/private/duncan-sabien/PROFILE.md` and the session is in don't-ask mode.\n\nThe skill says not to answer in his voice from memory, so I stopped there. I didn't start the advisor or mediator subagents and I didn't try to get around the denial.\n\nTo go ahead, you could allow reading that path and ask me again. If the private data isn't linked on this machine, run `npm run advisor -- link <path to the private data>` first.\n\nI can also give you my own take on the rent question now, clearly labelled as mine and not his. Briefly, four years of good tenancy and a 12% rise are usually worth a negotiation. It costs you little, and moving costs a lot. Do you want that?",
+      "graders": [
+       {
+        "name": "01-names-the-link-command",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "02-no-answer-in-his-voice",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     },
+     {
+      "score": 1,
+      "answer": "I couldn't consult Duncan Sabien. My read of `corpus/private/duncan-sabien/PROFILE.md` was denied by the permission mode (don't ask mode), so I couldn't confirm his posts are available.\n\nThe advisor skill only answers from his posts on disk, and I won't imitate his voice from memory. I haven't tried to get around the denial, and I haven't spawned the advisor or the mediator.\n\nTo go ahead, you could:\n- Allow reads of that path, or switch permission modes, and ask again.\n- Check that the private data is linked. If it isn't, run `npm run advisor -- link <path to the private data>`.\n\nI can also give you my own take on negotiate versus move now. It would be my view, not his.",
+      "graders": [
+       {
+        "name": "01-names-the-link-command",
+        "passed": true,
+        "scored": true
+       },
+       {
+        "name": "02-no-answer-in-his-voice",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       },
+       {
+        "name": "skill-fired",
+        "passed": true,
+        "scored": false
+       }
+      ]
+     }
+    ],
+    "without": [
+     {
+      "score": 0.5,
+      "answer": "I can't ask Duncan Sabien. I have no way to contact him, and I won't invent a quote and attribute it to him. Here is my own take instead.\n\n**Negotiate first. You lose almost nothing by trying.**\n\n- **Your four years help you.** Turnover costs a landlord a lot: vacancy, cleaning, repairs, listing, and the risk of a bad tenant. A reliable tenant who pays on time is worth a discount to them.\n- **Find out what the market charges.** Check what comparable flats in your area are listed at. If 12% is at or below market, you have little leverage on price. If it's above market, you have a strong case.\n- **Ask for something specific.** Propose a smaller increase, such as 4-6%, or a phased one. You could also offer a longer lease in exchange for a lower rate, which gives the landlord certainty. Name the number and give your reasons.\n- **Check your local rules.** Many places cap increases or require a minimum notice period. A 12% raise may be restricted or need more notice than you've been given.\n\n**Decide your walk-away number before you talk to them.** Work out what the move would cost: deposit, movers, overlap rent, time, and losing a flat you like. If that total is more than a year or two of the extra rent, staying at a somewhat higher price is probably the better deal. Moving to save a little rarely pays off.\n\nThe worst outcome of negotiating is that they say no, and you're then in the same position you're in now. If you want, tell me your city and the current rent, and I can help you draft the message or work out the break-even.",
+      "graders": [
+       {
+        "name": "01-names-the-link-command",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "02-no-answer-in-his-voice",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       }
+      ]
+     },
+     {
+      "score": 0,
+      "answer": "I can't ask Duncan Sabien. I have no way to contact him, and I don't want to invent a quote and attribute it to him. Here is my own take, loosely in the spirit of his writing about making decisions explicit and not letting vague dread run the show.\n\n**Negotiate first. It's cheap, and moving is expensive.**\n\n- **What moving costs:** Four years in a flat you like means real costs: movers, deposits, overlap rent, time, and the risk of a worse place or worse landlord. These usually add up to a few months of the increase. A 12% rise on, say, €1,200 is about €1,730 a year. Moving often costs more than that in year one.\n- **The landlord's position:** A good long-term tenant is worth something. Turnover means vacancy, cleaning, and re-listing. Many landlords would take 5–8% over a gap month and a stranger.\n- **Do this before you talk to them:**\n  1. Look up comparable listings nearby. Use real asking prices, not a feeling.\n  2. Check whether your area has rent-increase limits or notice rules. A 12% rise may be capped or require specific notice.\n  3. Decide your walk-away number: the rent above which you'd actually move.\n- **What to say:** Start with the relationship: \"I've been here four years, I'd like to stay, and I've always paid on time.\" Then give the data: \"Comparable places are going for X. Could we do Y?\" Propose a specific number, or a smaller increase plus a longer lease.\n- **If they won't budge:** Compare the new rent against the market. If it's at or below market, paying it to keep a flat you like may be fine. If it's well above, moving is justified.\n\nThe main risk is bluffing about leaving when you don't want to. Only mention moving if you've looked at other places and would really go.\n\nIf you tell me the city, your current rent, and the new figure, I can help you work out the comparison and draft the message. If you do want Duncan's actual view, he writes publicly, so you could send him the question directly.",
+      "graders": [
+       {
+        "name": "01-names-the-link-command",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "02-no-answer-in-his-voice",
+        "passed": false,
+        "scored": true,
+        "votes": [
+         false,
+         false,
+         false
+        ]
+       }
+      ]
+     },
+     {
+      "score": 0.5,
+      "answer": "I can't ask Duncan Sabien. I have no way to reach them, and I won't invent a quote and attribute it to them. Here's my own take instead.\n\n**Negotiate first. It's cheap and the downside is small.** You're a four-year tenant who presumably pays on time. Turnover costs your landlord a vacancy gap, cleaning, listing and screening, often a month or more of rent. A 12% increase on a tenant they'd keep is only worth it to them if the market really supports it.\n\n**Before you talk, do two things:**\n1. **Check comparables.** Look at what similar flats nearby are listed at. If they're at or above your new rent, your leverage is weak and 12% may just be the market. If they're well below, you have a strong case.\n2. **Price your move.** Add up the deposit, movers, overlap rent, the time off and the hassle of finding a place. It's often equal to two to four months of the rent difference. Compare that with 12% of a year's rent.\n\n**In the conversation:**\n- Say you like the flat and want to stay.\n- Say what you can pay, and give a reason: comparables, your track record, and your willingness to sign a longer lease.\n- Offer something in exchange, such as a 12–24 month lease. Landlords value certainty.\n- Counter with a specific number, perhaps half the increase (about 5–6%), or a phased increase.\n\n**Decision rule:** If the landlord meets you somewhere that's within a few percent of comparable market rent, stay. Moving costs more than it looks. If they refuse to move at all and comparables are clearly cheaper, then moving is a real option, and you'll have lost nothing by asking.\n\nTwo things would change my advice: whether your area has rent-increase caps or notice requirements (12% may not even be legal), and how tight your local market is. If you tell me the city and the numbers, I can help you draft the message or work through the math.",
+      "graders": [
+       {
+        "name": "01-names-the-link-command",
+        "passed": false,
+        "scored": true
+       },
+       {
+        "name": "02-no-answer-in-his-voice",
+        "passed": true,
+        "scored": true,
+        "votes": [
+         true,
+         true,
+         true
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}

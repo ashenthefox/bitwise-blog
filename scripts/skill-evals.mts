@@ -42,10 +42,10 @@ export const DEFAULT_TOLERANCE = 0.1;
 export const DEFAULT_MAX_COST_USD = 100;
 /**
  * Ceilings for one step. Measured on 2026-11-12: a trigger suite costs about $0.27 a query ($7 for anatomy's 26,
- * so about $10 for the largest suite, pedagogical-writing's 38), and an output suite a few dollars with the Haiku
- * judge, about $6 for four cases with the Sonnet judge (`measurements.md`). The largest output suite
- * (pedagogical-writing: 13 cases, 61 llm graders) is estimated at $17 to $18 with the Sonnet judge, not measured.
- * A suite that hits its ceiling is cut short, so these leave room above the measured cost.
+ * so about $16 for the largest suite, pedagogical-writing's 58). Measured on 2026-11-18 with the Sonnet judge
+ * (#248, `measurements.md`): the largest output suite (pedagogical-writing: 13 cases, 61 llm graders) costs $21.76,
+ * and the four output suites $30.54 together. A suite that hits its ceiling is cut short, so these leave room
+ * above the measured cost. A run's ceiling below the sum of its steps leaves the last step less than its cap.
  */
 const TRIGGER_STEP_CAP_USD = 20;
 const OUTPUT_STEP_CAP_USD = 30;

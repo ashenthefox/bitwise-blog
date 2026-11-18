@@ -36,6 +36,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-16: `pedagogical-writing` tells Haiku to load it before answering (#233)
 - 2026-11-17: `pedagogical-writing` grades pages, and the grader's calibration (#242)
 - 2026-11-18: why the `pedagogical-diagrams` output scores fell with no change, and the judge (#237)
+- 2026-11-18: every output suite with the Sonnet judge, both arms, and what it costs (#248)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -1333,3 +1334,122 @@ without the skill where it passed 14, which is +0.11.
 - **Why the built-in Haiku judge behaves as it does is unknown.** Its prompt is not published and it records no
   reasoning. A per-grader judge model is not available either: `model:` in a grader's frontmatter is rejected.
 - **A day effect cannot be excluded for 2026-11-16.** Every run here was made within one hour.
+
+## 2026-11-18: every output suite with the Sonnet judge, both arms, and what it costs (#248)
+
+Claude Code 2.1.318, agent and judge `claude-sonnet-5-5`, three runs per case per arm, `-j 4`, through
+`npm run skill-evals -- --kind output` on commit `01c596a`. No skill, case or grader changed: this is the first
+record of the series judged by Sonnet, and the measurement of what that judge costs. No run errored, no result was
+partial, and the skill loaded in every with-skill run (69 of 69 here, 12 of 12 in the second run below).
+
+| Suite | Cases | `llm` graders | With | Without | Δ | Cost | Of which the judge | Time |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `advisors` | 1 | 1 | 1.00 | 0.33 | +0.67 | $0.26 | $0.06 | 21 s |
+| `pedagogical-diagrams` | 4 | 22 | 0.93 | 0.63 | +0.29 | $5.48 | $3.29 | 4 min 39 s |
+| `pedagogical-writing` | 13 | 61 | 0.85 | 0.45 | +0.40 | $21.76 | $10.64 | 13 min 30 s |
+| `skill-authoring` | 5 | 9 | 0.93 | 0.53 | +0.41 | $3.04 | $1.11 | 2 min 30 s |
+| All four | 23 | 93 | | | | $30.54 | $15.10 | 21 min |
+
+`anatomy` has no output cases. **None of these scores compares with an earlier section's**: those were judged by
+Haiku, which scores the same answers 0.03 to 0.07 lower.
+
+**Per case.**
+
+| `pedagogical-writing` | With | Without | Δ |
+| --- | --- | --- | --- |
+| `design-rank-interactive` | 0.95 | 0.76 | +0.19 |
+| `grade-broken-page` | 0.75 | 0.25 | +0.50 |
+| `grade-token-bucket-page` | 1.00 | 0.33 | +0.67 |
+| `outline-amortised-append` | 0.92 | 0.67 | +0.25 |
+| `outline-bloom-filters` | 0.71 | 0.13 | +0.58 |
+| `outline-consistent-hashing` | 0.50 | 0.00 | +0.50 |
+| `plan-rank-select-series` | 0.44 | 0.11 | +0.33 |
+| `prompt-astra-unhinted` | 0.94 | 0.33 | +0.61 |
+| `prompt-opus-explainers` | 0.80 | 0.87 | −0.07 |
+| `prompt-sol-explainers` | 1.00 | 0.50 | +0.50 |
+| `prompt-sonnet-setup` | 1.00 | 0.47 | +0.53 |
+| `review-deflate-page` | 1.00 | 0.87 | +0.13 |
+| `rewrite-token-bucket` | 1.00 | 0.53 | +0.47 |
+
+| `skill-authoring` | With | Without | Δ |
+| --- | --- | --- | --- |
+| `add-evals` | 1.00 | 0.14 | +0.86 |
+| `fix-not-firing` | 0.93 | 0.73 | +0.20 |
+| `merge-overlapping-skills` | 1.00 | 0.33 | +0.67 |
+| `needs-a-script` | 0.73 | 0.80 | −0.07 |
+| `review-flawed-skill` | 1.00 | 0.63 | +0.38 |
+
+`advisors` has one case, `missing-data`: 1.00 with the skill, 0.33 without.
+
+**`pedagogical-diagrams`, run twice.** The second run is the same command with `--skills pedagogical-diagrams`
+(US$5.41, 4 min 26 s):
+
+| Case | With, run 1 | With, run 2 | Without, run 1 | Without, run 2 | Δ, run 1 | Δ, run 2 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `design-lz77-figure` | 0.89 | 0.94 | 0.11 | 0.17 | +0.78 | +0.78 |
+| `fix-confusing-figure` | 0.89 | 0.89 | 0.83 | 0.78 | +0.06 | +0.11 |
+| `review-deflate-figures` | 1.00 | 1.00 | 0.86 | 0.86 | +0.14 | +0.14 |
+| `review-stepper-boundary` | 0.93 | 0.93 | 0.73 | 0.93 | +0.20 | 0.00 |
+| Mean | 0.93 | 0.94 | 0.63 | 0.68 | +0.29 | +0.26 |
+
+- **Four Sonnet-judged runs of this suite now have with-skill means of 0.94, 0.91, 0.93 and 0.94**: the two from
+  #237 and these two. The largest difference between any two is 0.03, against a tolerance of 0.10, and between
+  these two runs no case moved by more than 0.06 with the skill.
+- **The no-skill arm moves more.** Its mean differed by 0.05 and one case by 0.20 (`review-stepper-boundary`, 0.73
+  and 0.93), so that case's Δ went from +0.20 to 0.00 between two runs of the same thing. A run fails on the
+  with-skill mean, not on Δ, so this does not fail a run; it does mean one case's Δ is not evidence by itself.
+- **The Sonnet judge split its three votes on 0 and 1 of 66 with-skill verdicts**, and on 3 and 2 of 66 without the
+  skill (4 and 4 of 66 in #237). Across the other suites it split on 5 of 183 and 6 of 183 (`pedagogical-writing`,
+  with and without) and on 5 of 27 and 3 of 27 (`skill-authoring`).
+- **Δ under the Sonnet judge is +0.29 and +0.26**, where the Haiku-judged two-arm run in #237 had +0.26 (0.86 and
+  0.60). Both arms read higher, and the difference between them did not change.
+
+**Cost.**
+
+- **The four output suites cost US$30.54, and the second `pedagogical-diagrams` run $5.41: $35.95 for this section.**
+  The estimate was $17 to $18 for `pedagogical-writing`, which cost $21.76, and about $6 for a four-case suite,
+  which holds for `pedagogical-diagrams` ($5.48 and $5.41) and not for `skill-authoring` (five cases, $3.04).
+- **The number of `llm` graders sets the cost, not the number of cases.** A judged verdict (three votes) cost
+  $0.021 to $0.029 in the three larger suites, and the judge was 60% of the bill for `pedagogical-diagrams`, 49%
+  for `pedagogical-writing` and 37% for `skill-authoring`, which has 9 `llm` graders among 35.
+  `pedagogical-writing` has 61 of the 93.
+- **The ceilings hold.** The output step's $30 leaves $8 above the largest suite, and the run's $100 leaves about
+  $27 above a full run: the 157 trigger queries the five skills have now cost about $42 at the $0.27 a query
+  measured on 2026-11-12 (not measured again here), so a full run is about US$73. Neither ceiling was changed.
+- **`--max-cost-usd 40` for the output suites alone left the last suite $12.50**, less than the step's $30. It was
+  enough for `skill-authoring`; had `pedagogical-writing` come last it would have been cut short. Give an
+  output-only run $45 or more.
+
+**Baselines kept**, each trimmed from the run above with `rejudge.mjs --trim --commit 01c596a`:
+`advisors/evals/baselines/2026-11-18.json` (6 answers), `pedagogical-writing/evals/baselines/2026-11-18.json` (78),
+`skill-authoring/evals/baselines/2026-11-18.json` (30) and
+`pedagogical-diagrams/evals/baselines/2026-11-18-two-arm.json` (24, run 1; the `2026-11-18.json` beside it is #237's
+with-skill run). Every case's fixture is public: pages in `docs/`, the calibration references, a flawed skill the
+fixture generates, and no fixture at all for `advisors`. `--trim` failed on a skill with no `evals/baselines/`
+directory; it now creates it.
+
+**What the per-case rows say**, read from the grader counts (no transcript was read for this section):
+
+- **Two cases score higher without the skill, each through graders the no-skill answer passes more often.**
+  `needs-a-script`: `lowest-rung` and `run-not-read` passed 1 of 3 with the skill and 3 of 3 without, while
+  `reuses-existing-lint` passed 3 of 3 and 0 of 3. `prompt-opus-explainers`: four graders pass 3 of 3 in both arms
+  and `05-effort` passes 0 of 3 with the skill, 1 of 3 without. Each is −0.07, inside the noise of one case.
+- **Two cases are low in both arms.** `plan-rank-select-series` (0.44 and 0.11): graders 03 (prerequisites named)
+  and 07 (optional material marked) passed 0 of 6 across the arms. `outline-consistent-hashing` (0.50 and 0.00):
+  grader 03 (applications ordered by a principle) passed 1 of 3 with the skill. `outline-bloom-filters` 05 and 06
+  passed 0 of 6. By the rule in `evals.md`, a grader no arm passes is broken or names something the skill does
+  not teach.
+- **`fix-confusing-figure` separates the arms by +0.06 and +0.11**, as #237 predicted from a re-judging.
+
+**What this does not show.**
+
+- **One run per suite is not a spread.** Only `pedagogical-diagrams` has been run more than once with this judge.
+  The other three suites have one record each, so nothing here says how far their means move between runs.
+  `skill-authoring` has only 27 judged verdicts an arm and the judge split on 5 of them, so its mean may move
+  more than the others'.
+- **Both `pedagogical-diagrams` runs here, and both in #237, were made on one day.** A day effect is not excluded.
+- **The trigger evals were not run**, so the full run's cost is this section's output cost plus an earlier
+  measurement of the trigger cost, at today's query counts.
+- **The low and negative rows were not investigated.** Whether each is the grader, the case or the skill needs the
+  answers read, and the baselines hold them.
+- **`advisors` is one case and six judged verdicts.** Its 1.00 is three answers.

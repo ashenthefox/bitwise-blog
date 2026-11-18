@@ -183,5 +183,11 @@ test("--trim writes a baseline that the command accepts as input", () => {
     assert.equal(spawnSync("node", [script, "--trim", input, "--out", base, "--commit", "abc123"], { env, encoding: "utf8" }).status, 0);
     assert.equal(JSON.parse(fs.readFileSync(base, "utf8")).commit, "abc123");
     assert.equal(spawnSync("node", [script, base], { env, encoding: "utf8" }).status, 2, "no judge model");
+
+    // A skill's first baseline goes in a directory that does not exist yet.
+    const fresh = path.join(dir, "evals", "baselines", "first.json");
+    const made = spawnSync("node", [script, "--trim", input, "--out", fresh], { env, encoding: "utf8" });
+    assert.equal(made.status, 0, made.stderr);
+    assert.equal(JSON.parse(fs.readFileSync(fresh, "utf8")).format, BASELINE_FORMAT);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

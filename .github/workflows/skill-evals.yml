@@ -6,10 +6,11 @@ name: Skill evals
 # the previous full run's record, or when a run errored and measured nothing. See "The full run" in
 # .claude/skills/skill-authoring/references/maintenance.md.
 #
-# It never runs on its own. It costs real money (roughly US$55 to $80 for every skill and both
-# kinds; about US$40 for kind "trigger" alone; one skill is US$2 to $20), and output scores have moved
-# between runs of an unchanged skill (#237: the judge; measured and fixed for one suite only), so a
-# schedule would spend that every month and could still fail on noise. Start it
+# It never runs on its own. It costs real money (about US$73 for every skill and both kinds; about
+# US$42 for kind "trigger" alone and US$31 for kind "output"; one skill is US$4 to $38), and output
+# scores have moved between runs of an unchanged skill (#237: the judge; four runs of one suite are
+# now within 0.03, the other suites have one run each, #248), so a schedule would spend that every
+# month and could still fail on noise. Start it
 # from the Actions tab (Run workflow), or:
 #   gh workflow run skill-evals.yml -f skills=pedagogical-diagrams -f kind=trigger -f max_cost_usd=10
 #
@@ -26,11 +27,11 @@ on:
   workflow_dispatch:
     inputs:
       skills:
-        description: "Skills to run, comma-separated. Empty runs every skill, about US$55 to $80 for both kinds"
+        description: "Skills to run, comma-separated. Empty runs every skill, about US$73 for both kinds"
         required: false
         default: ""
       kind:
-        description: "Which evals to run. trigger is most of the cost of a full run; output is a few dollars a skill"
+        description: "Which evals to run. Of a full run, trigger is about US$42 and output about US$31 (pedagogical-writing is $22 of that)"
         required: false
         type: choice
         options: [both, trigger, output]
