@@ -21,11 +21,11 @@ jobs:
     steps:
       # The full history (under 1 MB): the grader's calibration references pin pages to earlier
       # commits, and tests/grade-page.test.mts rebuilds one with `git show <rev>:<page>`.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -65,7 +65,7 @@ jobs:
       - name: Bundle every document into a single file
         run: npm run bundle:all
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: single-file-documents
           path: dist/
@@ -82,11 +82,11 @@ jobs:
       actions: read
     steps:
       # The full history (under 1 MB): a pull request's pages are diffed against its base commit.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -127,7 +127,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
 
       # report.html with the baseline, current and diff images of every change.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         id: report
         if: always()
         with:
@@ -136,7 +136,7 @@ jobs:
 
       # The baseline for pull requests: only from main, and only when every page rendered.
       # 90 days is the most a public repository keeps.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         with:
           name: visual-baseline
@@ -181,11 +181,11 @@ jobs:
     steps:
       # The full history (under 1 MB): publish.mts diffs each reviewed page against the commits its
       # review threads name (theme/diffs/), and a shallow clone has none of them.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -228,17 +228,17 @@ jobs:
         env:
           GOATCOUNTER_CODE: ${{ vars.GOATCOUNTER_CODE }}
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
         if: steps.fresh.outputs.current == 'true'
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         if: steps.fresh.outputs.current == 'true'
         with:
           path: _site
 
       - id: deployment
         if: steps.fresh.outputs.current == 'true'
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
   a11y:
     name: Accessibility (axe-core)
@@ -246,9 +246,9 @@ jobs:
     # Normally 3.5 to 4.5 minutes.
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
