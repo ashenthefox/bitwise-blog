@@ -127,6 +127,17 @@ const MARKS = `(() => { ${BLOCK_AFTER} return [...document.querySelectorAll(".bh
 }); })()`;
 
 /**
+ * Statements that switch every transition off, in the page and in each shadow-tree copy (`trees`). A
+ * computed style read while a transition runs is on its way from the old value, and a transition only
+ * advances when a frame is drawn, which a busy machine may not do within any wait. So none run.
+ */
+const STILL = `for (const r of [document.head, ...trees]) if (!r.querySelector("style[data-still]")) {
+    const s = document.createElement("style");
+    s.dataset.still = ""; s.textContent = "*, *::before, *::after { transition: none !important; }";
+    r.append(s);
+  }`;
+
+/**
  * The change highlights as the reader sees them: the page's switch, and for each marked part whether
  * it is drawn highlighted. A part is "lit" when its computed style differs from the same part's with
  * its data-change attribute taken away for the reading, so the attribute alone proves nothing.
@@ -135,12 +146,7 @@ const MARKS = `(() => { ${BLOCK_AFTER} return [...document.querySelectorAll(".bh
 interface Highlights { button: string | null; buttons: number; root: string | null; own: string[]; copies: string[]; trees: (string | null)[] }
 const HIGHLIGHTS = `(() => {
   const trees = [...document.querySelectorAll(".bh-diff-shadow")].map((h) => h.shadowRoot).filter(Boolean);
-  // A computed style read in the same task as a change is the old value while a transition runs. So none run.
-  for (const r of [document.head, ...trees]) if (!r.querySelector("style[data-still]")) {
-    const s = document.createElement("style");
-    s.dataset.still = ""; s.textContent = "*, *::before, *::after { transition: none !important; }";
-    r.append(s);
-  }
+  ${STILL}
   const looks = (n) => {
     const a = getComputedStyle(n.matches(".node") ? n.querySelector("rect") : n), b = getComputedStyle(n);
     return [a.stroke, a.strokeWidth, a.strokeDasharray, b.opacity, b.filter].join(" | ");
@@ -232,19 +238,20 @@ test("the diff module marks a live page with what changed since a commit", { ski
     assert.equal(await p.evaluate(side(0, `root.querySelector("figcaption").textContent`)), "The client calls the service.");
     assert.equal(await p.evaluate(`getComputedStyle(document.querySelector(".bh-diff-ui bh-versions .bh-versions-caption")).display`), "none", "the pair's shared caption would repeat it");
     // The copies obey the change-highlight switches, though a shadow tree cannot see its ancestors.
-    const calm = (what: string) => `new Promise((r) => setTimeout(r, 400)).then(() => ${what})`; // let a stroke transition end
+    // No transition runs while these are read (STILL), so each read is the settled style: no wait is needed.
+    await p.evaluate(`(() => { const trees = [...document.querySelectorAll(".bh-diff-shadow")].map((h) => h.shadowRoot).filter(Boolean); ${STILL} })()`);
     const mark = side(1, `[...root.querySelectorAll("[data-change]")].map((n) => { const s = getComputedStyle(n.matches(".node") ? n.querySelector("rect") : n); return s.stroke + " " + s.strokeDasharray; }).join(" | ")`);
-    const lit = await p.evaluate(calm(mark));
+    const lit = await p.evaluate(mark);
     assert.equal(await p.evaluate("document.querySelector('.bh-diff-ui bh-versions .bh-versions-changes').getAttribute('aria-pressed')"), "true", "the pair has its own button");
     await p.evaluate("document.querySelector('.bh-diff-ui bh-versions .bh-versions-changes').click()");
-    const plain = await p.evaluate(calm(mark));
+    const plain = await p.evaluate(mark);
     assert.notEqual(plain, lit, "the pair's button turns the marks off inside the shadow tree");
     await p.evaluate("document.querySelector('.bh-diff-ui bh-versions .bh-versions-changes').click()");
-    assert.equal(await p.evaluate(calm(mark)), lit, "and on again");
+    assert.equal(await p.evaluate(mark), lit, "and on again");
     await p.evaluate("document.documentElement.setAttribute('data-changes', 'off')");
-    assert.equal(await p.evaluate(calm(mark)), plain, "the page's switch reaches the tree too");
+    assert.equal(await p.evaluate(mark), plain, "the page's switch reaches the tree too");
     await p.evaluate("document.documentElement.removeAttribute('data-changes')");
-    assert.equal(await p.evaluate(calm(mark)), lit);
+    assert.equal(await p.evaluate(mark), lit);
     // Expand all, and step through the changes.
     await p.evaluate("document.querySelector('.bh-diff-bar [data-expand]').click()");
     assert.equal(await p.evaluate("document.querySelectorAll('details.bh-diff-mark:not([open])').length"), 0);
