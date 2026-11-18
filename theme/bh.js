@@ -554,13 +554,15 @@
    * one that overflows gets tabindex, role and name. It is measured again when the container resizes (a phone
    * turning, a closed details or inactive tab opening), when web fonts arrive (they change the content's size,
    * not the container's) and when the viewport changes.
-   * Candidates: wide tables, code blocks (a <bh-codewalk>'s too), and anything marked data-scroll-region="Name"
-   * (page-specific strips). An authored tabindex is left alone.
+   * Candidates: wide tables, code blocks (a <bh-codewalk>'s too), diagrams (below 640px a diagram keeps a 520px
+   * minimum and scrolls in its figure), a page diff's copies of the old version, and anything marked
+   * data-scroll-region="Name" (page-specific strips). Only a candidate whose overflow scrolls counts: above 640px a
+   * diagram's figure lets its content overflow visibly, and that is no scroll region. An authored tabindex is left alone.
    * A page diff draws some copies in a shadow tree (`.bh-diff-shadow`, see diff.js), which neither a selector
    * nor a mutation observer on the article reaches: the candidates in those trees are looked for too, and
    * diff.js calls `bh.scrollRegions()` when it has drawn one or opened the mark around one.
    */
-  const SCROLL_REGIONS = ".bh-article .table-wrap, .bh-article pre:not(.mermaid), .bh-article [data-scroll-region]";
+  const SCROLL_REGIONS = ".bh-article :is(.table-wrap, pre:not(.mermaid), figure.diagram, .bh-diff-old, .bh-diff-copy, [data-scroll-region])";
   let measureScrollRegions = () => {}; // until setupScrollRegions has run; it measures every region then anyway
   function setupScrollRegions() {
     const article = doc.querySelector(".bh-article");
@@ -572,12 +574,18 @@
     const nameOf = (r) => {
       if (r.dataset.scrollRegion) return r.dataset.scrollRegion;
       if (r.matches("pre")) return "Code";
+      if (r.matches("figure")) return "Diagram";
+      if (r.matches(".bh-diff-old")) return "Old version";
+      if (r.matches(".bh-diff-copy")) return "What changed";
       const cap = r.querySelector("caption");
       return (cap && cap.textContent.replace(/\s+/g, " ").trim()) || "Table";
     };
     function sync(r) {
       // A pixel of slack: sub-pixel sizes round, and a container that fits must not become a tab stop.
-      const scrolls = r.scrollWidth - r.clientWidth > 1 || r.scrollHeight - r.clientHeight > 1;
+      // An axis counts only where it scrolls: content that overflows a visible or clipped box cannot be scrolled to.
+      const cs = getComputedStyle(r);
+      const scrollable = (o) => o === "auto" || o === "scroll";
+      const scrolls = (scrollable(cs.overflowX) && r.scrollWidth - r.clientWidth > 1) || (scrollable(cs.overflowY) && r.scrollHeight - r.clientHeight > 1);
       // A figure with a caption has its role and its name already, and may take no other role.
       const named = r.matches("figure") && !!r.querySelector(":scope > figcaption");
       if (scrolls && !r.hasAttribute("tabindex")) {

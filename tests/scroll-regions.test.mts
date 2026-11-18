@@ -18,13 +18,20 @@ const shortCode = `<pre id="short-code"><code>let x = 1;</code></pre>`;
 const strip = `<div id="strip" data-scroll-region="Alphabet" style="overflow-x: auto; width: 200px"><div style="width: 900px">strip</div></div>`;
 const authored = `<div class="table-wrap" id="authored-wrap" tabindex="-1" style="width: 100px"><table><tbody><tr><td style="min-width: 500px">z</td></tr></tbody></table></div>`;
 const list = `<ol id="a-list" data-linkable><li>one</li><li>two</li></ol>`;
+// Below 640px a diagram keeps a 520px minimum and scrolls in its figure; above it, the figure does not scroll.
+const svg = `<svg viewBox="0 0 800 200" role="img" aria-label="Two boxes"><g class="node c1" data-id="a"><rect x="0" y="0" width="200" height="60"/><text x="100" y="35">A</text></g></svg>`;
+const diagram = `<figure class="diagram wide" id="fig-captioned">${svg}<figcaption>Notice the box.</figcaption></figure>`;
+const bareDiagram = `<figure class="diagram" id="fig-bare">${svg}</figure>`;
+// A page diff's copies of the old version scroll when their content does not wrap.
+const oldCopy = `<div class="bh-diff-old" id="old-copy"><p style="white-space: nowrap">${"a word that does not wrap ".repeat(40)}</p></div>`;
+const fitCopy = `<div class="bh-diff-copy" id="fit-copy"><p>A short sentence.</p></div>`;
 const page = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Fixture</title>
 <link rel="stylesheet" href="../theme/bh.css"><script src="../theme/bh.js" defer></script></head>
 <body><main class="bh-page"><article class="bh-article"><header class="bh-hero"><h1>Fixture</h1></header>
-${wide}${narrow}${longCode}${shortCode}${strip}${authored}${list}</article></main></body></html>`;
+${wide}${narrow}${longCode}${shortCode}${strip}${authored}${list}${diagram}${bareDiagram}${oldCopy}${fitCopy}</article></main></body></html>`;
 
 /** Each region's tab-order state, by id. */
-const probe = `(() => Object.fromEntries(["wide-wrap", "narrow-wrap", "long-code", "short-code", "strip", "authored-wrap"].map((id) => {
+const probe = `(() => Object.fromEntries(["wide-wrap", "narrow-wrap", "long-code", "short-code", "strip", "authored-wrap", "fig-captioned", "fig-bare", "old-copy", "fit-copy"].map((id) => {
   const e = document.getElementById(id);
   return [id, { tabindex: e.getAttribute("tabindex"), role: e.getAttribute("role"), label: e.getAttribute("aria-label") }];
 })))()`;
@@ -62,6 +69,8 @@ test("only containers that scroll join the tab order, and they get a name", { sk
   assert.deepEqual(r["narrow-wrap"], { tabindex: null, role: null, label: null }, "a table that fits stays out of the tab order");
   assert.deepEqual(r["short-code"], { tabindex: null, role: null, label: null }, "code that fits stays out of the tab order");
   assert.deepEqual(r["authored-wrap"], { tabindex: "-1", role: null, label: null }, "an authored tabindex is left alone");
+  assert.deepEqual(r["old-copy"], { tabindex: "0", role: "group", label: "Old version" }, "a diff's copy that overflows is focusable and named");
+  assert.deepEqual(r["fit-copy"], { tabindex: null, role: null, label: null }, "a diff's copy that fits stays out of the tab order");
 
   // Poll for a state: an observer's timing is the browser's business, not a fixed delay's.
   const until = async (expression: string, what: string) => {
@@ -84,6 +93,32 @@ test("only containers that scroll join the tab order, and they get a name", { sk
   // A table a component adds after load is found.
   await evaluate(`(() => { const d = document.createElement("div"); d.className = "table-wrap"; d.id = "late-wrap"; d.innerHTML = '<table><tbody><tr><td style="min-width: 900px">l</td></tr></tbody></table>'; document.querySelector(".bh-article").append(d); })()`);
   await until(`${tab("late-wrap")} === "0"`, "a table added after load is measured");
+
+  // A diagram is a tab stop only while it scrolls in its figure: on a phone, not on a wide screen (#331).
+  const fig = (id: string) => `(() => { const f = document.getElementById("${id}"); return [f.getAttribute("tabindex"), f.getAttribute("role"), f.getAttribute("aria-label"), f.scrollWidth - f.clientWidth > 1]; })()`;
+  await s("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+  await s("Page.navigate", { url: base });
+  await ready();
+  assert.deepEqual(await evaluate(fig("fig-captioned")), [null, null, null, false], "a diagram that fits is no tab stop");
+  assert.deepEqual(await evaluate(fig("fig-bare")), [null, null, null, false], "a diagram that fits is no tab stop");
+  await s("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+  await until(`${tab("fig-captioned")} === "0" && ${tab("fig-bare")} === "0"`, "a diagram that scrolls at 390px never joined the tab order");
+  assert.deepEqual(await evaluate(fig("fig-captioned")), ["0", null, null, true], "a captioned figure keeps its role, and its caption names it");
+  assert.deepEqual(await evaluate(fig("fig-bare")), ["0", "group", "Diagram", true], "a figure without a caption is named Diagram");
+  assert.equal(await evaluate("innerWidth"), 390, "nothing widened the phone layout");
+  // It takes focus, and the keyboard scrolls it.
+  await evaluate(`document.getElementById("fig-captioned").focus()`);
+  assert.equal(await evaluate(`document.activeElement.id`), "fig-captioned");
+  for (let i = 0; i < 10; i++) {
+    await s("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowRight", code: "ArrowRight", windowsVirtualKeyCode: 39 });
+    await s("Input.dispatchKeyEvent", { type: "keyUp", key: "ArrowRight", code: "ArrowRight", windowsVirtualKeyCode: 39 });
+  }
+  await until(`document.getElementById("fig-captioned").scrollLeft > 0`, "the right arrow did not scroll the focused diagram");
+  // The same page widened again: the figure no longer scrolls, and it leaves the tab order.
+  await s("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+  await until(`${tab("fig-captioned")} === null && ${tab("fig-bare")} === null`, "a diagram that fits again stayed in the tab order");
+  assert.deepEqual(await evaluate(fig("fig-bare")), [null, null, null, false], "its role and name go with its tabindex");
+  await s("Emulation.setDeviceMetricsOverride", { width: 600, height: 800, deviceScaleFactor: 1, mobile: false });
 
   // The review panel's "+ Comment" on a list goes inside an item.
   await s("Page.navigate", { url: base + "?review" });

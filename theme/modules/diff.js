@@ -212,8 +212,6 @@
       if (markers) root.append(markers.cloneNode(true));
       const body = el("div", { class: "bh-article" });
       body.append(host.querySelector(":scope > template").content.cloneNode(true));
-      // Below 640px a diagram keeps its width and scrolls in its figure, which bh.js does not look at unless it is named.
-      for (const fig of body.querySelectorAll("figure.diagram:not([data-scroll-region])")) fig.dataset.scrollRegion = "Diagram";
       root.append(body);
       const mark = host.closest("details.bh-diff-mark");
       if (mark) mark.addEventListener("toggle", measure); // the same listener however many copies the mark holds
