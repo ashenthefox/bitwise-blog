@@ -1634,12 +1634,19 @@ function bundleHtml(html: string, file: string, reviews = true): string {
   // A synchronous script in <head> (the theme's examples.js and unlisted.js) decides something before
   // first paint, so it is inlined where it is. Every other script goes to the end of <body>, in source order:
   // a bundle can arrive slowly, and scripts at the end would run only after the whole body had been
-  // parsed and, perhaps, painted.
+  // parsed and, perhaps, painted. "Synchronous" is: no `defer` or `async` attribute, and no `type` of `module`
+  // (quoted either way, or not at all). Only a tag whose first attribute is a double-quoted `src` is inlined at all.
+  // A head script's text is put in at the very end, where its placeholder stands, so that none of the
+  // replacements below can match inside it (a comment that says "</head>", say).
+  const headScripts: string[] = [], slot = (i: number) => `<!--bh-head-script-${slotKey}-${i}-->`, slotKey = crypto.randomBytes(8).toString("hex");
   const headEnd = html.search(/<\/head>/i);
   html = html.replace(/<script\s+src="([^"]+)"[^>]*><\/script>/g, (m, src, at: number) => {
     if (/^https?:/.test(src)) return m;
     const abs = path.resolve(dir, src);
-    if (at < headEnd && !/\s(?:defer|async|type="module")(?=[\s=>])/.test(m)) return `<script>\n${fs.readFileSync(abs, "utf8").replace(/<\/script/gi, "<\\/script")}\n</script>`;
+    if (at < headEnd && !/\s(?:defer|async)(?=[\s=>])|\stype\s*=\s*["']?module["']?(?=[\s>])/i.test(m)) {
+      headScripts.push(fs.readFileSync(abs, "utf8").replace(/<\/script/gi, "<\\/script"));
+      return slot(headScripts.length - 1);
+    }
     // bh.js loads the glossary at runtime; a standalone file must carry it inline, first.
     if (abs === path.join(ROOT, "theme", "bh.js")) {
       if (fs.existsSync(GLOSSARY_OUT)) scripts.push(fs.readFileSync(GLOSSARY_OUT, "utf8").replace(/<\/script/gi, "<\\/script"));
@@ -1698,7 +1705,9 @@ function bundleHtml(html: string, file: string, reviews = true): string {
   scripts.unshift(buildScript(buildInfo()));
   html = html.replace(/<a href="\.\.\/index\.html">← All documents<\/a>/g, "");
   // A function, so `$&` and friends in a script (Mermaid has dozens) are not read as replacement patterns.
-  return html.replace("</body>", () => scripts.map((s) => `<script>\n${s}\n</script>`).join("\n") + "\n</body>");
+  html = html.replace("</body>", () => scripts.map((s) => `<script>\n${s}\n</script>`).join("\n") + "\n</body>");
+  // Split on the placeholders rather than replace them one by one: a script put in is never searched.
+  return html.split(new RegExp(`<!--bh-head-script-${slotKey}-(\\d+)-->`)).map((part, i) => (i % 2 ? `<script>\n${headScripts[Number(part)]}\n</script>` : part)).join("");
 }
 
 function bundleOne(file: string): void {

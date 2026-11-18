@@ -219,7 +219,7 @@ test("the diff module marks a live page with what changed since a commit", { ski
     res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     res.write(html.slice(0, cut));
     const before = release;
-    release = () => { before(); res.end(html.slice(cut)); };
+    release = () => { release = () => {}; before(); res.end(html.slice(cut)); };
   });
   const base = `http://127.0.0.1:${portOf(server)}/`;
   const chrome = await launchChrome();
@@ -482,7 +482,7 @@ test("the diff module marks a live page with what changed since a commit", { ski
     const slow = await tab();
     await slow.start(base + "slow/" + out);
     await painted(slow);
-    assert.deepEqual(await slow.evaluate(`[document.readyState, typeof window.bh, document.documentElement.getAttribute("data-changes"), window.bhExamples.source, window.bhUnlisted.source]`), ["loading", "undefined", "off", "bundle", "bundle"], "the head scripts ran before the body arrived");
+    assert.deepEqual(await slow.evaluate(`[document.readyState, typeof window.bh, document.documentElement.getAttribute("data-changes"), window.bhExamples && window.bhExamples.source, window.bhUnlisted && window.bhUnlisted.source]`), ["loading", "undefined", "off", "bundle", "bundle"], "the head scripts ran before the body arrived");
     assert.deepEqual((await highlights(slow)).own, plain(OWN_PART), "the marked part is drawn plain while the rest is on its way");
     assert.equal((await slow.evaluate("window.__marks")).lit, 0, "no frame so far had a marked part without the off state");
     release();
