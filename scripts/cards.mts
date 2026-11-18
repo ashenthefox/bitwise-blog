@@ -111,6 +111,34 @@ async function withTab<T>(send: Send, fn: (s: TabSend) => Promise<T>): Promise<T
   }
 }
 
+/**
+ * The script that readies a loaded page for its screenshot and resolves to the chosen element's box
+ * ({ x, y, width, height, bg }, or { error }). Exported so a test can run exactly what a card is drawn from.
+ *
+ * It turns the change highlights on. A page opens with them off and a button to ask for them; a card
+ * has no button, so like print and the slides it shows the marks (contracts/social-cards.md).
+ * `bh.showChanges()` does nothing on a page that marks no change; lifting the attribute covers a page
+ * whose switch something else set.
+ */
+export function prepareVisual(sel: CardSelection): string {
+  return `(async () => {
+      const st = document.createElement("style");
+      st.textContent = ".bh-topbar, .bh-toc, .bh-progress { visibility: hidden !important; } .reveal-pending { opacity: 1 !important; transform: none !important; } * { animation: none !important; transition: none !important; }";
+      document.head.append(st);
+      if (window.bh && window.bh.showChanges) window.bh.showChanges();
+      document.documentElement.removeAttribute("data-changes");
+      const root = document.querySelectorAll(${JSON.stringify(sel.css)})[${sel.index}];
+      if (!root) return { error: "no element matches " + ${JSON.stringify(sel.css)} + " [" + ${sel.index} + "]" };
+      // A figure in a closed <details> has no box until it is opened.
+      for (let d = root.closest("details"); d; d = d.parentElement?.closest("details")) d.open = true;
+      const inner = root.matches(${JSON.stringify(VISUAL)}) ? root : [...root.querySelectorAll(${JSON.stringify(VISUAL)})].find((e) => !e.closest("button, a")) || root;
+      inner.scrollIntoView({ block: "center", behavior: "instant" });
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const r = inner.getBoundingClientRect();
+      return { x: r.left + scrollX, y: r.top + scrollY, width: r.width, height: r.height, bg: getComputedStyle(document.body).backgroundColor };
+    })()`;
+}
+
 /** The chosen element of a real page as { src, bg }: a PNG data URL and the page background it sat on. */
 async function captureVisual(send: Send, base: string, job: CardJob, systemFonts: boolean): Promise<{ src: string; bg: string; tile?: boolean }> {
   return withTab(send, async (s) => {
@@ -124,21 +152,7 @@ async function captureVisual(send: Send, base: string, job: CardJob, systemFonts
     await s("Page.navigate", { url: base + job.href + "?examples" });
     await waitFor(s, "document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')", 20000, `${job.href} never signalled data-bh-ready`);
     if (!systemFonts) await loadFonts(s, ['400 16px "IBM Plex Sans"', '600 16px "IBM Plex Sans"', '700 16px "IBM Plex Sans"']);
-    const sel = job.selection;
-    const found = (await s("Runtime.evaluate", { returnByValue: true, awaitPromise: true, expression: `(async () => {
-      const st = document.createElement("style");
-      st.textContent = ".bh-topbar, .bh-toc, .bh-progress { visibility: hidden !important; } .reveal-pending { opacity: 1 !important; transform: none !important; } * { animation: none !important; transition: none !important; }";
-      document.head.append(st);
-      const root = document.querySelectorAll(${JSON.stringify(sel.css)})[${sel.index}];
-      if (!root) return { error: "no element matches " + ${JSON.stringify(sel.css)} + " [" + ${sel.index} + "]" };
-      // A figure in a closed <details> has no box until it is opened.
-      for (let d = root.closest("details"); d; d = d.parentElement?.closest("details")) d.open = true;
-      const inner = root.matches(${JSON.stringify(VISUAL)}) ? root : [...root.querySelectorAll(${JSON.stringify(VISUAL)})].find((e) => !e.closest("button, a")) || root;
-      inner.scrollIntoView({ block: "center", behavior: "instant" });
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      const r = inner.getBoundingClientRect();
-      return { x: r.left + scrollX, y: r.top + scrollY, width: r.width, height: r.height, bg: getComputedStyle(document.body).backgroundColor };
-    })()` })).result.value;
+    const found = (await s("Runtime.evaluate", { returnByValue: true, awaitPromise: true, expression: prepareVisual(job.selection) })).result.value;
     if (found.error) throw new Error(`${job.href}: ${found.error}`);
     if (found.width < 8 || found.height < 8) throw new Error(`${job.href}: the chosen visual is ${found.width}×${found.height}px, so it is hidden (an inactive tab or version?). Point the card at a visible one with <meta name="bh:image" content="#figure-id">`);
     await sleep(300);
