@@ -172,17 +172,20 @@
    its ordinary node or edge style. On <html> it is the whole page's switch: theme/unlisted.js sets it
    before first paint and the top bar's button turns it on and off. On a <bh-versions> it is that
    component's, set by its "Show changes" button (see bh.js, "Change highlights").
-   Every rule in this block carries the :not(), and a new one must too. */
+   The :not() is written once, on the rule the others nest in, so a new mark rule goes inside it.
+   Nesting adds nothing to a selector's weight here: "&.node" is ".diagram .node:not(…)" as before. */
 
-.diagram .node[data-change]:not([data-changes="off"] *) > :is(rect, circle, ellipse, polygon, path) { stroke-width: 2.5; }
-.diagram .node[data-change="added"]:not([data-changes="off"] *) > :is(rect, circle, ellipse, polygon, path) { stroke: var(--ok); }
-.diagram .node[data-change="changed"]:not([data-changes="off"] *) > :is(rect, circle, ellipse, polygon, path) { stroke: var(--warn); }
-.diagram .node[data-change="removed"]:not([data-changes="off"] *) > :is(rect, circle, ellipse, polygon, path) { stroke: var(--danger); stroke-dasharray: 5 4; }
-.diagram .node[data-change="removed"]:not([data-changes="off"] *) { opacity: 0.75; }
-.diagram .edge[data-change="added"]:not([data-changes="off"] *) { stroke: var(--ok); }
-.diagram .edge[data-change="changed"]:not([data-changes="off"] *) { stroke: var(--warn); }
-.diagram .edge[data-change="removed"]:not([data-changes="off"] *) { stroke: var(--danger); stroke-dasharray: 5 4; }
-.diagram [data-change="added"]:not([data-changes="off"] *) { filter: drop-shadow(0 0 5px color-mix(in oklab, var(--ok) 55%, transparent)); }
+.diagram :not([data-changes="off"] *) {
+  &.node[data-change] > :is(rect, circle, ellipse, polygon, path) { stroke-width: 2.5; }
+  &.node[data-change="added"] > :is(rect, circle, ellipse, polygon, path) { stroke: var(--ok); }
+  &.node[data-change="changed"] > :is(rect, circle, ellipse, polygon, path) { stroke: var(--warn); }
+  &.node[data-change="removed"] > :is(rect, circle, ellipse, polygon, path) { stroke: var(--danger); stroke-dasharray: 5 4; }
+  &.node[data-change="removed"] { opacity: 0.75; }
+  &.edge[data-change="added"] { stroke: var(--ok); }
+  &.edge[data-change="changed"] { stroke: var(--warn); }
+  &.edge[data-change="removed"] { stroke: var(--danger); stroke-dasharray: 5 4; }
+  &[data-change="added"] { filter: drop-shadow(0 0 5px color-mix(in oklab, var(--ok) 55%, transparent)); }
+}
 .legend .change-added   { --tone: var(--ok); }
 .legend .change-changed { --tone: var(--warn); }
 .legend .change-removed { --tone: var(--danger); }
