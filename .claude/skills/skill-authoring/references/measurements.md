@@ -1699,7 +1699,7 @@ the saved answers through `rejudge.mjs`; the fresh run is new answers through th
 Claude Code 2.1.318, agent and judge `claude-sonnet-5-5`, three runs per case per arm, `-j 4`. No change to the
 skill: four grader files changed and two were deleted, so the suite has 59 `llm` graders, not 61. US$9.31 in all:
 $2.17 for judging saved answers again with `rejudge.mjs` and $7.14 for a fresh run of five cases, both arms
-(`claude plugin eval --case`, three times, on commit `7affb26`). No run errored, and the skill loaded in every
+(`claude plugin eval --case`, three times, on commit `c707b27`). No run errored, and the skill loaded in every
 with-skill run (15 of 15).
 
 The answers read are those of #248's run, kept in `pedagogical-writing/evals/baselines/2026-11-18.json`: all
@@ -1831,7 +1831,7 @@ has six scored graders now, not eight, so its score moves by construction.
 - **Cost.** $3.70 (`outline-*`, 174 s), $1.89 (plan, 95 s) and $1.55 (prompt, 62 s): $7.14, of which the judge
   was $4.38. Judging again cost $1.42 for the five `llm` graders as recorded (90 votes) and $0.75 for the three
   reworded ones (54 votes): about $0.015 a vote, where `evals.md` says about $0.01.
-- **Baselines kept**, trimmed with `rejudge.mjs --trim --commit 7affb26`: `2026-11-18-299-outline.json` (18
+- **Baselines kept**, trimmed with `rejudge.mjs --trim --commit c707b27`: `2026-11-18-299-outline.json` (18
   answers), `2026-11-18-299-plan.json` (6) and `2026-11-18-299-opus.json` (6), beside `2026-11-18.json` in
   `pedagogical-writing/evals/baselines/`. None of the five cases has a fixture. The `05-effort` verdicts in the
   last file are from the pattern as run, one alternative short of the committed one.
@@ -2050,8 +2050,8 @@ description misses.
 
 Claude Code 2.1.318, agent and judge `claude-sonnet-5-5`, three runs per case per arm, `-j 4`. No change to the
 skill or to any prompt: four grader files deleted, five rewritten (two of them renamed), one added. US$19.36 in
-all: $10.96 for two runs of the whole suite on commit `9acb0cc` (`claude plugin eval`, $5.30 and $5.67), $1.01 for
-one more run of `fix-confusing-figure` on `c82737b`, and $7.39 of re-judging saved answers with `rejudge.mjs`. No
+all: $10.96 for two runs of the whole suite on commit `1011231` (`claude plugin eval`, $5.30 and $5.67), $1.01 for
+one more run of `fix-confusing-figure` on `7692c0b`, and $7.39 of re-judging saved answers with `rejudge.mjs`. No
 run errored, and the skill loaded in every with-skill run (27 of 27).
 
 **What the answers showed.** For each review case 15 saved answers were read: three with the skill from each of
@@ -2108,7 +2108,7 @@ each new rubric was tried under the recorded name of a grader it replaces, from 
 of 6, and 08 passed 9 of 9 and 0 of 6; `review-stepper-boundary` 03 passed 7 of 9 and 0 of 6, and 04 passed 8 of
 9 and 1 of 6. One of the 60 verdicts had a split vote.
 
-**Result.** Two runs of the suite on `9acb0cc`, made after the rubrics were fixed. Nothing was tuned to them
+**Result.** Two runs of the suite on `1011231`, made after the rubrics were fixed. Nothing was tuned to them
 except one clause of `fix-confusing-figure` 06, which is said below.
 
 | Case | With, run 1 | With, run 2 | Without, run 1 | Without, run 2 | Δ, run 1 | Δ, run 2 | Δ in #249 |
@@ -2143,7 +2143,7 @@ Passes of each grader of the two review cases, with the skill and without:
   0.91. The no-skill mean is 0.38 and 0.30, where #249 had 0.42. The suite has 20 `llm` graders now, not 23, and
   the judge was $3.06 and $3.30 of the two runs.
 - **A baseline is kept**: `pedagogical-diagrams/evals/baselines/2026-11-18-two-arm-301.json`, run 2 (24 answers,
-  both arms), trimmed with `rejudge.mjs --trim --commit 9acb0cc`. Its `fix-confusing-figure` 06 rubric is the
+  both arms), trimmed with `rejudge.mjs --trim --commit 1011231`. Its `fix-confusing-figure` 06 rubric is the
   text of that commit, one clause short of the present one.
 
 **The three unsteady graders.** Each was judged again on saved answers: the built-in judge's verdict is in the
@@ -2161,7 +2161,7 @@ runs, the answers moved.
   "×3" on a box. One such answer got a failing 1 to 2 in the record, then 2 to 1 and 3 to 0 from `rejudge.mjs`.
   The new text names those cases. Run 2 found one more: "You can mention it in the caption" failed 1 to 2 in the
   record and passed 3 to 0 with `rejudge.mjs`. A clause for a note offered as optional was added after the two
-  runs (`c82737b`); with it the 18 answers of the two runs and of #249's baseline got no split vote, and one more
+  runs (`7692c0b`); with it the 18 answers of the two runs and of #249's baseline got no split vote, and one more
   run of the case had none either (3 of 3 with the skill, 0 of 3 without). What is left is the answers: over six
   sets of three with-skill answers the grader passed 3, 2, 1, 2, 1 and 3. The skill says "say in the caption what
   was simplified" (rule 2), and about two answers in three do it. A grader cannot steady that. No no-skill

@@ -7,7 +7,7 @@
   "judge": "claude-sonnet-5-5"
  },
  "ablation": "with-without",
- "commit": "9acb0cc",
+ "commit": "1011231",
  "cases": [
   {
    "name": "design-lz77-figure",
