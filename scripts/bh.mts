@@ -6,6 +6,7 @@
 //   node scripts/bh.mts check [--skip-keys]   lint docs/ and index.html (--skip-keys: no 1Password lookups)
 //   node scripts/bh.mts cards                 render docs/assets/og/<slug>.png (needs Chrome; see scripts/cards.mts)
 //   node scripts/bh.mts bundle <page|--all>   inline theme → dist/<name>.html (single file)
+//   node scripts/bh.mts diff <page> [base] [head]   what changed in a page between two versions → dist/diff/<name>.html (see contracts/page-diff.md)
 //   node scripts/bh.mts seal [--show-links|--reshell]   encrypt docs/*.private.html → docs/<slug>.html (see contracts/private-pages.md)
 //   node scripts/bh.mts unseal [slug…]        decrypt docs/<slug>.html → docs/<slug>.private.html
 //   node scripts/bh.mts serve [port]          static server (pages also work from file://)
@@ -24,7 +25,7 @@ import {
   renderCardsFile, parseCardsFile, validateCardsFile, mergeEntries, docCardHtml,
 } from "./private-cards.mts";
 import { pageWeight, pageSizeFinding } from "./page-size.mts";
-import { reviewFiles, readReview, canonicalDocument, isPrivateDocument, reviewRecord, sameReviewMessage, reviewProblems, isSealedFile, PRIVATE_EXT } from "./reviews.mts";
+import { reviewFiles, readReview, canonicalDocument, isPrivateDocument, reviewRecord, sameReviewMessage, reviewProblems, isSealedFile, isSealedShell, PRIVATE_EXT } from "./reviews.mts";
 import { stripComments, VOID_TAGS, parseTree, nodeAttr, hasClass, walkTree, findNode, nodeText, decodeEntities } from "./html-tree.mts";
 import { arrowTipFindings, diagramLabelFindings } from "./check/diagram-geometry.mts";
 import { contrastFindings } from "./check/contrast.mts";
@@ -34,6 +35,8 @@ import { hiddenPages, hiddenHrefs, HIDDEN_RULE, type HiddenKind } from "./hidden
 import { LEAK_ALLOWED } from "./leak-allowed.mts";
 import { remoteAssetProblems, themeRemoteProblems, vendoredPrismLanguages, codeLanguageProblems } from "./remote-assets.mts";
 import { VENDOR } from "./vendor.mts";
+import { COMMIT_RE, diffPages, renderDiffPage, statsLine, summaryMarkdown, type PageSummary } from "./page-diff.mts";
+import { PAGE_RE, pageAt, resolveCommit, changedPages, reviewDiffScript } from "./page-history.mts";
 import type { Doc, SocialMeta, JsonLd, Visual, CardJob, GlossaryEntry, TreeNode, ReviewFile, ReviewRecord, OpItem, Finding } from "./types.mts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -1615,9 +1618,9 @@ function inlineCss(file: string, remote: Set<string>, seen = new Set<string>()):
 const MIME: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".svg": "image/svg+xml", ".webp": "image/webp", ".avif": "image/avif" };
 const CSS_MIME: Record<string, string> = { ...MIME, ".woff2": "font/woff2", ".woff": "font/woff" };
 
-function bundleOne(file: string): void {
+/** `html`, the content of (or a page made from) `file`, as one self-contained document. `reviews: false` leaves the page's threads out. */
+function bundleHtml(html: string, file: string, reviews = true): string {
   const dir = path.dirname(file);
-  let html = fs.readFileSync(file, "utf8");
   const scripts: string[] = [];
 
   html = html.replace(/<link\s+rel="stylesheet"\s+href="([^"]+)"\s*\/?>/g, (m, href) => {
@@ -1636,7 +1639,7 @@ function bundleOne(file: string): void {
       // Only this page's threads: a standalone file leaves the repo, so it must not carry other pages' comments.
       const mine = path.relative(ROOT, file).split(path.sep).join("/");
       const own = { [mine]: compileReviews().byDoc[mine] || [] };
-      if (own[mine].length) scripts.push(`window.BH_REVIEWS = ${JSON.stringify(own)};`.replace(/<\/script/gi, "<\\/script"));
+      if (reviews && own[mine].length) scripts.push(`window.BH_REVIEWS = ${JSON.stringify(own)};`.replace(/<\/script/gi, "<\\/script"));
       // bh.js loads the vendored Prism and Mermaid from theme/vendor/; inline the ones this page uses.
       const needs = { prism: /<code\b[^>]*\sclass=["']?[^"'>]*\blanguage-/i.test(html), mermaid: /<pre\b[^>]*\sclass=["']?[^"'>]*\bmermaid\b/i.test(html) };
       for (const [name, rel] of Object.entries(VENDOR)) if (needs[name as keyof typeof VENDOR]) scripts.push(fs.readFileSync(path.join(ROOT, rel), "utf8").replace(/<\/script/gi, "<\\/script"));
@@ -1688,8 +1691,11 @@ function bundleOne(file: string): void {
   scripts.unshift(buildScript(buildInfo()));
   html = html.replace(/<a href="\.\.\/index\.html">← All documents<\/a>/g, "");
   // A function, so `$&` and friends in a script (Mermaid has dozens) are not read as replacement patterns.
-  html = html.replace("</body>", () => scripts.map((s) => `<script>\n${s}\n</script>`).join("\n") + "\n</body>");
+  return html.replace("</body>", () => scripts.map((s) => `<script>\n${s}\n</script>`).join("\n") + "\n</body>");
+}
 
+function bundleOne(file: string): void {
+  const html = bundleHtml(fs.readFileSync(file, "utf8"), file);
   fs.mkdirSync(DIST, { recursive: true });
   const out = path.join(DIST, path.basename(file));
   fs.writeFileSync(out, html);
@@ -1706,6 +1712,68 @@ function cmdBundle([target]: string[]): void {
     if (!fs.existsSync(f)) { console.error(c.red(`No such file: ${f}`)); process.exit(1); }
     bundleOne(f);
   }
+}
+
+// ---- diff: what changed in a page between two versions ----------------------------------
+
+/**
+ *   bh diff <docs/page.html> [base] [head]                    one page; base defaults to HEAD, head to the working tree
+ *   bh diff --changed <base> [--out <dir>] [--summary <file>]   every page that differs from <base> (CI)
+ * Each diff is the new version of the page, bundled into one file, with the differences marked.
+ */
+function cmdDiff(argv: string[]): void {
+  const opts: Record<string, string> = {}, rest: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const m = argv[i].match(/^--(changed|out|summary)$/);
+    if (m) { if (argv[i + 1] === undefined) throw new Error(`--${m[1]} needs a value`); opts[m[1]] = argv[++i]; }
+    else if (argv[i].startsWith("--")) throw new Error(`Unknown option ${argv[i]}`);
+    else rest.push(argv[i]);
+  }
+  const outDir = path.resolve(process.cwd(), opts.out || path.join(DIST, "diff"));
+  const short = (rev: string) => (COMMIT_RE.test(rev) ? rev.slice(0, 7) : rev);
+  const write = (page: string, base: string, head: string, oldHtml: string, newHtml: string): PageSummary => {
+    const diff = diffPages(oldHtml, newHtml);
+    if (!diff) return { page, state: "unreadable", diff: null };
+    const out = path.join(outDir, path.basename(page));
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.writeFileSync(out, bundleHtml(renderDiffPage(diff, { base: short(base), head: head ? short(head) : "the working tree" }), path.join(ROOT, page), false));
+    return { page, state: "changed", diff, out };
+  };
+  const pages: PageSummary[] = [];
+  let base: string, head = "";
+  if (opts.changed) {
+    if (rest.length) throw new Error("--changed takes the base revision only");
+    base = opts.changed;
+    if (!resolveCommit(ROOT, base)) throw new Error(`No such revision: ${base} (a shallow clone? fetch it first)`);
+    for (const { page, state } of changedPages(ROOT, base) ?? []) {
+      const file = path.join(ROOT, page);
+      if (state === "deleted") { pages.push({ page, state, diff: null }); continue; }
+      if (isSealedFile(file)) continue; // ciphertext: nothing to read, and nothing to say about it
+      if (state === "new") { pages.push({ page, state, diff: null }); continue; }
+      const old = pageAt(ROOT, base, page);
+      pages.push(old === null || isSealedShell(old) ? { page, state: "unreadable", diff: null } : write(page, base, "", old, fs.readFileSync(file, "utf8")));
+    }
+  } else {
+    const [target, baseArg = "HEAD", headArg = ""] = rest;
+    if (!target) throw new Error("Usage: bh diff <docs/page.html> [base] [head]   or   bh diff --changed <base> [--out <dir>] [--summary <file>]");
+    const file = path.resolve(process.cwd(), target), page = path.relative(ROOT, file).split(path.sep).join("/");
+    if (!PAGE_RE.test(page)) throw new Error(`Not a page in docs/: ${target}`);
+    base = baseArg; head = headArg;
+    for (const rev of [base, head].filter(Boolean)) if (!resolveCommit(ROOT, rev)) throw new Error(`No such revision: ${rev}`);
+    const oldHtml = pageAt(ROOT, base, page);
+    if (oldHtml === null) throw new Error(`${page} does not exist at ${base}`);
+    const newHtml = head ? pageAt(ROOT, head, page) : fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null;
+    if (newHtml === null) throw new Error(`${page} does not exist ${head ? `at ${head}` : "in the working tree"}`);
+    const done = write(page, base, head, oldHtml, newHtml);
+    if (!done.diff) throw new Error(`${page} has no article to compare (a sealed page?)`);
+    pages.push(done);
+  }
+  for (const p of pages) {
+    const what = p.diff ? statsLine(p.diff.stats) + (p.diff.title ? ", title changed" : "") : p.state === "new" ? "new page" : p.state === "deleted" ? "deleted" : "could not be compared";
+    console.log(`${p.page}: ${what}${p.out ? c.dim(` → ${path.relative(process.cwd(), p.out)}`) : ""}`);
+  }
+  if (!pages.length) console.log(c.dim(`No page differs from ${base}.`));
+  if (opts.summary) fs.writeFileSync(path.resolve(process.cwd(), opts.summary), summaryMarkdown(pages, { base: short(base), head: head ? short(head) : "the working tree" }));
 }
 
 // ---- seal / unseal (private pages) ---------------------------------------------------
@@ -2137,6 +2205,16 @@ function cmdServe([port = "8000"]: string[]): void {
       res.writeHead(200, { "content-type": "text/javascript", "cache-control": "no-cache" }).end(buildScript(buildInfo()));
       return;
     }
+    // What changed in a page since a commit (the Review panel asks): computed here from git, as the
+    // deploy writes it for the commits that review files name. Any commit works locally.
+    const diffReq = p.match(/^\/theme\/diffs\/([a-z0-9][a-z0-9-]*)\.([0-9a-f]{7,40})\.js$/);
+    if (diffReq) {
+      const page = `docs/${diffReq[1]}.html`, file = path.join(root, page);
+      const script = fs.existsSync(file) && !isPrivateSource(file) ? reviewDiffScript(root, page, diffReq[2], fs.readFileSync(file, "utf8")) : null;
+      if (script === null) notFound();
+      else res.writeHead(200, { "content-type": "text/javascript", "cache-control": "no-cache" }).end(script);
+      return;
+    }
     let file = path.join(root, p), target: string;
     if (!contains(file)) { res.writeHead(403).end(); return; }
     try {
@@ -2162,7 +2240,7 @@ function cmdServe([port = "8000"]: string[]): void {
 // ---- main -------------------------------------------------------------------------
 
 const [cmd, ...args] = process.argv.slice(2);
-const commands: Record<string, (args: string[]) => unknown> = { new: cmdNew, index: cmdIndex, check: cmdCheckCommand, cards: cmdCards, bundle: cmdBundle, seal: cmdSeal, unseal: cmdUnseal, serve: cmdServe };
+const commands: Record<string, (args: string[]) => unknown> = { new: cmdNew, index: cmdIndex, check: cmdCheckCommand, cards: cmdCards, bundle: cmdBundle, diff: cmdDiff, seal: cmdSeal, unseal: cmdUnseal, serve: cmdServe };
 if (!commands[cmd]) {
   console.log(`beautiful-html
 
@@ -2174,6 +2252,10 @@ if (!commands[cmd]) {
                                                --skip-keys skips the 1Password lookups of private pages' keys
   cards [--force] [--system-fonts]             render the social card of every page whose card is missing or stale
   bundle <page | --all>                        inline the theme → dist/<page>.html (one shareable file)
+  diff <page> [base] [head]                    what changed in a page: base (default HEAD) → head (default: the
+                                               working tree), as dist/diff/<page>.html with the changes marked
+  diff --changed <base> [--out <dir>] [--summary <file>]
+                                               the same for every page that differs from <base>
   seal [--show-links | --reshell]              encrypt docs/*.private.html → docs/<slug>.html (keys in 1Password);
                                                --reshell rewraps sealed pages in the current shell, no key needed
   unseal [slug…] [--force]                     recreate docs/<slug>.private.html from the sealed page and its key

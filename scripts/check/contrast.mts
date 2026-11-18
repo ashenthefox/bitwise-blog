@@ -7,7 +7,7 @@ import type { Finding } from "../types.mts";
 /** WCAG contrast for every text/background token pair, in both themes (from light-dark()). */
 export const CONTRAST_PAIRS: [string, string[], number][] = [
   // [foreground, [backgrounds], minimum ratio]
-  ["text", ["bg", "surface", "surface-2", "code-bg", "accent-soft", "warn-soft"], 4.5], // accent-soft: the search dialog's selected row; warn-soft: its matches
+  ["text", ["bg", "surface", "surface-2", "code-bg", "accent-soft", "warn-soft", "ok-soft", "danger-soft"], 4.5], // accent-soft: the search dialog's selected row; warn-soft: its matches; ok-soft and danger-soft: <ins> and <del> in a diff
   ["text-muted", ["bg", "surface", "surface-2", "code-bg", "accent-soft"], 4.5],
   ["accent", ["bg", "surface", "accent-soft"], 4.5],
   ["accent-contrast", ["accent"], 4.5],

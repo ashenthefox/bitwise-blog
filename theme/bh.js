@@ -1627,6 +1627,11 @@
       if (new URLSearchParams(location.search).has("review") || hasStored) {
         settle(loadModule("review.js").then(() => window.bh.review && window.bh.review.start(new URLSearchParams(location.search).has("review"))));
       }
+      // ?diff=<commit> marks what changed on the page since that commit (theme/modules/diff.js).
+      const diffBase = new URLSearchParams(location.search).get("diff");
+      if (diffBase && /^[0-9a-f]{7,40}$/.test(diffBase)) {
+        settle(loadModule("diff.js").then(() => window.bh.diff && window.bh.diff.show(diffBase)).then((res) => { if (!res) toast("No record of the changes since that version"); }));
+      }
       // ?present opens straight into slides (at the slide holding #id, if any).
       if (new URLSearchParams(location.search).has("present") && doc.querySelector(".bh-article > h2")) {
         return loadModule("present.js").then(() => { setupDeepLinks(); setupScrollRegions(); window.bh.present && window.bh.present.enter(); });

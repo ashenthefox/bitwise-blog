@@ -17,6 +17,7 @@
     "cards": "node scripts/bh.mts cards",
     "bundle": "node scripts/bh.mts bundle",
     "bundle:all": "node scripts/bh.mts bundle --all",
+    "diff": "node scripts/bh.mts diff",
     "seal": "node scripts/bh.mts seal",
     "unseal": "node scripts/bh.mts unseal",
     "serve": "node scripts/bh.mts serve",

@@ -8,6 +8,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { hiddenPages, hiddenHrefs } from "./hidden-pages.mts";
 import { isSealedShell } from "./reviews.mts";
+import { writeReviewDiffs, isShallow } from "./page-history.mts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const uncomment = (html: string) => html.replace(/<!--[\s\S]*?-->/g, "");
@@ -109,9 +110,19 @@ export function preparePublishedSite(stage: string, source: string = ROOT, { goa
   for (const href of marked) delete unlistedReviews[href];
   writeData(stage, "theme/unlisted-reviews.js", "BH_REVIEWS", unlistedReviews);
   writeData(stage, "theme/site.js", "BH_SITE", site);
+  // What changed on each page since the commits its review threads name (theme/modules/diff.js asks for
+  // one file per page and commit). From the staged pages, so a removed example page gets none, and a
+  // sealed page never does. Generated here because it needs the git history; nothing lists the files.
+  fs.rmSync(path.join(stage, "theme/diffs"), { recursive: true, force: true });
+  const diffs = writeReviewDiffs(source, stage);
+  if (diffs.skipped.length) {
+    console.warn(`No diff for ${diffs.skipped.length} reviewed version(s): ${diffs.skipped.map((d) => `${d.page}@${d.commit.slice(0, 7)}`).join(", ")}`
+      + (isShallow(source) ? " (this is a shallow clone: the deploy needs fetch-depth: 0)" : " (no such commit here, or the page did not exist then)"));
+  }
   // Last, so the generators above can never copy a tag into (or out of) the published data.
   const counted = goatcounter ? addGoatcounter(stage, goatcounter) : null;
   console.log(`Removed ${marked.length} example pages and ${marked.length} social cards; rebuilt published index, feed, sitemap, robots.txt, 404 page, glossary, search, backlinks, reviews and unlisted data`);
+  if (diffs.written.length) console.log(`Wrote ${diffs.written.length} page diff(s) for the versions that review threads name`);
   if (counted) console.log(`Added the GoatCounter tag to ${counted.tagged.length} pages; left ${counted.sealed.length} sealed shells untouched`);
   return marked;
 }

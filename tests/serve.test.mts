@@ -4,7 +4,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
 import { test, type TestContext } from "node:test";
@@ -30,7 +30,7 @@ const buildOf = (js: string): NonNullable<BuildWindow["BH_BUILD"]> => {
   return window.BH_BUILD;
 };
 
-async function fixture(t: TestContext, { shared = false, symlinkRoot = false } = {}): Promise<(requestPath: string) => Promise<Response>> {
+async function fixture(t: TestContext, { shared = false, symlinkRoot = false, setup = (_root: string) => {} } = {}): Promise<(requestPath: string) => Promise<Response>> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bh-serve-"));
   let proc: ChildProcess | undefined;
   let server: http.Server | undefined;
@@ -74,6 +74,7 @@ async function fixture(t: TestContext, { shared = false, symlinkRoot = false } =
   fs.symlinkSync("../index.html", path.join(root, "internal-index/index.html"));
   fs.symlinkSync("missing.html", path.join(root, "dangling.html"));
   fs.symlinkSync("loop.html", path.join(root, "loop.html"));
+  setup(root);
   if (symlinkRoot) {
     const alias = path.join(dir, "alias");
     fs.symlinkSync(root, alias, "dir");
@@ -196,3 +197,31 @@ for (const shared of [false, true]) {
     });
   }
 }
+
+test("serve answers a page's diff against a commit from git, and nothing for an unknown commit, a sealed page or a private source", async (t) => {
+  const page = (text: string) => `<!doctype html><html><head><title>P</title></head><body><article class="bh-article"><h2 id="a">A</h2><p>${text}</p></article></body></html>`;
+  const sealed = `<!doctype html><html><head><meta name="bh:sealed" content="1"><title>Private page</title></head><body></body></html>`;
+  let commit = "";
+  const request = await fixture(t, { setup: (root) => {
+    const git = (...args: string[]) => execFileSync("git", ["-C", root, "-c", "user.name=T", "-c", "user.email=t@example.test", "-c", "commit.gpgsign=false", ...args], { stdio: ["ignore", "pipe", "pipe"], timeout: 30_000 }).toString().trim();
+    for (const [name, html] of [["post", page("The first version.")], ["secret", sealed], ["draft.private", page("Plaintext, then.")]]) fs.writeFileSync(path.join(root, `docs/${name}.html`), html);
+    git("init", "-q");
+    git("add", "-f", "docs/post.html", "docs/secret.html", "docs/draft.private.html");
+    git("commit", "-q", "-m", "one");
+    commit = git("rev-parse", "HEAD");
+    fs.writeFileSync(path.join(root, "docs/post.html"), page("The second version."));
+    fs.writeFileSync(path.join(root, "docs/draft.private.html"), page("Plaintext, now."));
+  } });
+  const ok = await request(`/theme/diffs/post.${commit}.js`);
+  assert.equal(ok.status, 200);
+  assert.equal(ok.headers["content-type"], "text/javascript");
+  const window: { BH_DIFFS?: Record<string, { changes: { html: string }[] }> } = {};
+  vm.runInNewContext(ok.body, { window });
+  assert.match(window.BH_DIFFS![`docs/post.html@${commit}`].changes[0].html, /<del>first<\/del><ins>second<\/ins>/, "the working tree against the commit");
+  assert.equal((await request(`/theme/diffs/post.${commit.slice(0, 7)}.js`)).status, 200, "a short commit id works too");
+  for (const path of [`/theme/diffs/post.${"1".repeat(40)}.js`, "/theme/diffs/post.HEAD.js", `/theme/diffs/secret.${commit}.js`, `/theme/diffs/draft.private.${commit}.js`, `/theme/diffs/missing.${commit}.js`, `/theme/diffs/..%2Fpost.${commit}.js`]) {
+    const res = await request(path);
+    assert.equal(res.status, 404, path);
+    assert.doesNotMatch(res.body, /Plaintext|BH_DIFFS/, path);
+  }
+});
