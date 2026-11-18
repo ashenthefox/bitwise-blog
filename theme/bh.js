@@ -412,7 +412,8 @@
     const article = doc.querySelector(".bh-article");
     // A page diff's copies and its list of changes (a diff page has them when this runs) are not the page's words.
     const count = (n) => n.textContent.trim().split(/\s+/).filter(Boolean).length;
-    const words = article ? count(article) - [...article.querySelectorAll(DIFF_COPY)].reduce((sum, n) => sum + count(n), 0) : 0;
+    // Outermost matches only, so words in one inside another are taken off once.
+    const words = article ? count(article) - [...article.querySelectorAll(DIFF_COPY)].filter((n) => !n.parentElement.closest(DIFF_COPY)).reduce((sum, n) => sum + count(n), 0) : 0;
     const rows = [
       ["Status", meta("bh:status") && el("span", { class: `badge ${meta("bh:status").toLowerCase()}`, text: meta("bh:status") })],
       ["Updated", meta("bh:date") && el("time", { datetime: meta("bh:date"), text: meta("bh:date") })],
