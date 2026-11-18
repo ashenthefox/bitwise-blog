@@ -6,8 +6,12 @@ name: Leak check
 # corpus/leak-hashes.txt: keyed hashes (HMAC-SHA256, 64 bits) of the corpus's 8-word runs, made by the same code
 # that reads text for the local check. See corpus/README.md and docs/leak-check-in-ci.html.
 #
-# Off until the owner sets it up; until then every run passes with a notice saying it compared nothing. In this
-# order, since once the secret is set a run with no list fails:
+# The same step also refuses a private page's `#k=` key in those blobs or in the messages of the commits in the range,
+# and a `*.private.html` path those commits add (scripts/private-leaks.mts). That part needs no secret, so it runs on
+# every event, a fork's pull request included. It cannot see a pull request's title or body, or a comment.
+#
+# The corpus part is off until the owner sets it up; until then it passes with a notice saying it compared no corpus
+# text. In this order, since once the secret is set a run with no list fails:
 #   1. Create the key in 1Password (the generator reads it from there):
 #        op item create --category password --title "beautiful-html leak-check key" --vault Private --generate-password='letters,digits,64'
 #   2. With the private data linked: npm run advisor -- leak-hashes, then commit corpus/leak-hashes.txt and merge it.
@@ -51,10 +55,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # pull_request: what the PR's commits add to its base. push: what the push adds; a new branch (`before` is
-      # zero) is compared with main, and a `before` unknown here (a force push) means everything reachable.
-      # workflow_dispatch: everything reachable.
-      - name: Compare the blobs this change adds with the hash list
+      # pull_request: what the PR's commits add to its base (the PR's own commits, not GitHub's merge commit).
+      # push: what the push adds; a new branch (`before` is zero) is compared with main, and a `before` unknown here
+      # (a force push) means everything reachable. workflow_dispatch: everything reachable. The commits whose messages
+      # are read are the same range: `git rev-list <head> --not <base>`.
+      - name: Check what this change adds for private page keys and plaintext, and compare its blobs with the hash list
         env:
           BH_LEAK_KEY: ${{ secrets.BH_LEAK_KEY }}
           EVENT: ${{ github.event_name }}

@@ -1,12 +1,14 @@
 #!/bin/sh
 # Runs `leak-check --pushed <remote>` (see scripts/advisor.mts) before a push: a commit that adds a run of 8 or more
-# words from the private corpus must not become public. It reads git's list of what is being pushed
-# (stdin; to reproduce a failure by hand, pipe those lines into the command) and checks the blobs those commits add, not the working tree. Enable with `npm run hooks` (once per clone).
-# It skips, with a message, when this checkout has no private data. `git push --no-verify` bypasses it.
+# words from the private corpus must not become public, and nor must a private page's `#k=` key (in a blob or a
+# commit message) or its plaintext (a `*.private.html` path; scripts/private-leaks.mts). It reads git's list of what is being pushed
+# (stdin; to reproduce a failure by hand, pipe those lines into the command) and checks the commits and blobs that push adds, not the working tree. Enable with `npm run hooks` (once per clone).
+# When this checkout has no private data, the corpus comparison skips with a message; the key and plaintext checks need
+# none, so they still run and can block. `git push --no-verify` bypasses all of it.
 # A checkout with no `node_modules` (a new git worktree has none) cannot run the check, because the `yaml` package does not
 # resolve from it. That BLOCKS the push, with one line saying to run `npm ci` in this checkout; it does not fail open,
 # since a skipped check looks the same as a passed one.
-# See corpus/README.md. It prints file names, lines and lengths, never the words.
+# See corpus/README.md. It prints file names, commits, lines and lengths, never the words or the key.
 
 if ! root=$(cd "$(dirname "$0")/.." && pwd); then
   echo "pre-push: could not find the checkout root, so leak-check did not run" >&2
@@ -23,6 +25,6 @@ if [ $? -eq 3 ]; then
   exit 1
 fi
 if ! node "$root/scripts/advisor.mts" leak-check --pushed "$1"; then
-  echo "pre-push: leak-check failed, so the push is blocked. If it listed runs of words, remove that text or add a reviewed entry to LEAK_ALLOWED in scripts/leak-allowed.mts; if it printed an error, fix that first (a missing Node 22.18 or later is one cause). \`git push --no-verify\` skips this check." >&2
+  echo "pre-push: leak-check failed, so the push is blocked. If it listed runs of words, remove that text or add a reviewed entry to LEAK_ALLOWED in scripts/leak-allowed.mts; if it listed a #k= key or a private page, rewrite the commits that hold it; if it printed an error, fix that first (a missing Node 22.18 or later is one cause). \`git push --no-verify\` skips this check." >&2
   exit 1
 fi

@@ -11,7 +11,8 @@ import { createHash, createHmac, createSecretKey, type KeyObject } from "node:cr
 import fs from "node:fs";
 import path from "node:path";
 import { CORPUS_DIR, privateDir } from "./corpus.mts";
-import { LEAK_ALLOWED, compareRevs, privateRuns, runGit, runsDigest, type BlobComparison, type LeakAllowance } from "./guards.mts";
+import { LEAK_ALLOWED, privateRuns, runGit, runsDigest, scanRevs, type BlobComparison, type LeakAllowance } from "./guards.mts";
+import type { PrivatePageLeaks } from "../private-leaks.mts";
 
 /** The committed list, in corpus/. */
 export const LEAK_HASHES_FILE = "leak-hashes.txt";
@@ -177,7 +178,11 @@ function readOpItem(title: string, vault: string): string {
 /** Why the hashed check compared nothing: there is no secret, which is expected for a fork's pull request. */
 export type HashedSkip = { status: "skipped"; level: "notice"; reason: string };
 
-export type HashedResult = HashedSkip | ({ status: "done"; /** Set when a base was given but is not a commit in this clone (a force push), so everything reachable from the head was read. */ baseUnknown: boolean } & BlobComparison);
+/**
+ * CI's result. `baseUnknown` is set when a base was given but is not a commit in this clone (a force push), so
+ * everything reachable from the head was read. The private-page check needs no secret, so it is there either way.
+ */
+export type HashedResult = (HashedSkip | ({ status: "done" } & BlobComparison)) & { baseUnknown: boolean; privatePages: PrivatePageLeaks };
 
 /** The commit `rev` names, as a full id, or null. `--end-of-options` keeps a value such as `--all` from being read as an option. */
 function resolveCommit(repoRoot: string, rev: string): string | null {
@@ -192,18 +197,25 @@ function resolveCommit(repoRoot: string, rev: string): string | null {
  * at `base` when `base` has one, so a change that deletes or empties the list can't switch the check off for itself;
  * otherwise (the change that adds the list, or no base) it is the one checked out. The allowances are the local
  * check's, applied the same way. Skips, saying why, when there is no secret; with a secret and no list, it fails.
+ * The same read runs the private-page check (scripts/private-leaks.mts) on those blobs and on the commits in the
+ * range, their messages included; it needs no secret, so it runs on a fork's pull request too.
  */
 export function leakCheckHashed(repoRoot: string, head: string, base: string | undefined, secret: string | undefined, corpusRoot: string = CORPUS_DIR, allowances: Record<string, LeakAllowance> = LEAK_ALLOWED): HashedResult {
-  if (!secret?.trim()) return { status: "skipped", level: "notice", reason: `no ${LEAK_KEY_ENV} secret (a pull request from a fork, or the key is not set up yet), so nothing was compared; the run on main checks what this brings in once it is merged` };
-  const key = leakKey(secret);
   const headSha = resolveCommit(repoRoot, head);
   if (!headSha) throw new Error("the head to check is not a commit in this clone");
   const given = base !== undefined && base !== "" && !/^0+$/.test(base);
   const baseSha = given ? resolveCommit(repoRoot, base) : null;
+  const baseUnknown = given && !baseSha;
+  const revs = baseSha ? [headSha, "--not", baseSha] : [headSha];
+  if (!secret?.trim()) {
+    const { privatePages } = scanRevs(repoRoot, revs, null, allowances);
+    return { status: "skipped", level: "notice", reason: `no ${LEAK_KEY_ENV} secret (a pull request from a fork, or the key is not set up yet), so no corpus text was compared; the run on main checks what this brings in once it is merged`, baseUnknown, privatePages };
+  }
+  const key = leakKey(secret);
   const listFile = leakHashesPath(corpusRoot);
   const text = (baseSha && committedList(repoRoot, baseSha, corpusRoot)) ?? (fs.existsSync(listFile) ? fs.readFileSync(listFile) : null);
   if (!text) throw new Error(`${LEAK_KEY_ENV} is set but corpus/${LEAK_HASHES_FILE} is not committed, so nothing can be compared; generate it with \`npm run advisor -- leak-hashes\` and commit it`);
   const runs = hashedRuns(parseHashList(text.toString("utf8")), key);
-  const revs = baseSha ? [headSha, "--not", baseSha] : [headSha];
-  return { status: "done", baseUnknown: given && !baseSha, ...compareRevs(repoRoot, revs, runs, allowances) };
+  const { corpus, privatePages } = scanRevs(repoRoot, revs, runs, allowances);
+  return { status: "done", baseUnknown, ...corpus, privatePages };
 }

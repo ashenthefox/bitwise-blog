@@ -6,8 +6,9 @@
 //   npm run advisor -- holdout <writer> [--check]  choose (or check) the eval holdout
 //   npm run advisor -- leak-check [--history | --pushed <remote>]
 //                                                  does a tracked file (or any blob in history, or in the commits a push adds) hold a run of words from the private text?
+//                                                  --pushed also refuses a private page's #k= key or plaintext (scripts/private-leaks.mts)
 //   npm run advisor -- leak-check --hashed [--head <rev>] [--base <rev>]
-//                                                  the same for the blobs head adds to base, against corpus/leak-hashes.txt (what CI runs)
+//                                                  the same for the blobs head adds to base, against corpus/leak-hashes.txt (what CI runs), with the private-page check
 //   npm run advisor -- leak-hashes                 regenerate corpus/leak-hashes.txt from the private data and the key
 //   npm run advisor -- parity                      does the port still agree with the Python reference?
 //
@@ -22,6 +23,7 @@ import { isDeepStrictEqual } from "node:util";
 import { CORPUS_DIR, atlasEligible, danglingLink, loadMeta, loadPosts, privateDir, validate, writeMeta } from "./advisor/corpus.mts";
 import { describeSources, leakCheck, leakCheckHistory, leakCheckPushed, parsePushUpdates, LEAK_RUN_WORDS } from "./advisor/guards.mts";
 import { LEAK_HASHES_FILE, LEAK_KEY_ENV, LEAK_STAMP_FILE, hashListStatus, leakCheckHashed, resolveLeakKey, writeLeakHashes } from "./advisor/leak-hashes.mts";
+import { describeKeyHit, describePlaintextHit, hasPrivatePageLeaks, privatePageFailure, privatePagePassed, type PrivatePageLeaks } from "./private-leaks.mts";
 import { applyHoldout, computeHoldout, DEFAULT_FRACTION, DEFAULT_SEED } from "./advisor/holdout.mts";
 import { buildIndexes, writers } from "./advisor/index.mts";
 import { parity } from "./advisor/parity.mts";
@@ -37,10 +39,13 @@ const USAGE = `usage: npm run advisor -- <command>
   leak-check [--history | --pushed <remote>]
                                          fail if a tracked file holds a run of words from the private posts, atlas, voice
                                          negatives or authored samples; --history checks every text blob in any ref instead;
-                                         --pushed reads a pre-push hook's stdin and checks only the blobs that push adds
+                                         --pushed reads a pre-push hook's stdin and checks only the blobs that push adds, and
+                                         also refuses a private page's #k= key in them or in a pushed commit message, and a
+                                         pushed *.private.html (that part needs no private data)
   leak-check --hashed [--head <rev>] [--base <rev>]
                                          CI's check: the blobs head (default HEAD) adds to base (default: none, so every blob
-                                         reachable from head), against corpus/leak-hashes.txt under the key in $BH_LEAK_KEY
+                                         reachable from head), against corpus/leak-hashes.txt under the key in $BH_LEAK_KEY,
+                                         and the private-page check of --pushed on that range (which needs no key)
   leak-hashes                            regenerate corpus/leak-hashes.txt from the private data and the key ($BH_LEAK_KEY, or
                                          the 1Password item "beautiful-html leak-check key")
   parity                                 compare with the Python reference; skips without private data`;
@@ -190,13 +195,16 @@ type LeakScope = { kind: "tracked" } | { kind: "history" } | { kind: "pushed"; r
 function cmdLeakCheck(repoRoot: string, corpusRoot: string, scope: LeakScope, out: Output): number {
   const name = scope.kind === "tracked" ? "leak-check" : `leak-check --${scope.kind}`;
   const blobs = scope.kind !== "tracked";
-  const result =
-    scope.kind === "history" ? leakCheckHistory(repoRoot, corpusRoot)
-    : scope.kind === "pushed" ? leakCheckPushed(repoRoot, () => parsePushUpdates(scope.stdin()), scope.remote, corpusRoot)
-    : leakCheck(repoRoot, corpusRoot);
+  const pushed = scope.kind === "pushed" ? leakCheckPushed(repoRoot, () => parsePushUpdates(scope.stdin()), scope.remote, corpusRoot) : undefined;
+  const result = pushed ?? (scope.kind === "history" ? leakCheckHistory(repoRoot, corpusRoot) : leakCheck(repoRoot, corpusRoot));
+  // The private-page check of a push needs no private data, so it is reported, and can fail, even when the rest skips.
+  const privatePages = pushed?.privatePages;
+  const privateFailed = privatePages ? reportPrivatePages(name, privatePages, out) : false;
   if (result.status === "skipped") {
-    out.log(`${name} skipped: ${result.reason}. Nothing was checked. To point this checkout at the private data, ${linkHint(repoRoot)}.`);
-    return 0;
+    out.log(privatePages
+      ? `${name} skipped the corpus: ${result.reason}, so no corpus text was checked (the private-page check above did run). To point this checkout at the private data, ${linkHint(repoRoot)}.`
+      : `${name} skipped: ${result.reason}. Nothing was checked. To point this checkout at the private data, ${linkHint(repoRoot)}.`);
+    return privateFailed ? 1 : 0;
   }
   // Only places and lengths, never the words: this output may end up somewhere public.
   const where = (item: { file: string; blob?: string }) => (item.blob ? `${item.file}@${item.blob}` : item.file);
@@ -205,6 +213,7 @@ function cmdLeakCheck(repoRoot: string, corpusRoot: string, scope: LeakScope, ou
     out.error(`${name} FAILED: ${result.hits.length} run(s) of ${LEAK_RUN_WORDS}+ words in ${scope.kind === "history" ? "blobs in history" : scope.kind === "pushed" ? "blobs this push adds" : "tracked files"}`);
     return 1;
   }
+  if (privateFailed) return 1;
   for (const item of result.allowed) out.log(`allowed: ${where(item)} (${item.words} words): ${item.reason}`);
   if (result.unread) out.log(`note: ${result.unread} blob(s) over 8 MiB were not read`);
   out.log(`${name} passed: ${describeSources(result.sources)}; ${result.files} ${blobs ? "blobs" : "tracked files"}`);
@@ -226,12 +235,14 @@ function cmdLeakCheckHashed(repoRoot: string, corpusRoot: string, head: string, 
   const escapeProperty = (text: string) => escapeData(text).replace(/:/g, "%3A").replace(/,/g, "%2C");
   const annotate = (level: "notice" | "error", message: string, where = "") => `::${level}${where}::${escapeData(message)}`;
   const result = leakCheckHashed(repoRoot, head, base, env[LEAK_KEY_ENV], corpusRoot);
+  if (result.baseUnknown) out.log(`note: the base is not a commit in this clone, so every blob reachable from the head was read`);
+  // No secret is needed for this part, so it runs on a fork's pull request, and fails it, too.
+  const privateFailed = reportPrivatePages(name, result.privatePages, out, actions ? (level, message, file, line) => annotate(level, message, file ? ` file=${escapeProperty(file)}${line ? `,line=${line}` : ""}` : "") : undefined);
   if (result.status === "skipped") {
     const message = `${name} skipped: ${result.reason}.`;
     out.log(actions ? annotate(result.level, message) : message);
-    return 0;
+    return privateFailed ? 1 : 0;
   }
-  if (result.baseUnknown) out.log(`note: the base is not a commit in this clone, so every blob reachable from the head was read`);
   const where = (item: { file: string; blob?: string }) => (item.blob ? `${item.file}@${item.blob}` : item.file);
   for (const hit of result.hits) {
     // The hash list can't say where a run came from, and never holds the words.
@@ -242,10 +253,27 @@ function cmdLeakCheckHashed(repoRoot: string, corpusRoot: string, head: string, 
     out.error(`${name} FAILED: ${result.hits.length} run(s) of ${LEAK_RUN_WORDS}+ words in the blobs these commits add. Remove the text (it is still in the branch's history: drop or rewrite the commit), or add a reviewed entry to LEAK_ALLOWED in scripts/advisor/guards.mts.`);
     return 1;
   }
+  if (privateFailed) return 1;
   for (const item of result.allowed) out.log(`allowed: ${where(item)} (${item.words} words): ${item.reason}`);
   if (result.unread) out.log(`note: ${result.unread} blob(s) over 8 MiB were not read`);
   out.log(`${name} passed: ${result.files} blobs, against corpus/${LEAK_HASHES_FILE}`);
   return 0;
+}
+
+/**
+ * Print what the private-page check found: one line per key or plaintext (never the key), then a summary; or one line
+ * saying it found nothing. Under GitHub Actions `annotate` makes each finding an error annotation. True when it failed.
+ */
+function reportPrivatePages(name: string, found: PrivatePageLeaks, out: Output, annotate?: (level: "error", message: string, file?: string, line?: number) => string): boolean {
+  const say = (message: string, file?: string, line?: number) => out.error(annotate ? annotate("error", message, file, line) : message);
+  for (const hit of found.plaintext) say(describePlaintextHit(hit), hit.file);
+  for (const hit of found.keys) say(describeKeyHit(hit), "file" in hit ? hit.file : undefined, "file" in hit ? hit.line : undefined);
+  if (!hasPrivatePageLeaks(found)) {
+    out.log(privatePagePassed(name, found));
+    return false;
+  }
+  out.error(privatePageFailure(name, found));
+  return true;
 }
 
 function cmdLeakHashes(corpusRoot: string, env: NodeJS.ProcessEnv, readItem: AdvisorContext["readItem"], out: Output): number {

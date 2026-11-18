@@ -208,10 +208,12 @@ test("CI skips with a visible notice when there is no key, and fails with no lis
   for (const env of [{}, { BH_LEAK_KEY: "" }, { BH_LEAK_KEY: "  " }]) {
     const skipped = await ci(repoRoot, corpusRoot, ["--head", head], { ...env, GITHUB_ACTIONS: "true" });
     assert.equal(skipped.code, 0, "a fork's pull request has no secrets, and must not fail for it");
-    assert.match(skipped.lines[0], /^::notice::leak-check --hashed skipped: no BH_LEAK_KEY secret .*nothing was compared/);
+    // The private-page check needs no secret, so it runs first (tests/private-leaks.test.mts); only the corpus side skips.
+    assert.match(skipped.lines[0], /^leak-check --hashed: no private page key or plaintext in 1 commit\(s\) and 2 blob\(s\)$/);
+    assert.match(skipped.lines[1], /^::notice::leak-check --hashed skipped: no BH_LEAK_KEY secret .*no corpus text was compared/);
   }
   const plain = await ci(repoRoot, corpusRoot, ["--head", head], {});
-  assert.match(plain.lines[0], /^leak-check --hashed skipped: /, "outside Actions it is a plain line");
+  assert.match(plain.lines[1], /^leak-check --hashed skipped: /, "outside Actions it is a plain line");
 
   const noList = await ci(repoRoot, corpusRoot, ["--head", head], { BH_LEAK_KEY: KEY, GITHUB_ACTIONS: "true" });
   assert.equal(noList.code, 1, "a secret with no list is a half-done set-up, and a required check must not stay green");
@@ -390,4 +392,33 @@ test("the workflow's step fails a pull request that adds corpus words, and passe
   const dispatch = runStep({ EVENT: "workflow_dispatch", GITHUB_SHA: base, BH_LEAK_KEY: KEY });
   assert.equal(dispatch.status, 0, dispatch.stdout + dispatch.stderr);
   assert.match(dispatch.stdout, /leak-check --hashed passed: \d+ blobs/);
+});
+
+test("the workflow's step refuses a #k= key in a commit message of the range on every event, with or without the secret", (t) => {
+  const { repoRoot, commit, base, runStep } = ciCheckout(t);
+  // Made at run time: a literal key in this file would be refused by the check it tests (tests/private-leaks.test.mts).
+  const keyBody = "Zq7-x_W2".repeat(8).slice(0, 43);
+  const head = commit({ "docs/ok.html": "<p>nothing private</p>\n" }, `share it\n\nlink: docs/x.html#k=${keyBody}`);
+  assert.ok(git(repoRoot, "log", "-1", "--format=%B").includes(keyBody), "the fault was injected");
+  const refusedMessage = new RegExp(`^::error::commit ${head.slice(0, 7)}: line 3 of its message holds a private page's #k= key$`, "m");
+  for (const secret of ["", KEY]) {
+    const events: Record<string, string>[] = [
+      { EVENT: "pull_request", PR_HEAD: head, PR_BASE: base, GITHUB_SHA: "unused" },
+      { EVENT: "push", GITHUB_SHA: head, BEFORE: base },
+      { EVENT: "push", GITHUB_SHA: head, BEFORE: "0".repeat(40) },
+      { EVENT: "workflow_dispatch", GITHUB_SHA: head },
+    ];
+    for (const env of events) {
+      const r = runStep({ ...env, BH_LEAK_KEY: secret });
+      const label = `${env["EVENT"]}${env["BEFORE"] ? ` from ${env["BEFORE"].slice(0, 7)}` : ""}${secret ? " with the secret" : ""}`;
+      assert.equal(r.status, 1, `${label}: ${r.stdout}${r.stderr}`);
+      assert.match(r.stderr, refusedMessage, label);
+      assert.equal((r.stdout + r.stderr).includes(keyBody), false, `${label}: the key was printed`);
+    }
+  }
+  // A range that starts after the commit is not shown it again.
+  const later = commit({ "docs/later.html": "<p>later</p>\n" }, "clean follow-up");
+  const after = runStep({ EVENT: "push", GITHUB_SHA: later, BEFORE: head, BH_LEAK_KEY: KEY });
+  assert.equal(after.status, 0, after.stdout + after.stderr);
+  assert.match(after.stdout, /leak-check --hashed: no private page key or plaintext in 1 commit\(s\) and 1 blob\(s\)/);
 });

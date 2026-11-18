@@ -98,7 +98,7 @@ test("pre-push: --no-verify is the documented way round", (t) => {
   assert.equal(pushed(remote), true);
 });
 
-test("pre-push: a checkout with no private data is not blocked and is told the check did not run", (t) => {
+test("pre-push: a checkout with no private data is not blocked by corpus text and is told that check did not run", (t) => {
   const { repo, remote } = setup(t, { withData: false });
   fs.writeFileSync(path.join(repo, "leak.html"), `<p>${QUOTE}</p>\n`);
   ok(repo, "add", "leak.html");
@@ -106,7 +106,9 @@ test("pre-push: a checkout with no private data is not blocked and is told the c
   const r = git(repo, "push", "origin", "main");
   assert.equal(r.code, 0, r.text);
   // The hint names the directory to run in and what the argument is (#323).
-  const hint = /leak-check --pushed skipped: .*Nothing was checked\. .*run `npm run advisor -- link <path-to-data-clone>` in (\S+) \(the checkout to link; the argument is your clone of the private data repo, not a checkout of this one\)/.exec(r.text);
+  const hint = /leak-check --pushed skipped the corpus: .*no corpus text was checked .*run `npm run advisor -- link <path-to-data-clone>` in (\S+) \(the checkout to link; the argument is your clone of the private data repo, not a checkout of this one\)/.exec(r.text);
+  // The private-page check needs no private data, so it ran (see the private-page tests below).
+  assert.match(r.text, /leak-check --pushed: no private page key or plaintext in 2 commit\(s\)/);
   assert.ok(hint, r.text);
   assert.equal(fs.realpathSync(hint[1]!), fs.realpathSync(repo), "the directory it names is this checkout");
   assert.equal(pushed(remote), true);
@@ -251,3 +253,53 @@ test("pre-push: every ref in one push is scanned, and a merge's own blobs are", 
   assert.match(merged.text, /leak\.html@[0-9a-f]{7}:2: 12-word run/);
   assert.doesNotMatch(merged.text, /a\.html/, "the clean branch's blob was already on the remote");
 });
+
+// ---- private pages: a plaintext or a #k= key (scripts/private-leaks.mts; the cases in tests/private-leaks.test.mts) ----
+
+/** A made-up key, built at run time: a literal one in this file would itself be refused, and a real one is never written down. */
+const KEY_BODY = "Zq7-x_W2".repeat(8).slice(0, 43);
+const FAKE_KEY = "#k" + "=" + KEY_BODY;
+
+for (const withData of [false, true]) {
+  test(`pre-push${withData ? "" : ", with no private data"}: a force-added docs/*.private.html, and a #k= key in a file or a commit message, are refused without printing the key`, (t) => {
+    const { repo, remote } = setup(t, { withData });
+    fs.copyFileSync(path.join(ROOT, ".gitignore"), path.join(repo, ".gitignore"));
+    ok(repo, "commit", "-q", "-am", "the real ignore rules");
+    assert.equal(git(repo, "push", "origin", "main").code, 0, "a clean push passes");
+    const refused = (what: string, expected: RegExp) => {
+      const r = git(repo, "push", "origin", "main");
+      assert.notEqual(r.code, 0, `${what}: ${r.text}`);
+      assert.match(r.text, expected, what);
+      assert.match(r.text, /leak-check failed, so the push is blocked/);
+      assert.equal(r.text.includes(KEY_BODY), false, `${what}: the key was printed`);
+      assert.equal(git(remote, "rev-parse", "main").stdout.trim(), git(repo, "rev-parse", "origin/main").stdout.trim(), "nothing reached the remote");
+      ok(repo, "reset", "-q", "--hard", "origin/main");
+    };
+
+    fs.mkdirSync(path.join(repo, "docs"), { recursive: true });
+    fs.writeFileSync(path.join(repo, "docs", "x.private.html"), "<p>a private page</p>\n");
+    assert.equal(git(repo, "add", "docs/x.private.html").code === 0, false, "the ignore rule stops a plain add");
+    ok(repo, "add", "-f", "docs/x.private.html");
+    ok(repo, "commit", "-q", "-m", "force-added plaintext");
+    refused("plaintext", /docs\/x\.private\.html in commit [0-9a-f]{7}: a private page's plaintext/);
+    fs.rmSync(path.join(repo, "docs", "x.private.html"), { force: true });
+
+    fs.writeFileSync(path.join(repo, "notes.md"), `intro\nopen docs/x.html${FAKE_KEY}\n`);
+    assert.ok(fs.readFileSync(path.join(repo, "notes.md"), "utf8").includes(FAKE_KEY), "the fault was injected");
+    ok(repo, "add", "notes.md");
+    ok(repo, "commit", "-q", "-m", "a key in a file");
+    refused("key in a file", /notes\.md@[0-9a-f]{7}:2: a private page's #k= key/);
+
+    ok(repo, "commit", "-q", "--allow-empty", "-m", `share the page\n\nlink: docs/x.html${FAKE_KEY}`);
+    assert.ok(ok(repo, "log", "-1", "--format=%B").includes(FAKE_KEY), "the fault was injected");
+    refused("key in a message", /commit [0-9a-f]{7}: line 3 of its message holds a private page's #k= key/);
+
+    // The same push with nothing of the kind goes through.
+    fs.writeFileSync(path.join(repo, "notes.md"), "A link has the form docs/x.html#k=<key>.\n");
+    ok(repo, "add", "notes.md");
+    ok(repo, "commit", "-q", "-m", "a placeholder is not a key");
+    const passed = git(repo, "push", "origin", "main");
+    assert.equal(passed.code, 0, passed.text);
+    assert.match(passed.text, /leak-check --pushed: no private page key or plaintext in 1 commit\(s\) and 1 blob\(s\)/);
+  });
+}
