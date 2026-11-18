@@ -109,8 +109,15 @@ pages. A new file would need a new tag in every page, template and sealed privat
   `<head>`, inlined in place and in order, so a bundle that arrives slowly has the off state before
   its body is painted (#274: with every script at the end of `<body>`, a held-back bundle painted
   its highlights on every frame until the rest arrived). A script added to a page's `<head>`
-  without `defer`, `async` or `type="module"` gets the same treatment, so it must not need
-  anything a bundle lacks (a file beside the page, the body).
+  gets the same treatment unless it has a `defer` or `async` attribute or a `type` of `module`
+  (in double quotes, single quotes or none), so it must not need anything a bundle lacks (a file
+  beside the page, the body). Two limits of the bundler itself: it inlines only a tag written
+  `<script src="…" …></script>`, with a double-quoted `src` as its first attribute (any other
+  external script is left as a tag, which a standalone file cannot load), and a module that it
+  moves to the end of `<body>` becomes a classic script there. The text of a head script is put
+  in last, at a placeholder, so nothing `bundleHtml` replaces elsewhere (`</head>`, `</body>`,
+  links back into the site) can match inside it; `tests/unlisted.test.mts` bundles a page whose
+  head script says all of those.
 - Tests: `tests/unlisted.test.mts` (the rule) and `tests/versions.test.mts`, which holds `bh.js`
   back in Chrome and checks that no frame has marked parts without the off state, and that the
   highlights show with scripting off, when printing before `bh.js` runs, when `bh.js` fails or throws, and
