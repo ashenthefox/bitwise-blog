@@ -342,3 +342,31 @@ test("card record rule: the shared site card recorded as a fallback warns outsid
 test("card record rule: the records file is missing", () => {
   assert.deepEqual(cardMessages(() => removed(RECORDS, check)), { host: [], theme: [`error: ${RECORDS} is missing: run \`npm run cards\``] });
 });
+
+// Private page rule: a plaintext git tracks. Only .gitignore keeps `docs/*.private.html` out, and `git add -f` goes
+// past it (scripts/private-leaks.mts; the push checks are in tests/private-leaks.test.mts). The throwaway site is no
+// git checkout, so this case makes it one for its duration.
+test("private page rule: a force-added docs/*.private.html fails check; the same file ignored does not (control)", () => {
+  const rel = "docs/stray-plaintext.private.html";
+  const tracked = `error: ${rel} is tracked by git, but a private page's plaintext must never be committed: \`git rm --cached ${rel}\` (and rewrite any commit that has it); \`npm run seal\` makes the copy to commit`;
+  const gitIn = (...args: string[]) => {
+    const r = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+    assert.equal(r.status, 0, `git ${args.join(" ")}: ${r.stderr}`);
+    return r.stdout;
+  };
+  assert.equal(fs.existsSync(path.join(root, ".git")), false, "the throwaway site starts as no checkout");
+  try {
+    gitIn("init", "-q");
+    fs.copyFileSync(path.join(source, ".gitignore"), path.join(root, ".gitignore"));
+    added(rel, "<!doctype html>\n<title>Stray</title>\n", () => {
+      assert.equal(gitIn("status", "--porcelain", "--", rel), "", "the ignore rule hides it");
+      assert.equal(messagesUnder(check(), "private pages").includes(tracked), false, "an ignored plaintext is the normal case");
+      gitIn("add", "-f", rel);
+      assert.equal(gitIn("ls-files", "--", rel).trim(), rel, "the fault was injected");
+      assert.ok(messagesUnder(check(), "private pages").includes(tracked), "a tracked plaintext fails check");
+    });
+  } finally {
+    fs.rmSync(path.join(root, ".git"), { recursive: true, force: true });
+    fs.rmSync(path.join(root, ".gitignore"), { force: true });
+  }
+});

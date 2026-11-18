@@ -44,8 +44,10 @@ Guards, because a rule that must hold every time belongs in a check:
   `scripts/leak-allowed.mts`, with a reason and a cap on the shared words, so quoting more still fails.
 - `.githooks/pre-push` runs `leak-check --pushed` before every push, so it runs without anyone remembering. Enable it
   once per clone with `npm run hooks` (`git config core.hooksPath .githooks`; worktrees share the setting). With no
-  private data in the checkout it does not block the push: it says nothing was checked and how to `link` (the
-  checkout to run the command in, and that its argument is the data clone).
+  private data in the checkout it does not block the push for corpus text: it says no corpus text was checked and how to `link` (the
+  checkout to run the command in, and that its argument is the data clone). The same scan also refuses a private
+  page's `#k=` key in a pushed blob or commit message, and a pushed `*.private.html`; that part needs no private data,
+  so it always runs (`scripts/private-leaks.mts`, contracts/private-pages.md).
   With no `node_modules` (a new worktree has none) it does block the push, with one line saying to run `npm ci` in
   that checkout: the `yaml` package must resolve for the check to run at all, and skipping would look like a pass.
   It checks what is being pushed, not what is checked out: it reads the lines git gives a pre-push hook and scans
@@ -70,7 +72,8 @@ Guards, because a rule that must hold every time belongs in a check:
   Without the key the list confirms nothing about a guessed phrase. It is padded with entries derived from the key
   to the next power of two (at least 4,096), so what it still shows is the number of distinct runs to within a
   factor of two, and, between two committed versions, how many entries changed. With no secret (a pull request
-  from a fork, or before set-up) the job passes with a notice; the push to `main` that merges it is checked. With the
+  from a fork, or before set-up) the corpus part passes with a notice; the push to `main` that merges it is checked. The key
+  and plaintext part of `--pushed` runs on the same range either way, the commits' messages included. With the
   secret and no list it fails. The list is read from the base of the range when it has one, so a change that
   deletes or empties it is still checked against the old one. The reasoning is in `docs/leak-check-in-ci.html`; `tests/leak-hashes.test.mts` pins it with a fixture corpus.
   `npm run advisor -- leak-hashes` regenerates the list from the private data and the key (`$BH_LEAK_KEY`, or the

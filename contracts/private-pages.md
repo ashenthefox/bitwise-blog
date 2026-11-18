@@ -7,7 +7,9 @@ committed as plain HTML. The committed copy is encrypted, and it opens only from
 carries its key.
 
 - Write it as `docs/<slug>.private.html` (`npm run new -- --private <template> <slug> "<Title>"`).
-  That name is git-ignored. Preview it locally like any page.
+  That name is git-ignored. Preview it locally like any page. `git add -f` would still commit it,
+  so `check` fails on any tracked `*.private.html`, and the pre-push hook and the `Leak check`
+  workflow refuse a pushed one (`scripts/private-leaks.mts`; tests in `tests/private-leaks.test.mts`).
 - `npm run seal` gzips and AES-256-GCM-encrypts each private page into `docs/<slug>.html`,
   which is committed and published. Its link is `docs/<slug>.html#k=<key>`; add `&<id>`
   after the key to link to a section. `seal -- --show-links` prints the full links. The key
@@ -100,7 +102,11 @@ carries its key.
     (`tests/private-cards-browser.test.mts`, needs Chrome). It also suppresses each signal in turn.
 - After decrypting, the page removes the key from the address bar and remembers it for the
   browser session. Copied section links therefore have no key: share the full `#k=` link.
-- Never put a `#k=` link in a commit message, PR, issue or any other public place.
+- Never put a `#k=` link in a commit message, PR, issue or any other public place. The pre-push
+  hook (`leak-check --pushed`) and the `Leak check` workflow (`--hashed`) refuse a key, `#k=` or `&k=`
+  and 43 base64url characters, in a blob or a message of the commits a push or change adds (and in a
+  pushed annotated tag's message), naming the place, never the key. Both run without the private corpus
+  or any secret. They see nothing else: a PR's title or body, an issue or a comment is up to you.
 - Making a page public: rename it to `docs/<slug>.html` (replacing the sealed copy), archive
   its 1Password item (and its group's item, once no page uses the group), and run
   `npm run seal` (it drops the page's blob from `theme/private-cards.js`) then `npm run index`.

@@ -4,7 +4,9 @@
 // what publishing copies). This file holds the one that needs the private data: whether a tracked
 // file, or any blob in git history, contains a run of words from the text kept private (posts, atlas
 // quotes and statements, voice negatives, authored samples). Its output is meant to be safe to paste:
-// file names, line numbers and run lengths, never the matched words.
+// file names, line numbers and run lengths, never the matched words. The push and CI checks read the same blobs for
+// a private page's key too, and the commits for its key and plaintext (`scanRevs`, scripts/private-leaks.mts),
+// which needs no private data.
 
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -13,6 +15,7 @@ import path from "node:path";
 import { CORPUS_DIR, dataDir, markdownFiles } from "./corpus.mts";
 import { writers } from "./index.mts";
 import { LEAK_ALLOWED, type LeakAllowance } from "../leak-allowed.mts";
+import { NO_PRIVATE_PAGE_LEAKS, commitLeaks, keyLines, type KeyHit, type PrivatePageLeaks } from "../private-leaks.mts";
 
 export { LEAK_ALLOWED, type LeakAllowance };
 
@@ -419,6 +422,25 @@ export function parsePushUpdates(stdin: string): PushUpdate[] {
   return updates;
 }
 
+/** What `leak-check --pushed` found: the corpus comparison (skipped without private data), and the private-page check, which needs none. */
+export type PushedCheckResult = LeakCheckResult & { privatePages: PrivatePageLeaks };
+
+/**
+ * The `git rev-list` arguments for what a push adds: the pushed commits, not what `remote` already has (its
+ * remote-tracking refs, and each ref's current value when this repo knows that commit). Null when the push adds no
+ * commit (only deletes).
+ */
+function pushedRevs(repoRoot: string, updates: PushUpdate[], remote: string): string[] | null {
+  const pushed = [...new Set(updates.filter((u) => !ZERO_SHA.test(u.localSha)).map((u) => u.localSha))];
+  if (pushed.length === 0) return null;
+  // The remote's current value for each ref, where this clone has that commit (one call, whatever the number of refs).
+  const remoteShas = [...new Set(updates.map((u) => u.remoteSha).filter((sha) => !ZERO_SHA.test(sha)))];
+  const onRemote = remoteShas.length === 0 ? [] : gitOut(repoRoot, ["cat-file", "--batch-check=%(objectname) %(objecttype)"], remoteShas.map((sha) => `${sha}^{commit}`).join("\n") + "\n").toString("utf8")
+    .split("\n").filter((line) => line.endsWith(" commit")).map((line) => line.split(" ")[0]);
+  // `--remotes=<pattern>` is a glob, so only a plain remote name is passed; a URL has no tracking refs anyway.
+  return [...pushed, "--not", ...(/^[\w.-]+$/.test(remote) ? [`--remotes=${remote}`] : []), ...onRemote];
+}
+
 /**
  * The same comparison for the blobs a push would add: those reachable from the pushed commits but not from what
  * `remote` already has (its remote-tracking refs, and each ref's current value when this repo knows that commit).
@@ -426,23 +448,16 @@ export function parsePushUpdates(stdin: string): PushUpdate[] {
  * URL has no tracking refs, so everything reachable from the pushed refs is read: more than needed, never less.
  * A blob is judged by each path it was committed at, as in `leakCheckHistory`, so text already in older history
  * (and the allowances that cover it) does not block a push that doesn't add it. Remote-tracking refs are whatever this
- * clone last fetched, so a stale one counts as what the remote has. `updates` may be a function, called only once
- * there is private data to compare with, so a checkout without it never reads or parses the hook's input.
+ * clone last fetched, so a stale one counts as what the remote has.
+ * The same read also runs the private-page check (scripts/private-leaks.mts) on those blobs and on the commits the
+ * push adds. That needs no private data, so it runs, and `updates` is read, even when the corpus comparison skips.
  */
-export function leakCheckPushed(repoRoot: string, updates: PushUpdate[] | (() => PushUpdate[]), remote: string, corpusRoot: string = CORPUS_DIR, allowances: Record<string, LeakAllowance> = LEAK_ALLOWED): LeakCheckResult {
+export function leakCheckPushed(repoRoot: string, updates: PushUpdate[] | (() => PushUpdate[]), remote: string, corpusRoot: string = CORPUS_DIR, allowances: Record<string, LeakAllowance> = LEAK_ALLOWED): PushedCheckResult {
   const found = privateRuns(corpusRoot);
-  if (!found) return { status: "skipped", reason: SKIPPED };
-  if (typeof updates === "function") updates = updates();
-  const pushed = [...new Set(updates.filter((u) => !ZERO_SHA.test(u.localSha)).map((u) => u.localSha))];
-  const digest = lazyDigest(found.runs);
-  if (pushed.length === 0) return { status: "done", sources: found.sources, digest, unread: 0, files: 0, hits: [], allowed: [] };
-  // The remote's current value for each ref, where this clone has that commit (one call, whatever the number of refs).
-  const remoteShas = [...new Set(updates.map((u) => u.remoteSha).filter((sha) => !ZERO_SHA.test(sha)))];
-  const onRemote = remoteShas.length === 0 ? [] : gitOut(repoRoot, ["cat-file", "--batch-check=%(objectname) %(objecttype)"], remoteShas.map((sha) => `${sha}^{commit}`).join("\n") + "\n").toString("utf8")
-    .split("\n").filter((line) => line.endsWith(" commit")).map((line) => line.split(" ")[0]);
-  // `--remotes=<pattern>` is a glob, so only a plain remote name is passed; a URL has no tracking refs anyway.
-  const revs = [...pushed, "--not", ...(/^[\w.-]+$/.test(remote) ? [`--remotes=${remote}`] : []), ...onRemote];
-  return { status: "done", sources: found.sources, digest, ...compareRevs(repoRoot, revs, found.runs, allowances) };
+  const revs = pushedRevs(repoRoot, typeof updates === "function" ? updates() : updates, remote);
+  const { corpus, privatePages } = revs ? scanRevs(repoRoot, revs, found?.runs ?? null, allowances) : { corpus: NOTHING_COMPARED, privatePages: NO_PRIVATE_PAGE_LEAKS };
+  if (!found) return { status: "skipped", reason: SKIPPED, privatePages };
+  return { status: "done", sources: found.sources, digest: lazyDigest(found.runs), ...corpus, privatePages };
 }
 
 /** What a comparison of blobs found, without the private sources it compared with. */
@@ -457,4 +472,34 @@ export function compareRevs(repoRoot: string, revs: string[], runs: RunSet, allo
   const stats: HistoryStats = { tooLarge: 0 };
   const compared = compare(historyTexts(repoRoot, stats, revs), runs, allowances);
   return { ...compared, unread: stats.tooLarge };
+}
+
+const NOTHING_COMPARED: BlobComparison = { files: 0, hits: [], allowed: [], unread: 0 };
+
+/**
+ * What `revs` add, with the blobs read once: the private-page check (a `#k=` key in a blob or a commit message, a
+ * `*.private.html` path) always, and with `runs`, the corpus comparison of `compareRevs` on the same blobs. Without
+ * `runs` (no private data, or no CI secret) the corpus side compares nothing and says how many blobs it read.
+ */
+export function scanRevs(repoRoot: string, revs: string[], runs: RunSet | null, allowances: Record<string, LeakAllowance> = LEAK_ALLOWED): { corpus: BlobComparison; privatePages: PrivatePageLeaks } {
+  const stats: HistoryStats = { tooLarge: 0 };
+  const keys: KeyHit[] = [];
+  const blobs = new Map<string, number[]>();
+  function* checked(): Generator<Text> {
+    for (const text of historyTexts(repoRoot, stats, revs)) {
+      const blob = text.blob!;
+      let lines = blobs.get(blob);
+      if (!lines) blobs.set(blob, (lines = keyLines(text.text)));
+      for (const line of lines) keys.push({ file: text.file, blob, line });
+      yield text;
+    }
+  }
+  let corpus: BlobComparison;
+  if (runs) corpus = { ...compare(checked(), runs, allowances), unread: stats.tooLarge };
+  else {
+    for (const _ of checked());
+    corpus = { ...NOTHING_COMPARED, files: blobs.size, unread: stats.tooLarge };
+  }
+  const commits = commitLeaks((args, input) => gitOut(repoRoot, args, input), revs);
+  return { corpus, privatePages: { keys: [...keys, ...commits.keys], plaintext: commits.plaintext, commits: commits.commits, blobs: blobs.size } };
 }

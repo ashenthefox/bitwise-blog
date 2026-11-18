@@ -510,9 +510,16 @@ test("leak-check --pushed: reads only what the push adds, judges each blob by it
   assert.match(s.errors[0], /^old\.html@[0-9a-f]{7}:1: \d+-word run from post text$/);
   assert.match(s.errors.at(-1)!, /^leak-check --pushed FAILED: 1 run\(s\) of 8\+ words in blobs this push adds$/);
   const noPrivate = leakFixture(t, []);
+  git(noPrivate.repoRoot, "commit", "-qm", "clean");
+  const noPrivateTip = git(noPrivate.repoRoot, "rev-parse", "HEAD").trim();
   const skipped = sink();
-  assert.equal(await main(["leak-check", "--pushed", "origin"], { corpusRoot: path.join(noPrivate.repoRoot, "corpus"), repoRoot: noPrivate.repoRoot, out: skipped.out, stdin: () => "nonsense\n" }), 0, "with no data the input is not even read");
-  assert.match(skipped.lines[0], /^leak-check --pushed skipped: /);
+  assert.equal(await main(["leak-check", "--pushed", "origin"], { corpusRoot: path.join(noPrivate.repoRoot, "corpus"), repoRoot: noPrivate.repoRoot, out: skipped.out, stdin: () => `refs/heads/x ${noPrivateTip} refs/heads/x ${ZERO}\n` }), 0, skipped.errors.join("\n"));
+  // The private-page check needs no private data, so it runs (tests/private-leaks.test.mts); only the corpus side skips.
+  assert.match(skipped.lines[0], /^leak-check --pushed: no private page key or plaintext in 1 commit\(s\) and 1 blob\(s\)$/);
+  assert.match(skipped.lines[1], /^leak-check --pushed skipped the corpus: no posts, .*so no corpus text was checked/);
+  const garbledNoData = sink();
+  assert.equal(await main(["leak-check", "--pushed", "origin"], { corpusRoot: path.join(noPrivate.repoRoot, "corpus"), repoRoot: noPrivate.repoRoot, out: garbledNoData.out, stdin: () => "nonsense\n" }), 1, "with no data the input is still read");
+  assert.match(garbledNoData.errors[0], /^error: unexpected pre-push input/);
   const garbled = sink();
   assert.equal(await main(["leak-check", "--pushed", "origin"], { corpusRoot, repoRoot, out: garbled.out, stdin: () => "nonsense\n" }), 1);
   assert.match(garbled.errors[0], /^error: unexpected pre-push input/);
