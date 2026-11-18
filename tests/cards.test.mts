@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import crypto from "node:crypto";
+import fs from "node:fs";
 import type http from "node:http";
+import os from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { findChrome, launchChrome, serveStatic, sleep } from "../scripts/chrome.mts";
 import { prepareVisual } from "../scripts/cards.mts";
+import { CARD_RECORDS_FILE } from "../scripts/card-records.mts";
 
 // A page opens with its change highlights off, and a card is a screenshot of the page. A card has no
 // button to ask for the marks, so `prepareVisual` (the script `npm run cards` runs in the page right
@@ -93,4 +98,73 @@ test("cards: the page is captured with its change highlights on", { skip, timeou
   const after: Part[] = await evaluate(probe);
   for (const p of after) assert.notEqual(p.looks, p.plain, `${p.id} is highlighted when the card is captured`);
   assert.ok(after.some((p) => p.looks.includes("5px, 4px")), "a removed part has its dashed outline");
+});
+
+// A card's key lives in social-cards.txt, not in the PNG, so drawing a card again leaves the PNG's bytes
+// alone when its pixels are the same, and git sees only the text change (contracts/social-cards.md).
+test("cards: the same pixels keep the PNG's bytes and update only its record; new pixels rewrite it; a conflict is repaired", { skip, timeout: 240000 }, (t) => {
+  const site = fs.mkdtempSync(join(os.tmpdir(), "bh-cards-test-"));
+  t.after(() => fs.rmSync(site, { recursive: true, force: true }));
+  for (const entry of ["scripts", "theme", "docs", "package.json", CARD_RECORDS_FILE]) fs.cpSync(join(root, entry), join(site, entry), { recursive: true });
+  const cards = () => {
+    const r = spawnSync(process.execPath, [join(site, "scripts/bh.mts"), "cards"], { cwd: site, encoding: "utf8", timeout: 200000 });
+    const out = ((r.stdout || "") + (r.stderr || "")).replace(/\x1b\[[0-9;]*m/g, "");
+    assert.equal(r.status, 0, out);
+    return out;
+  };
+  const og = join(site, "docs/assets/og"), recordsFile = join(site, CARD_RECORDS_FILE);
+  const pngs = () => new Map(fs.readdirSync(og).sort().map((f) => [f, fs.readFileSync(join(og, f))]));
+  const records = () => fs.readFileSync(recordsFile, "utf8");
+  const line = (text: string, slug: string) => text.split("\n").find((l) => l.startsWith(slug + " "))!.split(" ");
+  const sha = (b: Buffer) => crypto.createHash("sha256").update(b).digest("hex");
+  /** Which PNGs differ, byte for byte, between two snapshots. */
+  const changed = (a: Map<string, Buffer>, b: Map<string, Buffer>) => [...a].filter(([f, bytes]) => !b.get(f)?.equals(bytes)).map(([f]) => f);
+  /** Which record lines differ between two texts. */
+  const changedLines = (a: string, b: string) => a.split("\n").filter((l) => !b.split("\n").includes(l));
+  const SLUG = "glossary", PAGE = join(site, `docs/${SLUG}.html`), CARD = `${SLUG}.png`;
+  const edit = (from: string, to: string) => {
+    const html = fs.readFileSync(PAGE, "utf8");
+    assert.ok(html.includes(from), `${from} is not in the page`);
+    fs.writeFileSync(PAGE, html.replace(from, () => to));
+  };
+
+  // PNGs differ slightly from machine to machine, so first draw the page's card on this one: with its
+  // record gone, it is drawn again (and rewritten only if this Chrome draws other pixels).
+  const committed = records();
+  fs.writeFileSync(recordsFile, committed.replace(line(committed, SLUG).join(" ") + "\n", ""));
+  assert.notEqual(records(), committed, "the record was removed");
+  assert.match(cards(), /Rendered (?:0 cards, 1 drawn again with the same pixels \(PNG kept\)|1 card), \d+ already up to date/);
+  assert.equal(records(), committed.replace(line(committed, SLUG).join(" "), () => line(records(), SLUG).join(" ")), "only that record was written back");
+
+  // The control: every card is current, so nothing is drawn and nothing is written.
+  const start = pngs(), startRecords = records();
+  assert.match(cards(), /All \d+ cards are up to date/);
+  assert.deepEqual(changed(start, pngs()), []);
+  assert.equal(records(), startRecords);
+
+  // An input that changes no pixel: the card is drawn again, its PNG is kept, and only its record's key changes.
+  edit("</head>", "<style>/* changes no pixel */</style>\n</head>");
+  assert.match(cards(), /Rendered 0 cards, 1 drawn again with the same pixels \(PNG kept\)/);
+  assert.deepEqual(changed(start, pngs()), [], "no PNG changed, byte for byte");
+  const same = records();
+  assert.deepEqual(changedLines(same, startRecords).map((l) => l.split(" ")[0]), [SLUG], "only the edited page's record changed");
+  assert.notEqual(line(same, SLUG)[1], line(startRecords, SLUG)[1], "its key changed");
+  assert.equal(line(same, SLUG)[2], line(startRecords, SLUG)[2], "it names the same PNG");
+
+  // An input that changes the picture: that PNG alone is rewritten, and its record names the new file.
+  edit("<title>Glossary</title>", "<title>Glossary of every term</title>");
+  assert.match(cards(), /Rendered 1 card, \d+ already up to date/);
+  const drawn = pngs(), redrawn = records();
+  assert.deepEqual(changed(start, drawn), [CARD]);
+  assert.deepEqual(changedLines(redrawn, same).map((l) => l.split(" ")[0]), [SLUG]);
+  assert.equal(line(redrawn, SLUG)[2], sha(drawn.get(CARD)!));
+
+  // A merge conflict left in the file, the two sides naming different keys: `npm run cards` draws that
+  // card again, finds the same pixels, keeps the PNG and writes the record as it was.
+  const ours = line(redrawn, SLUG).join(" "), theirs = line(startRecords, SLUG).join(" ");
+  fs.writeFileSync(recordsFile, redrawn.replace(ours, () => `<<<<<<< HEAD\n${ours}\n=======\n${theirs}\n>>>>>>> theirs`));
+  assert.notEqual(records(), redrawn, "the conflict was written");
+  assert.match(cards(), /1 drawn again with the same pixels/);
+  assert.deepEqual(changed(drawn, pngs()), []);
+  assert.equal(records(), redrawn);
 });

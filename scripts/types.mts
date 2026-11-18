@@ -56,7 +56,7 @@ export interface Visual {
   problem?: string;
 }
 
-/** Everything that decides how one page's card looks; `key` is the staleness hash recorded in the PNG. */
+/** Everything that decides how one page's card looks; `key` is the staleness hash, recorded in social-cards.txt. */
 export interface CardJob {
   slug: string;
   href: string;

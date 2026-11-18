@@ -4,7 +4,7 @@
 //   node scripts/bh.mts new [--private] [--example] [--unlisted] <template> <slug> "<Title>" ["<description>"]
 //   node scripts/bh.mts index                 regenerate index.html list, social meta (with JSON-LD), feed.xml, sitemap.xml, robots.txt, 404.html, theme/{glossary,site,search-index,unlisted-pages,unlisted-slugs}.js
 //   node scripts/bh.mts check [--skip-keys]   lint docs/ and index.html (--skip-keys: no 1Password lookups)
-//   node scripts/bh.mts cards                 render docs/assets/og/<slug>.png (needs Chrome; see scripts/cards.mts)
+//   node scripts/bh.mts cards                 render docs/assets/og/<slug>.png and record it in social-cards.txt (needs Chrome; see scripts/cards.mts)
 //   node scripts/bh.mts bundle <page|--all>   inline theme → dist/<name>.html (single file)
 //   node scripts/bh.mts diff <page> [base] [head]   what changed in a page between two versions → dist/diff/<name>.html (see contracts/page-diff.md)
 //   node scripts/bh.mts seal [--show-links|--reshell]   encrypt docs/*.private.html → docs/<slug>.html (see contracts/private-pages.md)
@@ -26,6 +26,8 @@ import {
 } from "./private-cards.mts";
 import { inlineScriptProblems } from "./inline-scripts.mts";
 import { pageWeight, pageSizeFinding } from "./page-size.mts";
+import { pngSize } from "./png.mts";
+import { CARD_RECORDS_FILE, parseCardRecords, renderCardRecords } from "./card-records.mts";
 import { reviewFiles, readReview, canonicalDocument, isPrivateDocument, reviewRecord, sameReviewMessage, reviewProblems, isSealedFile, isSealedShell, PRIVATE_EXT } from "./reviews.mts";
 import { stripComments, VOID_TAGS, parseTree, nodeAttr, hasClass, walkTree, findNode, nodeText, decodeEntities } from "./html-tree.mts";
 import { arrowTipFindings, diagramLabelFindings } from "./check/diagram-geometry.mts";
@@ -405,26 +407,29 @@ function cardJob(file: string): CardJob {
   };
 }
 
-/** { width, height, card } of a PNG: its size and the `bh-card` key recorded in it (or null). */
-function readPng(file: string): { width: number; height: number; card: string | null } | null {
-  const b = fs.readFileSync(file);
-  if (b.length < 33 || b.readUInt32BE(0) !== 0x89504e47) return null;
-  let card = null;
-  for (let p = 8; p + 12 <= b.length;) {
-    const len = b.readUInt32BE(p), kind = b.toString("ascii", p + 4, p + 8);
-    if (kind === "tEXt") {
-      const t = b.toString("latin1", p + 8, p + 8 + len), i = t.indexOf("\0");
-      if (t.slice(0, i) === "bh-card") card = t.slice(i + 1);
-    }
-    if (kind === "IEND") break;
-    p += 12 + len;
-  }
-  return { width: b.readUInt32BE(16), height: b.readUInt32BE(20), card };
-}
+// Each card's key and the hash of its PNG live in social-cards.txt, not in the PNG (scripts/card-records.mts),
+// so a re-render that draws the same pixels leaves the PNG's bytes alone. Cards drawn before that still
+// carry a `bh-card` tEXt chunk; nothing reads it.
+const CARD_RECORDS = path.join(ROOT, CARD_RECORDS_FILE);
+/** social-cards.txt as written, or null when there is none. */
+const cardRecordsText = (): string | null => (fs.existsSync(CARD_RECORDS) ? fs.readFileSync(CARD_RECORDS, "utf8") : null);
 
 function orphanCards(): string[] {
   const slugs = new Set(docFiles().map((f) => path.basename(f, ".html")));
   return fs.existsSync(CARD_DIR) ? fs.readdirSync(CARD_DIR).filter((f) => f.endsWith(".png") && !slugs.has(f.slice(0, -4))) : [];
+}
+
+/** Problems with social-cards.txt as a whole: missing, a line it cannot read, not canonical, or a record of no public page. */
+function cardRecordProblems(): string[] {
+  const text = cardRecordsText();
+  if (text === null) return [`${CARD_RECORDS_FILE} is missing: run \`npm run cards\``];
+  const { records, problems } = parseCardRecords(text);
+  const slugs = new Set(docFiles().map((f) => path.basename(f, ".html")));
+  return [
+    ...problems.map((p) => `${CARD_RECORDS_FILE}: ${p}: run \`npm run cards\``),
+    ...(!problems.length && renderCardRecords(records) !== text ? [`${CARD_RECORDS_FILE} is not in its canonical form (the header, then one card per line in slug order): run \`npm run cards\``] : []),
+    ...[...records.keys()].filter((s) => !slugs.has(s)).map((s) => `${CARD_RECORDS_FILE} records ${s}, which is no public page: run \`npm run cards\` to remove it`),
+  ];
 }
 
 /** Problems with the site base: it has to be an absolute http(s) URL, since crawlers need that. */
@@ -440,11 +445,29 @@ async function cmdCards(argv: string[]): Promise<void> {
   }
   const jobs = docFiles().map(cardJob);
   for (const j of jobs) if (j.selection.problem) throw new Error(`${j.href}: ${j.selection.problem}`);
-  const todo = jobs.filter((j) => force || !fs.existsSync(j.out) || readPng(j.out)?.card !== j.key);
-  if (!todo.length) { console.log(c.green(`All ${jobs.length} cards are up to date.`)); return; }
+  // A line it cannot read, or a slug listed twice (a conflict left in the file), is no record: that card is drawn again.
+  const before = cardRecordsText();
+  const { records } = parseCardRecords(before ?? "");
+  const slugs = new Set(jobs.map((j) => j.slug));
+  for (const s of [...records.keys()].filter((s) => !slugs.has(s))) {
+    records.delete(s);
+    console.log(c.dim(`Removed ${s} from ${CARD_RECORDS_FILE} (no public page has that name)`));
+  }
+  const pngHash = (f: string) => (fs.existsSync(f) ? sha256(fs.readFileSync(f)) : null);
+  // Current: the record names this key, and the PNG on disk is the one it was recorded with.
+  const current = (j: CardJob) => { const r = records.get(j.slug); return !!r && r.key === j.key && r.png === pngHash(j.out); };
+  const todo = jobs.filter((j) => force || !current(j));
+  const save = () => {
+    const text = renderCardRecords(records);
+    if (text !== before) { fs.writeFileSync(CARD_RECORDS, text); console.log(c.dim(`Wrote ${CARD_RECORDS_FILE}`)); }
+  };
+  if (!todo.length) { save(); console.log(c.green(`All ${jobs.length} cards are up to date.`)); return; }
   const { renderCards } = await import("./cards.mts");
   const r = await renderCards(todo, { sharedCard: path.join(ROOT, SHARED_CARD), systemFonts: argv.includes("--system-fonts") });
-  console.log(c.green(`Rendered ${r.rendered} card${r.rendered === 1 ? "" : "s"}`) + (r.fallback ? c.yellow(`, ${r.fallback} fell back to the shared card`) : "") + c.dim(`, ${jobs.length - todo.length} already up to date`));
+  // A card that failed keeps its old record, so `check` still calls it stale. Without Chrome every job is a fallback.
+  for (const j of todo) if (!r.failed.includes(j.href)) records.set(j.slug, { key: r.fallback ? "fallback" : j.key, png: pngHash(j.out)! });
+  save();
+  console.log(c.green(`Rendered ${r.rendered} card${r.rendered === 1 ? "" : "s"}`) + (r.unchanged ? c.green(`, ${r.unchanged} drawn again with the same pixels (PNG kept)`) : "") + (r.fallback ? c.yellow(`, ${r.fallback} fell back to the shared card`) : "") + c.dim(`, ${jobs.length - todo.length} already up to date`));
   if (r.failed.length) throw new Error(`could not render the card of ${r.failed.join(", ")}`);
 }
 
@@ -1190,6 +1213,8 @@ function cmdCheck(skipKeys = false): void {
   const templates = fs.readdirSync(TEMPLATES).filter((f) => f.endsWith(".html")).sort().map((f) => path.join(TEMPLATES, f));
   const files = [INDEX, ...docFiles(), ...privateSources(), ...templates];
   const publicDocs = docFiles().map(readDoc);
+  // What each card was rendered from (social-cards.txt); a missing file is reported once, under the theme.
+  const recordsText = cardRecordsText(), cardRecords = parseCardRecords(recordsText ?? "").records;
 
   // Theme: stylesheet import order and token contrast in both themes.
   {
@@ -1200,6 +1225,7 @@ function cmdCheck(skipKeys = false): void {
       ...siteUrlProblems(),
       ...themeRemoteProblems(ROOT),
       ...orphanCards().map((f) => `docs/assets/og/${f} belongs to no public page: run \`npm run cards\` to remove it`),
+      ...cardRecordProblems(),
     ];
     console.log((problems.length ? c.red("✗ ") : c.green("✓ ")) + "theme (import order, token contrast, logo, site base, card files, self-hosted fonts and scripts)");
     problems.forEach((p) => console.log(c.red("  error  ") + p));
@@ -1448,11 +1474,16 @@ function cmdCheck(skipKeys = false): void {
       // The card image: one per public page, current for the visual and the text it shows.
       const job = cardJob(file);
       if (job.selection.problem) err(job.selection.problem);
-      const png = fs.existsSync(job.out) ? readPng(job.out) : undefined;
-      if (png === undefined) err(`no social card ${path.relative(ROOT, job.out)}: run \`npm run cards\``);
-      else if (!png || png.width !== CARD_W || png.height !== CARD_H) err(`social card ${path.relative(ROOT, job.out)} must be a ${CARD_W}x${CARD_H} PNG`);
-      else if (png.card === "fallback") (process.env.CI ? err : warn)("social card is the shared site card (rendered without Chrome): run `npm run cards` where Chrome is installed");
-      else if (png.card !== job.key) err(`social card ${path.relative(ROOT, job.out)} is stale: run \`npm run cards\``);
+      // The record binds the key to the exact PNG committed with it, so a PNG swapped or kept from the
+      // other side of a merge fails here even when its record's key is current.
+      const out = path.relative(ROOT, job.out), png = fs.existsSync(job.out) ? fs.readFileSync(job.out) : undefined;
+      const dims = png && pngSize(png), record = cardRecords.get(job.slug);
+      if (png === undefined) err(`no social card ${out}: run \`npm run cards\``);
+      else if (!dims || dims.width !== CARD_W || dims.height !== CARD_H) err(`social card ${out} must be a ${CARD_W}x${CARD_H} PNG`);
+      else if (!record) { if (recordsText !== null) err(`social card ${out} has no record in ${CARD_RECORDS_FILE}: run \`npm run cards\``); }
+      else if (record.png !== sha256(png)) err(`social card ${out} is not the PNG that ${CARD_RECORDS_FILE} records for it: run \`npm run cards\``);
+      else if (record.key === "fallback") (process.env.CI ? err : warn)("social card is the shared site card (rendered without Chrome): run `npm run cards` where Chrome is installed");
+      else if (record.key !== job.key) err(`social card ${out} is stale: run \`npm run cards\``);
     }
 
     if (isDoc) {

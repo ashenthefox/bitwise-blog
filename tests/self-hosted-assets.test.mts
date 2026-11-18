@@ -84,7 +84,7 @@ test("the vendored Prism has every listed language, with aliases, and nothing el
 function fixture(t: TestContext) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "bh-vendor-test-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  for (const entry of ["scripts", "theme", "docs", "reviews", "templates", "package.json", "index.html"]) fs.cpSync(path.join(source, entry), path.join(root, entry), { recursive: true });
+  for (const entry of ["scripts", "theme", "docs", "reviews", "templates", "package.json", "index.html", "social-cards.txt"]) fs.cpSync(path.join(source, entry), path.join(root, entry), { recursive: true });
   const bundle = (rel: string) => {
     const r = spawnSync(process.execPath, [path.join(root, "scripts/bh.mts"), "bundle", rel], { cwd: root, encoding: "utf8" });
     assert.equal(r.status, 0, r.stdout + r.stderr);

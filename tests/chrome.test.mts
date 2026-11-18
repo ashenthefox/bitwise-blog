@@ -64,7 +64,7 @@ function fixture(t: TestContext, body: string): FixtureEnv {
 function rendererFixture(env: FixtureEnv, renderer = "visual.mts"): string {
   const scripts = path.join(path.dirname(env.CHROME_PATH), "repo", "scripts");
   fs.mkdirSync(scripts, { recursive: true });
-  for (const file of [renderer, "chrome.mts", "visual-report.mts"]) fs.copyFileSync(path.join(root, "scripts", file), path.join(scripts, file));
+  for (const file of [renderer, "chrome.mts", "visual-report.mts", "png.mts"]) fs.copyFileSync(path.join(root, "scripts", file), path.join(scripts, file));
   return path.join(scripts, renderer);
 }
 
@@ -315,7 +315,7 @@ test("cards reports every page failure and releases resources across repeated ru
     const { renderCards } = await import(${JSON.stringify(pathToFileURL(cards).href)});
     const jobs = ['one', 'two'].map(slug => ({ slug, href: slug + '.html', out: ${JSON.stringify(path.dirname(env.CHROME_PATH))} + '/' + slug + '.png', selection: { css: 'figure', index: 0 } }));
     for (let i = 0; i < 2; i++) {
-      assert.deepEqual(await renderCards(jobs, { sharedCard: '' }), { rendered: 0, fallback: 0, failed: ['one.html', 'two.html'] });
+      assert.deepEqual(await renderCards(jobs, { sharedCard: '' }), { rendered: 0, unchanged: 0, fallback: 0, failed: ['one.html', 'two.html'] });
     }
     console.log('CLOSED');
   `], env);
@@ -334,10 +334,11 @@ test("cards without Chrome retains shared-card fallback across repeated runs", a
   const result = await run(["--input-type=module", "-e", `
     const assert = (await import('node:assert/strict')).default;
     const fs = (await import('node:fs')).default;
-    const { renderCards, tagPng } = await import(${JSON.stringify(pathToFileURL(cards).href)});
+    const { renderCards } = await import(${JSON.stringify(pathToFileURL(cards).href)});
     for (let i = 0; i < 2; i++) {
-      assert.deepEqual(await renderCards([{ out: ${JSON.stringify(out)} }], { sharedCard: ${JSON.stringify(sharedCard)} }), { rendered: 0, fallback: 1, failed: [] });
-      assert.deepEqual(fs.readFileSync(${JSON.stringify(out)}), tagPng(fs.readFileSync(${JSON.stringify(sharedCard)}), 'fallback'));
+      assert.deepEqual(await renderCards([{ out: ${JSON.stringify(out)} }], { sharedCard: ${JSON.stringify(sharedCard)} }), { rendered: 0, unchanged: 0, fallback: 1, failed: [] });
+      // A plain copy: the card's record in social-cards.txt, not the PNG, says it is a fallback.
+      assert.deepEqual(fs.readFileSync(${JSON.stringify(out)}), fs.readFileSync(${JSON.stringify(sharedCard)}));
     }
     console.log('CLOSED');
   `], env);

@@ -1,6 +1,6 @@
 # Social cards
 
-Read this before touching the social meta block, `bh:image`, `npm run cards`, `scripts/cards.mts` or `docs/assets/og/`.
+Read this before touching the social meta block, `bh:image`, `npm run cards`, `scripts/cards.mts`, `social-cards.txt` or `docs/assets/og/`.
 
 Every public page unfurls into a rich preview (Open Graph and Twitter `summary_large_image`)
 when its link is pasted into Slack, Discord, iMessage, LinkedIn, X or Mastodon. Authors write
@@ -50,20 +50,54 @@ nothing for this; two generated things do the work.
   cannot switch the marks off again. The card therefore differs from the page as it opens:
   that is decided, not a bug. No `data-changes` attribute decides what a card shows, so none is
   part of the staleness hash below.
-- **Staleness.** Each PNG records a hash (a `tEXt` chunk named `bh-card`) of the chosen
-  visual's source and image files, the title, kind, date, site name, the page's `<style>`,
+- **Staleness.** A card's *key* is a hash of the chosen visual's source and image files, the
+  title, kind, date, site name, the page's `<style>`,
   `theme/{fonts,tokens,base,layout,components,diagrams}.css`, the font files, `theme/bh.js`, the logo and
   `scripts/cards.mts` (plus `theme/modules/*.js` when the visual is a `<bh-…>` component).
   So a theme change makes every card stale: re-run `npm run cards` along with
-  `npm run visual`. `check` recomputes the hash with no browser and fails on a missing,
-  wrong-sized or stale card, and on a card whose page is gone or private. `npm run cards`
-  skips cards that are current, deletes orphans, and keeps going when one page can't be drawn
-  (it then exits non-zero and names it; a figure hidden in an inactive tab needs `bh:image`).
-  Commit the PNGs. They differ slightly from machine to machine; only the hash is compared.
+  `npm run visual`.
+- **The records, `social-cards.txt`.** The key is not in the PNG. One generated text file at the
+  root of the repository holds, for each card, one line in slug order:
+  `<slug> <key> <sha-256 of the PNG>` (the key is `fallback` for a copy of the shared card). The
+  PNG's hash binds the record to the exact file committed with it, so a PNG from one side of a
+  merge and a record from the other cannot pass.
+  - **`npm run cards`** draws every card whose record is missing, names another key or another
+    PNG. When the new picture has exactly the pixels of the PNG already on disk, it leaves that
+    file's bytes alone and only rewrites the record; otherwise it writes the new PNG. So a theme
+    change that moves no pixel changes one text file and no binary, and two such pull requests
+    no longer conflict on PNGs. It also deletes orphan cards and records, rewrites the file in its
+    canonical form, and keeps going when one page can't be drawn (it then exits non-zero and names
+    it, and that card keeps its old, stale record; a figure hidden in an inactive tab needs `bh:image`).
+  - **"The same pixels" means exactly the same**: both PNGs are decoded (`scripts/png.mts`) and
+    every channel of every pixel must match; the encoding, compression and any text chunk may
+    differ. There is no tolerance because none is needed on one machine: on 2026-11-18, two forced
+    renders of all 16 cards in Chrome 157 on macOS were byte-identical to each other and to the
+    committed PNGs (0 differing pixels). Another machine's Chrome may draw a few pixels
+    differently; such a card is then rewritten, which is the honest outcome, and no worse than
+    before. A tolerance would hide a real small change, such as a token nudged by one step.
+  - **`check`** needs no browser. It recomputes each key and fails when a card's record is
+    missing, names another key (the card is stale) or another PNG, when a record or a PNG has no
+    public page, when a line is not a record (a merge conflict left in), and when the file is not
+    in its canonical form. So `check` still fails whenever a card's picture could differ from the
+    one committed. Commit the PNGs and `social-cards.txt` together.
+  - **After a rebase or merge** onto a main that changed the theme, run `npm run cards` and commit
+    what it changes. **A conflict in `social-cards.txt` resolves the same way:** take either side
+    (or leave the conflict markers in), run `npm run cards`, and commit. A line it cannot read, or a
+    slug listed twice, counts as no record, so those cards are drawn again and compared with the
+    PNG on disk. A conflict in a PNG itself (both sides changed its pixels): take either side and
+    run `npm run cards`. Rendering needs Chrome, so the records cannot be soundly regenerated
+    without it.
+  - Cards drawn before the records existed still carry a `tEXt` chunk named `bh-card` with an old
+    key. Nothing reads it, and it goes when that card's pixels next change.
 - **No Chrome.** `npm run cards` then replaces each missing or stale card with a copy of the
-  shared site card (`theme/logo/og.png`), tagged `fallback`. `check` accepts that locally with
+  shared site card (`theme/logo/og.png`), recorded as `fallback`. `check` accepts that locally with
   a warning, so you are not blocked, but **fails under `CI`**: render the card where Chrome
   exists before the PR merges. Rendering needs Node ≥ 22.
+- **Visibility.** `social-cards.txt` names the same slugs as the file names in `docs/assets/og/`
+  (every public page, example and unlisted ones included; never a sealed or private one) and only
+  hashes besides. It sits outside `docs/` and `theme/`, the directories the deploy copies, so it is
+  never published, and it cannot reveal an example page's slug on the site, from which the deploy
+  removes the example's card (see `docs/visibility-threat-model.html`).
 - **The home page** uses the shared site card. **Bundles** (`npm run bundle`) keep
   `og:title`, `og:description` and `article:*` but drop `canonical`, `og:url`, `og:image*` and
   `twitter:*`, since a standalone file has no URL or card of its own.
@@ -73,4 +107,5 @@ nothing for this; two generated things do the work.
   shell stale: run `npm run index`, `npm run cards` and `npm run seal -- --reshell`.
 - **Private pages** unfurl as one generic "Private page" card: see [Private pages](private-pages.md).
 - Render the cards and look at them when you change `scripts/cards.mts`, the theme tokens or
-  a diagram's colours. `docs/assets/og/` holds only cards, one per public page.
+  a diagram's colours. `docs/assets/og/` holds only cards, one per public page, and
+  `social-cards.txt` one record per card.

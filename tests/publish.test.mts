@@ -22,7 +22,7 @@ function fixture(t: TestContext) {
   t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
   const source = path.join(temp, "source"), stage = path.join(temp, "stage");
   fs.mkdirSync(source); fs.mkdirSync(stage);
-  for (const entry of ["scripts", "theme", "docs", "reviews", "package.json", "index.html", "feed.xml", "sitemap.xml", "robots.txt", "404.html"]) {
+  for (const entry of ["scripts", "theme", "docs", "reviews", "package.json", "index.html", "feed.xml", "sitemap.xml", "robots.txt", "404.html", "social-cards.txt"]) {
     fs.cpSync(path.join(ROOT, entry), path.join(source, entry), { recursive: true });
   }
   return { source, stage, assemble() {
