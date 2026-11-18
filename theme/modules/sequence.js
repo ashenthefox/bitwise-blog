@@ -16,6 +16,10 @@
    Actors are .node groups with dashed lifelines; messages are .edge paths whose tips
    land on the target lifeline (path ends ARROW_LEN + 1 short, per the arrow rule);
    replies are dashed. Parts keep their data-id, so <bh-stepper for> and data-ref work.
+   They keep their data-change="added|changed|removed" too, so a marked part is drawn marked
+   (diagrams.css): an actor on its box and lifeline, a message on its path and label, a note
+   on its box. A <bh-versions> or the page's switch counts the marks it finds, in the source or
+   in the drawing, so both must hold the same ones whichever is set up first.
    Without JS the source reads as a list of messages.
    ========================================================================== */
 (function () {
@@ -42,9 +46,11 @@
 
     render() {
       if (this._ready) return;
+      // A part's change mark, or undefined (svgEl then writes no attribute, so an unmarked part is as before).
+      const change = (n) => n.getAttribute("data-change") ?? undefined;
       const actors = [...this.querySelectorAll(":scope > bh-actor")].map((a, i) => ({
         id: a.dataset.id || `actor-${i + 1}`, name: a.textContent.trim(),
-        tone: [...a.classList].find((c) => /^c[1-6]$/.test(c)) || "c6",
+        tone: [...a.classList].find((c) => /^c[1-6]$/.test(c)) || "c6", change: change(a),
       }));
       if (!actors.length) return;
       this._ready = true;
@@ -57,11 +63,11 @@
         if (tag === "BH-MSG") {
           const from = index.get(child.getAttribute("from")), to = index.get(child.getAttribute("to"));
           if (from === undefined || to === undefined) { console.warn("[bh-sequence] unknown actor in", child); continue; }
-          rows.push({ kind: "msg", id: child.dataset.id || `msg-${++n}`, from, to, label: child.textContent.trim(), reply: child.hasAttribute("reply") });
+          rows.push({ kind: "msg", id: child.dataset.id || `msg-${++n}`, from, to, label: child.textContent.trim(), reply: child.hasAttribute("reply"), change: change(child) });
         } else if (tag === "BH-NOTE") {
           const over = (child.getAttribute("over") || "").split(/[\s,]+/).map((a) => index.get(a)).filter((i) => i !== undefined);
           if (!over.length) { console.warn("[bh-sequence] note needs over=\"actor\"", child); continue; }
-          rows.push({ kind: "note", id: child.dataset.id || `note-${++n}`, over, label: child.textContent.trim() });
+          rows.push({ kind: "note", id: child.dataset.id || `note-${++n}`, over, label: child.textContent.trim(), change: change(child) });
         }
       }
 
@@ -101,8 +107,8 @@
 
       actors.forEach((a, i) => {
         const x = xs[i], w = widths[i];
-        gLines.append(svgEl("path", { class: "seq-lifeline", "data-id": a.id, d: `M${x} ${TOP + ACTOR_H} V${bottom}` }));
-        const g = svgEl("g", { class: `node ${a.tone}`, "data-id": a.id });
+        gLines.append(svgEl("path", { class: "seq-lifeline", "data-id": a.id, "data-change": a.change, d: `M${x} ${TOP + ACTOR_H} V${bottom}` }));
+        const g = svgEl("g", { class: `node ${a.tone}`, "data-id": a.id, "data-change": a.change });
         g.append(svgEl("rect", { x: x - w / 2, y: TOP, width: w, height: ACTOR_H, rx: 10 }), svgEl("text", { x, y: TOP + ACTOR_H / 2 }, a.name));
         gActors.append(g);
       });
@@ -112,7 +118,7 @@
           const lo = Math.min(...r.over), hi = Math.max(...r.over);
           const w = Math.max(textWidth(r.label, 12) + 28, hi > lo ? xs[hi] - xs[lo] + 60 : 0);
           const cx = (xs[lo] + xs[hi]) / 2;
-          const g = svgEl("g", { class: "node seq-note", "data-id": r.id });
+          const g = svgEl("g", { class: "node seq-note", "data-id": r.id, "data-change": r.change });
           g.append(svgEl("rect", { x: cx - w / 2, y: r.y - NOTE_H / 2, width: w, height: NOTE_H, rx: 6 }),
             svgEl("text", { class: "sub", x: cx, y: r.y }, r.label));
           gRows.append(g);
@@ -120,16 +126,18 @@
         }
         const x1 = xs[r.from], x2 = xs[r.to];
         const cls = `edge${r.reply ? " dashed" : ""}`;
+        // The path and its label are one message: both carry its mark.
+        const part = { "data-id": r.id, "data-change": r.change };
         if (r.from === r.to) {
           // Loop out to the right and back; the final run points left onto the lifeline.
           const d = `M${x1} ${r.y - 10} H${x1 + 40} V${r.y + 14} H${x1 + ARROW_LEN + 1}`;
-          gRows.append(svgEl("path", { class: cls, "data-id": r.id, d }),
-            svgEl("text", { class: "label", "data-id": r.id, x: x1 + 48, y: r.y + 2, "text-anchor": "start" }, r.label));
+          gRows.append(svgEl("path", { class: cls, ...part, d }),
+            svgEl("text", { class: "label seq-label", ...part, x: x1 + 48, y: r.y + 2, "text-anchor": "start" }, r.label));
         } else {
           const dir = Math.sign(x2 - x1);
           const end = x2 - dir * (ARROW_LEN + 1);
-          gRows.append(svgEl("path", { class: cls, "data-id": r.id, d: `M${x1} ${r.y} H${end}` }),
-            svgEl("text", { class: "label", "data-id": r.id, x: (x1 + x2) / 2, y: r.y - 11, "text-anchor": "middle" }, r.label));
+          gRows.append(svgEl("path", { class: cls, ...part, d: `M${x1} ${r.y} H${end}` }),
+            svgEl("text", { class: "label seq-label", ...part, x: (x1 + x2) / 2, y: r.y - 11, "text-anchor": "middle" }, r.label));
         }
       }
 

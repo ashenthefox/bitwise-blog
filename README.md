@@ -272,7 +272,8 @@ process while requests are served.
 - **Code walkthroughs:** `<bh-codewalk>` pins the code beside the prose; scrolling
   through the steps highlights each step's lines and shades the rest.
 - **Sequence diagrams:** `<bh-sequence>` draws actors, messages, replies and notes in the
-  theme, and can be stepped through like any diagram.
+  theme, and can be stepped through like any diagram. A `data-change` on an actor, message
+  or note is kept on what it draws, so it is highlighted like any other marked part.
 - **Current vs proposed:** `<bh-versions>` switches between versions of a diagram, or
   compares two with a draggable divider, and highlights `data-change` parts (the reader can
   turn the highlights off with **Show changes**).
