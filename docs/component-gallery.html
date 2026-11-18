@@ -313,7 +313,7 @@ impl TokenBucket {
     </bh-stepper>
 
     <h3 id="current-vs-proposed">Current vs proposed</h3>
-    <p>Wrap two versions of a diagram in <code>&lt;bh-versions&gt;</code> to switch between them, or press <strong>Compare</strong> and drag the divider. Mark parts with <code>data-change="added|changed|removed"</code> to show what the proposal changes.</p>
+    <p>Wrap two versions of a diagram in <code>&lt;bh-versions&gt;</code> to switch between them, or press <strong>Compare</strong> and drag the divider. Mark parts with <code>data-change="added|changed|removed"</code> to show what the proposal changes. The highlights start off, so a page first reads as it will look: a page with marked parts gets a button in the top bar, the switch for the whole page, and pressing it shows them. Each figure then has a <strong>Show changes</strong> button in its bar to turn its own highlights and legend off and on; that choice holds while you switch versions or compare, and while the page's switch is turned off and on again. Neither choice is part of a link. Where there is no button, the highlights show: without JavaScript, in print and in the slides.</p>
     <bh-versions class="wide">
       <figure class="diagram" id="limits-current" data-label="Current">
         <svg viewBox="-16 -16 672 222" role="img" aria-label="Current: each service runs its own rate limiter behind the gateway">

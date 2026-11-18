@@ -765,7 +765,15 @@ bh-versions.is-ready {
 }
 .bh-versions-tabs [role="tab"][aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
 bh-versions.is-comparing .bh-versions-tabs [role="tab"] { background: none; color: var(--text-muted); box-shadow: none; }
-.bh-versions-compare[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.bh-versions-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+:is(.bh-versions-compare, .bh-versions-changes)[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+/* The tick carries the state without colour. It keeps its width when off, so the bar does not shift. */
+.bh-versions-changes[aria-pressed="false"] .bh-versions-tick { visibility: hidden; }
+/* The legend keeps its space while the marks are off, so nothing below it moves. */
+[data-changes="off"] .bh-versions-legend { visibility: hidden; }
+/* The page's switch (data-changes="off" on <html>, set by the top bar's button) also takes away each
+   component's own button: there is nothing for it to turn on. Compare keeps its place at the end. */
+:root[data-changes="off"] .bh-versions-changes { display: none; }
 
 /* Every version shares one grid cell: switching never changes the height. */
 .bh-versions-stage { position: relative; display: grid; }

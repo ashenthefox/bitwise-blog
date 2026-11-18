@@ -175,6 +175,8 @@
       body.append(host.querySelector(":scope > template").content.cloneNode(true));
       root.append(body);
     }
+    // A tree cannot see whether the change highlights are off around it, so bh.js writes it in.
+    bh.mirrorChanges();
   }
 
   function hide() {
@@ -216,6 +218,8 @@
       upgrade(article, data.oldStyle);
       if (article.querySelector(".bh-diff-ui svg")) bh.ensureMarkers();
       if (article.querySelector(".bh-diff-ui bh-versions")) bh.settle(bh.loadModule("versions.js"));
+      // The reader asked for the changes, so a changed diagram shows its marks: the page's switch goes on.
+      if (article.querySelector(".bh-diff-ui [data-change]")) bh.showChanges();
       if (article.querySelector(".bh-diff-ui bh-sequence")) bh.settle(bh.loadModule("sequence.js"));
       const bar = buildBar(base, data, placed);
       doc.body.append(bar);

@@ -234,7 +234,7 @@
     }) : null;
 
     const progress = el("div", { class: "bh-progress", "aria-hidden": "true" });
-    const bar = el("header", { class: "bh-topbar" }, [brand, title, el("div", { class: "bh-topbar-actions" }, [searchBtn, reviewBtn, presentBtn, themeBtn].filter(Boolean)), progress]);
+    const bar = el("header", { class: "bh-topbar" }, [brand, title, el("div", { class: "bh-topbar-actions" }, [searchBtn, changesButton(), reviewBtn, presentBtn, themeBtn].filter(Boolean)), progress]);
     doc.querySelector(".skip-link").after(bar);
 
     // Show the page title in the bar once the h1 scrolls away.
@@ -255,6 +255,73 @@
       update();
     }
   }
+
+  // ---- Change highlights: data-change marks, switched off by data-changes="off" ----------------
+  //
+  // Two levels, one attribute. On <html> it is the page's switch: no mark is highlighted anywhere,
+  // and each <bh-versions> hides its own "Show changes" button. On a <bh-versions> it is that
+  // component's switch, which its button sets and which only shows while the page's is on. A
+  // component keeps its own choice while the page's switch is off.
+  //
+  // The page's switch starts off: a page reads as it will look, and the reader asks for the marks.
+  // Where there is no button to ask with, the marks show: without JavaScript, on paper, and in
+  // the slides (the top bar is hidden while presenting).
+
+  /**
+   * A page diff draws some copies in a shadow tree (`.bh-diff-shadow`, see diff.js). A selector there
+   * cannot see an ancestor outside the tree, so what the copy's ancestors say is written onto its content.
+   */
+  function mirrorChanges() {
+    for (const host of doc.querySelectorAll(".bh-diff-shadow")) {
+      const body = host.shadowRoot && host.shadowRoot.querySelector(".bh-article");
+      if (!body) continue;
+      if (host.closest('[data-changes="off"]')) body.dataset.changes = "off";
+      else delete body.dataset.changes;
+    }
+  }
+  // Whoever sets the attribute (either button, a page script), the copies follow. Changes inside a
+  // shadow tree are not observed from here, so mirroring cannot set itself off again.
+  if ("MutationObserver" in window) new MutationObserver(mirrorChanges).observe(root, { attributes: true, attributeFilter: ["data-changes"], subtree: true });
+
+  /** Turn the page's switch on: for code that shows the reader a change they asked for (diff.js). */
+  let showChanges = () => {};
+
+  /** The top bar's switch for the whole page, or null when the page marks no change. */
+  function changesButton() {
+    if (!doc.querySelector("main [data-change]")) return null;
+    // A page that is itself a diff (npm run diff) is read for its marks, so there the switch starts on.
+    let on = doc.body.hasAttribute("data-bh-diff");
+    const btn = el("button", {
+      class: "btn ghost icon bh-changes-btn", type: "button", "aria-label": "Show change highlights",
+      // A square holding + and −; the stroke through it appears only while the highlights are off.
+      html: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 9h6M12 6v6M9 16.5h6"/><path class="bh-changes-off" d="M3 21 21 3"/></svg>',
+      onclick: () => { on = !on; apply(); },
+    });
+    const apply = () => {
+      if (on || root.classList.contains("bh-presenting")) delete root.dataset.changes;
+      else root.dataset.changes = "off";
+      btn.setAttribute("aria-pressed", String(on));
+      btn.title = "Change highlights: " + (on ? "on" : "off");
+    };
+    // Entering or leaving the slides changes the class on <html>.
+    if ("MutationObserver" in window) new MutationObserver(apply).observe(root, { attributes: true, attributeFilter: ["class"] });
+    apply();
+    showChanges = () => { on = true; apply(); };
+    return btn;
+  }
+
+  // Paper has no button to turn the highlights back on, so a page always prints with them.
+  let changesOffBeforePrint = [];
+  addEventListener("beforeprint", () => {
+    changesOffBeforePrint = [...doc.querySelectorAll('[data-changes="off"]')];
+    for (const n of changesOffBeforePrint) delete n.dataset.changes;
+    mirrorChanges();
+  });
+  addEventListener("afterprint", () => {
+    for (const n of changesOffBeforePrint) n.dataset.changes = "off";
+    changesOffBeforePrint = [];
+    mirrorChanges();
+  });
 
   // ---- Auto meta (from <meta name="bh:*">) into <dl class="bh-meta" data-auto> ------
 
@@ -1653,6 +1720,7 @@
   window.bh = {
     applyTheme, whenReady, el, format, copyText, copyLink, toast, linkLabel, settle,
     reducedMotion, LINK_ICON, ensureMarkers: () => injectMarkers(true), loadScript, siteRoot: SITE_ROOT,
+    showChanges: () => showChanges(), mirrorChanges,
     sitePath, meta, storage, loadModule, examples: EXAMPLES, fragment,
     // Unlisted pages: whether to surface them, and their data (null while the flag is off).
     unlisted: { visible: UNLISTED.visible, page: UNLISTED.page, data: loadUnlisted },
