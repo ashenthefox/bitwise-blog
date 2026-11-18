@@ -6,7 +6,8 @@ import type { AddressInfo } from "node:net";
 import { test } from "node:test";
 import { findChrome, launchChrome, serveStatic } from "../scripts/chrome.mts";
 import { REVIEW_FIXTURE_PAGE, reviewFixtureRoutes } from "../scripts/a11y-review-fixture.mts";
-import { applyAllowlist, loadAllowlist, normalizeTarget, publicPages, scan, SCHEMES, STATES, VIEWPORTS, type A11yResult, type A11yViolation, type State, type StateResult } from "../scripts/a11y.mts";
+import { DIFF_LIVE_PAGE, DIFF_LIVE_QUERY, DIFF_STANDALONE_PAGE, diffFixtureRoutes } from "../scripts/a11y-diff-fixture.mts";
+import { applyAllowlist, FIXTURE_QUERIES, fixtureRoutes as allFixtureRoutes, loadAllowlist, normalizeTarget, publicPages, scan, SCHEMES, STATES, VIEWPORTS, type A11yResult, type A11yViolation, type State, type StateResult } from "../scripts/a11y.mts";
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const skip = !findChrome() || typeof WebSocket === "undefined" ? "needs Chrome and Node >= 22" : false;
@@ -292,4 +293,110 @@ test("the review fixture fails axe again when the Review button and the pins sto
   const { rules, errors } = await fixtureRules(t, { "modules/review.js": js });
   assert.deepEqual(errors, []);
   assert.ok(rules.has("label-content-name-mismatch"), `label-content-name-mismatch in ${[...rules]}`);
+});
+
+// ---- Pages that show a page diff (#341) ------------------------------------------------------------------------------
+// No public page carries the diff UI, so the run scans two fixtures made with the real diff code
+// (scripts/a11y-diff-fixture.mts). These tests keep them honest: each has what the rules need, each is clean, and a
+// rule fires on each when a fix is taken out (or a fault put in), so a scan that silently saw nothing cannot pass.
+
+const diffRoutes = (edits: Record<string, string> = {}) => {
+  const routes = diffFixtureRoutes();
+  for (const [file, body] of Object.entries(edits)) routes.set(`/theme/${file}`, { type: file.endsWith(".css") ? "text/css" : "text/javascript", body });
+  return routes;
+};
+const diffUrl = (base: string, page: string) => `${base}/${page}${FIXTURE_QUERIES.get(page) ? "?" + FIXTURE_QUERIES.get(page) : ""}`;
+const diffRules = async (t: Parameters<typeof withChrome>[0], edits: Record<string, string> = {}) => {
+  const { chrome, base, axeSource } = await withChrome(t, diffRoutes(edits));
+  const found = new Map<string, Set<string>>();
+  const errors: string[] = [];
+  for (const page of [DIFF_LIVE_PAGE, DIFF_STANDALONE_PAGE]) {
+    for (const viewport of VIEWPORTS) {
+      for (const scheme of SCHEMES) {
+        for (const r of await scan(chrome.send, diffUrl(base, page), { scheme, axeSource, blockFonts: true, viewport, states: STATES, requireSite: true })) {
+          for (const v of r.violations) (found.get(page) ?? found.set(page, new Set()).get(page)!).add(v.id);
+          if (r.error) errors.push(`${page} ${viewport.name} ${scheme} ${r.state}: ${r.error}`);
+        }
+      }
+    }
+  }
+  return { found, errors };
+};
+
+test("the diff fixtures are opened as the real ones are, and the live page's data is served for the commit it names", () => {
+  assert.equal(FIXTURE_QUERIES.get(DIFF_LIVE_PAGE), DIFF_LIVE_QUERY);
+  const routes = allFixtureRoutes();
+  for (const page of [DIFF_LIVE_PAGE, DIFF_STANDALONE_PAGE, REVIEW_FIXTURE_PAGE]) assert.ok(routes.has(`/${page}`), `${page} is served`);
+  const commit = DIFF_LIVE_QUERY.replace("diff=", "");
+  assert.match(commit, /^[0-9a-f]{40}$/);
+  assert.ok(routes.has(`/theme/diffs/a11y-diff-live.${commit}.js`), "the data file the ?diff= link loads");
+});
+
+test("the diff fixture pages have the diff UI to check: marks of every kind, the change bar, copies that scroll at phone width", { skip, timeout: 120000 }, async (t) => {
+  const { chrome, base } = await withChrome(t, diffRoutes());
+  const probe = async (page: string, viewport: (typeof VIEWPORTS)[number], expression: string, ready: string) => {
+    const { targetId } = await chrome.send("Target.createTarget", { url: "about:blank" });
+    const { sessionId } = await chrome.send("Target.attachToTarget", { targetId, flatten: true });
+    const s = (m: string, p?: object) => chrome.send(m, p, sessionId);
+    try {
+      await s("Page.enable");
+      await s("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: 1, mobile: viewport.mobile });
+      await s("Page.navigate", { url: diffUrl(base, page) });
+      const r = await s("Runtime.evaluate", { returnByValue: true, awaitPromise: true, expression: `new Promise((done) => { const t = Date.now(); (async function wait() {
+        if (document.documentElement.hasAttribute("data-bh-ready") && (${ready})) {
+          await new Promise((r) => setTimeout(r, 300));
+          const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          try { done(JSON.stringify(await (async () => { ${expression} })())); } catch (e) { done(JSON.stringify("error: " + e.message)); }
+          return;
+        }
+        if (Date.now() - t > 15000) return done(JSON.stringify("timeout")); setTimeout(wait, 100); })(); })` });
+      return JSON.parse(r.result.value);
+    } finally { await chrome.send("Target.closeTarget", { targetId }); }
+  };
+  // What the scan puts on screen: the marks, whether they start closed, the bar, and which copies are scroll regions.
+  const state = `const marks = [...document.querySelectorAll(".bh-diff-mark")];
+    const scrolling = () => [...document.querySelectorAll(".bh-diff-old, .bh-diff-copy")].filter((e) => e.getAttribute("tabindex") === "0" && e.getAttribute("role") === "group").map((e) => e.getAttribute("aria-label"));
+    return { marks: marks.length, closed: marks.filter((m) => m.localName === "details" && !m.open).length, wasHere: marks.filter((m) => m.localName === "p").length,
+      status: [...new Set([...document.querySelectorAll("[data-diff]")].map((e) => e.getAttribute("data-diff")))].sort(), ins: document.querySelectorAll("ins").length, del: document.querySelectorAll("del").length,
+      bar: !!document.querySelector(".bh-diff-bar [data-expand]"), summary: !!document.querySelector(".bh-diff-summary"), trees: [...document.querySelectorAll(".bh-diff-shadow")].filter((h) => h.shadowRoot).length,
+      scrolling: scrolling() };`;
+  for (const viewport of VIEWPORTS) {
+    const live = await probe(DIFF_LIVE_PAGE, viewport, `const before = (() => { ${state} })();
+      document.querySelector(".bh-diff-bar [data-expand]").click(); await frames(); await new Promise((r) => setTimeout(r, 300));
+      return { before, afterExpand: (() => { ${state} })() };`, `document.querySelector(".bh-diff-bar")`);
+    assert.ok(live.before.marks >= 6, `${viewport.name}: live marks ${live.before.marks}`);
+    assert.equal(live.before.closed, live.before.marks - live.before.wasHere, `${viewport.name}: the live page's marks start closed (the "was here" mark is a paragraph)`);
+    assert.ok(live.before.wasHere >= 1, `${viewport.name}: a moved block has its "was here" mark`);
+    assert.ok(live.before.bar, `${viewport.name}: the change bar has Expand all`);
+    assert.ok(live.before.trees >= 1, `${viewport.name}: a copy drawn in a shadow tree`);
+    assert.equal(live.afterExpand.closed, 0, `${viewport.name}: Expand all opens every mark`);
+    if (viewport.mobile) assert.deepEqual(["Old version", "What changed"].filter((n) => live.afterExpand.scrolling.includes(n)), ["Old version", "What changed"], `${viewport.name}: wide copies are named scroll regions: ${live.afterExpand.scrolling}`);
+    const page = await probe(DIFF_STANDALONE_PAGE, viewport, state, `document.querySelector(".bh-diff-summary") && document.querySelector(".bh-diff-shadow")`);
+    assert.ok(page.summary && !page.bar, `${viewport.name}: the diff page has the list of changes and no bar`);
+    assert.ok(page.ins > 0 && page.del > 0, `${viewport.name}: a word diff in the page: ${page.ins} ins, ${page.del} del`);
+    assert.equal(page.closed, 0, `${viewport.name}: the diff page's marks are open`);
+    assert.ok(page.trees >= 1, `${viewport.name}: a shadow-tree copy on the diff page`);
+    assert.deepEqual(page.status, ["added", "changed", "moved", "removed"], `${viewport.name}: a block of every kind`);
+    if (viewport.mobile) assert.ok(page.scrolling.includes("Old version"), `${viewport.name}: a copy on the diff page scrolls and is a named region: ${page.scrolling}`);
+  }
+});
+
+test("pages that show a page diff have no axe violations, with the marks closed and open", { skip, timeout: 300000 }, async (t) => {
+  const { found, errors } = await diffRules(t);
+  assert.deepEqual(errors, []);
+  assert.deepEqual([...found], []);
+});
+
+test("the live diff page fails axe again when a mark's summary stops being a 24px target", { skip, timeout: 300000 }, async (t) => {
+  const css = mutate(theme("diff.css"), " min-height: 24px; }", " }");
+  const { found, errors } = await diffRules(t, { "diff.css": css });
+  assert.deepEqual(errors, []);
+  assert.ok(found.get(DIFF_LIVE_PAGE)?.has("target-size"), `target-size on the live page in ${[...(found.get(DIFF_LIVE_PAGE) ?? [])]}`);
+});
+
+test("the diff page fails axe when its inserted words lose their contrast", { skip, timeout: 300000 }, async (t) => {
+  const css = mutate(theme("diff.css"), ".bh-article :is(ins, del) { color: var(--text);", ".bh-article :is(ins, del) { color: var(--bg);");
+  const { found, errors } = await diffRules(t, { "diff.css": css });
+  assert.deepEqual(errors, []);
+  assert.ok(found.get(DIFF_STANDALONE_PAGE)?.has("color-contrast"), `color-contrast on the diff page in ${[...(found.get(DIFF_STANDALONE_PAGE) ?? [])]}`);
 });

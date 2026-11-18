@@ -26,7 +26,8 @@
   line-height: var(--leading-snug);
 }
 .bh-diff-mark + * { scroll-margin-top: calc(var(--topbar-h) + var(--space-7)); }
-.bh-diff-mark > summary { cursor: pointer; width: fit-content; max-width: 100%; }
+/* A full 24px target (WCAG 2.5.8, axe's target-size): at phone width the small text made the row 23.3px tall (#341). */
+.bh-diff-mark > summary { cursor: pointer; width: fit-content; max-width: 100%; min-height: 24px; }
 .bh-diff-mark > summary:hover .bh-diff-what { color: var(--text); }
 .bh-diff-what { margin-inline-start: var(--space-2); }
 .bh-diff-mark a { color: inherit; }
