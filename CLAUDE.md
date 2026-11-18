@@ -311,6 +311,14 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
   `theme/vendor/<name>-<version>/`; only GoatCounter's deploy-time tag is third-party. `check` fails on a
   remote `url()` or `@import`, and on another host's script or stylesheet without an exact version and
   `integrity`. Upgrading or adding one: [`contracts/vendored-assets.md`](contracts/vendored-assets.md).
+- **The reading column must not wait for `bh.js`.** The script is deferred, so a layout rule that
+  depends on something it builds (the table of contents, the `no-toc` class, the `js` class) shows
+  one layout while it loads and another after, and the first one for good without JavaScript. The
+  article was once 224px wide at 1280px for exactly this reason: auto-placement put it in the
+  column kept for the table of contents. Place grid items by name, and when the script decides
+  something from the markup (fewer than three headings means no table of contents), make CSS reach the
+  same answer from the same markup (`:has()` in `layout.css`). `tests/pre-script-layout.test.mts`
+  compares every public page with `bh.js` held, with JavaScript off and settled.
 - **Don't set up state only in observer callbacks.** `IntersectionObserver` and
   `ResizeObserver` fire on rendering frames, which can be throttled. Create observers and
   initial state synchronously during setup, and let callbacks refine them. A walkthrough
