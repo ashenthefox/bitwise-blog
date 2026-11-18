@@ -23,6 +23,9 @@
    The fragment is a list of &-separated tokens. Reserved: k=<43-char key> (repeatable, read by the
    sealed-page shell) and unlisted=<value>. The first other token without "=" is a section id.
    parseFragment is the one parser; bh.js uses it through bh.fragment().
+
+   This file is the last synchronous script in every page's <head>, so it also holds the one other
+   thing that must be settled before first paint: the change highlights' starting state (at the end).
    ========================================================================== */
 (function (g) {
   "use strict";
@@ -105,4 +108,44 @@
     }
   }
   g.bhUnlisted = api;
+})(typeof window !== "undefined" ? window : globalThis);
+
+/* ==========================================================================
+   Change highlights — the state a page opens in.
+
+   Parts marked data-change are highlighted unless an ancestor has data-changes="off" (diagrams.css),
+   so without JavaScript they show. With it, a page opens with them off and the top bar's button
+   turns them on (changesButton in bh.js). bh.js is deferred, so the off state is set here, before
+   first paint: set there, the marks could paint first and then vanish.
+
+   It sets <html data-changes="off"> unless the page starts with them on, and exposes
+   window.bhChanges.startsOn(), the one rule for that, which bh.js reads too. This script cannot
+   know whether the page marks anything; bh.js takes the attribute away again on a page that has no
+   mark, and so no button.
+
+   A diff page (<body data-bh-diff>, npm run diff) starts on. It is a bundle, whose scripts all run
+   at the end of <body>, so the marker has been parsed when this runs. In a <head> there is no
+   body yet, and no diff page either.
+
+   The marks must show wherever there is no button to ask with. If bh.js never runs (it failed to
+   load), the off state is lifted once the page has loaded.
+   ========================================================================== */
+(function (g) {
+  "use strict";
+
+  /** True when the page opens with its change highlights on: a page that is itself a diff. */
+  function startsOn(doc) {
+    return !!(doc && doc.body && doc.body.hasAttribute("data-bh-diff"));
+  }
+
+  var doc = g.document;
+  var root = doc && doc.documentElement;
+  if (root && !startsOn(doc)) {
+    root.setAttribute("data-changes", "off");
+    if (g.addEventListener) {
+      // bh.js is deferred, so it has run by now if it is going to.
+      g.addEventListener("load", function () { if (!g.bh) root.removeAttribute("data-changes"); });
+    }
+  }
+  g.bhChanges = { startsOn: function () { return startsOn(g.document); } };
 })(typeof window !== "undefined" ? window : globalThis);

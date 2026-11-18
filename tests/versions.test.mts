@@ -291,5 +291,137 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
     }
     assert.ok(ready, "the page settled within 15 seconds");
     assert.deepEqual(await evaluate(`[!!document.querySelector(".bh-topbar"), !!document.querySelector(".bh-changes-btn"), !!document.querySelector("[data-change]")]`), [true, false, false]);
+    // theme/unlisted.js sets the off state on every page before first paint; bh.js takes it away where nothing is marked.
+    assert.equal(await evaluate(`document.documentElement.getAttribute("data-changes")`), null);
+  });
+});
+
+// bh.js is deferred, so a slow one runs after the page has painted. The off state must be there before
+// that: theme/unlisted.js sets it in <head>. Without JavaScript nothing sets it, and the marks show.
+const marked = pages.concat(readdirSync(join(root, "docs")).filter((f) => f.endsWith(".html") && !f.endsWith(".private.html") && !pages.includes(f)).filter((f) => {
+  const html = readFileSync(join(root, "docs", f), "utf8");
+  return !/<meta name="bh:unlisted" content="true"/.test(html) && /<main\b[\s\S]*\sdata-change="/.test(html);
+}));
+
+/**
+ * Runs before the page's own scripts and counts rendering frames: how many had a marked part in the
+ * document, and how many of those lacked the off state. A frame callback runs just before a paint.
+ */
+const frameCounter = `window.__marks = { frames: 0, lit: 0 };
+(function frame() {
+  if (document.querySelector("main [data-change]")) {
+    window.__marks.frames++;
+    if (document.documentElement.getAttribute("data-changes") !== "off") window.__marks.lit++;
+  }
+  requestAnimationFrame(frame);
+})();`;
+
+/** Every marked part in the page, as probe reads one: its looks, and its looks had it never been marked. */
+const partsProbe = `(() => {
+  const shape = (n) => n.matches(".node") ? n.querySelector("rect, circle, ellipse, polygon, path") : n;
+  const looks = (n) => {
+    const a = getComputedStyle(shape(n)), b = getComputedStyle(n);
+    return [a.stroke, a.strokeWidth, a.strokeDasharray, b.opacity, b.filter].join(" | ");
+  };
+  return [...document.querySelectorAll("main [data-change]")].filter((n) => n.matches(".diagram .node, .diagram .edge")).map((n) => {
+    const kind = n.dataset.change, marked = looks(n);
+    n.removeAttribute("data-change");
+    const plain = looks(n);
+    n.setAttribute("data-change", kind);
+    return { id: n.dataset.id || "", kind, looks: marked, plain };
+  });
+})()`;
+
+test("change highlights: off before a slow bh.js runs, and on without JavaScript", { skip, timeout: 150000 }, async (t) => {
+  assert.ok(marked.length > 0, "found pages with marked parts");
+  const server = await serveStatic(root);
+  t.after(() => new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); }));
+  // What the server does with bh.js: serve it, hold the response until released, or fail it.
+  let mode: "serve" | "hold" | "fail" = "serve", held = 0, release = () => {};
+  const serve = server.listeners("request")[0] as (req: http.IncomingMessage, res: http.ServerResponse) => void;
+  server.removeAllListeners("request");
+  server.on("request", (req: http.IncomingMessage, res: http.ServerResponse) => {
+    if (!/\/theme\/bh\.js(?:\?|$)/.test(req.url || "") || mode === "serve") serve(req, res);
+    else if (mode === "fail") res.writeHead(404).end();
+    else { held++; const before = release; release = () => { before(); serve(req, res); }; }
+  });
+  t.after(() => release());
+  const base = `http://127.0.0.1:${portOf(server)}/docs/`;
+  const chrome = await launchChrome();
+  t.after(() => chrome.close());
+
+  const { targetId } = await chrome.send("Target.createTarget", { url: "about:blank" });
+  const { sessionId } = await chrome.send("Target.attachToTarget", { targetId, flatten: true });
+  t.after(() => chrome.send("Target.closeTarget", { targetId }).catch(() => {}));
+  const s = (method: string, params?: object) => chrome.send(method, params, sessionId);
+  await s("Page.enable");
+  await s("Page.bringToFront");
+  await s("Network.enable");
+  await s("Network.setCacheDisabled", { cacheDisabled: true });
+  await s("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+  await s("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
+  const evaluate = async (expression: string) => {
+    const r = await s("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
+    if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
+    return r.result.value;
+  };
+  const until = async (expression: string, what: string) => {
+    let ok = false;
+    for (let i = 0; i < 150 && !ok; i++) { await sleep(100); ok = await evaluate(expression).catch(() => false); }
+    assert.ok(ok, `${what} within 15 seconds`);
+  };
+  // No transitions, or a style read in the same task as a change is still the old value (see the test above).
+  const parts = async (): Promise<Part[]> => {
+    await evaluate(`document.head.append(Object.assign(document.createElement("style"), { textContent: "*, *::before, *::after { transition: none !important; }" }))`);
+    return await evaluate(partsProbe);
+  };
+  const rootAttr = () => evaluate(`document.documentElement.getAttribute("data-changes")`);
+  const { identifier } = await s("Page.addScriptToEvaluateOnNewDocument", { source: frameCounter });
+
+  for (const page of marked) {
+    await t.test(`${page}: nothing is highlighted while bh.js is still loading`, async () => {
+      mode = "hold"; held = 0;
+      await s("Page.navigate", { url: base + page + "?examples" });
+      // The document is parsed and painted, and the deferred script has not arrived.
+      await until(`document.readyState === "interactive" && performance.getEntriesByType("paint").length > 0 && window.__marks.frames >= 3`, "the page painted with its marked parts");
+      assert.equal(held, 1, "bh.js was requested and is held");
+      assert.equal(await evaluate("typeof window.bh"), "undefined", "bh.js has not run");
+      assert.equal(await rootAttr(), "off", "the off state is set before bh.js runs");
+      const waiting = await parts();
+      assert.ok(waiting.length > 0, "the page has marked diagram parts");
+      for (const p of waiting) assert.equal(p.looks, p.plain, `${p.id} (${p.kind}) is not highlighted while bh.js loads`);
+      release(); release = () => {};
+      await until("document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')", "the page settled");
+      assert.equal(await rootAttr(), "off", "bh.js keeps the off state");
+      assert.equal(await evaluate(`document.querySelector(".bh-topbar .bh-changes-btn").getAttribute("aria-pressed")`), "false");
+      const frames = await evaluate("window.__marks");
+      assert.ok(frames.frames >= 3, "frames were counted");
+      assert.equal(frames.lit, 0, "no frame had marked parts without the off state");
+    });
+  }
+
+  await t.test("a page whose bh.js never loads shows its highlights: it has no button to ask with", async () => {
+    mode = "fail";
+    await s("Page.navigate", { url: base + marked[0] + "?examples" });
+    await until("document.readyState === 'complete'", "the page loaded");
+    assert.equal(await evaluate("typeof window.bh"), "undefined", "bh.js did not run");
+    assert.equal(await rootAttr(), null);
+    for (const p of await parts()) assert.notEqual(p.looks, p.plain, `${p.id} (${p.kind}) is highlighted`);
+  });
+
+  await t.test("without JavaScript the highlights show", async () => {
+    mode = "serve";
+    await s("Page.removeScriptToEvaluateOnNewDocument", { identifier });
+    await s("Emulation.setScriptExecutionDisabled", { value: true });
+    for (const page of marked) {
+      await s("Page.navigate", { url: base + page + "?examples" });
+      // The page's scripts are off; the protocol's own evaluation still runs.
+      await until("document.readyState === 'complete'", `${page} loaded`);
+      assert.equal(await evaluate("typeof window.bhChanges + typeof window.bh"), "undefinedundefined", "no page script ran");
+      assert.equal(await rootAttr(), null);
+      const shown = await parts();
+      assert.ok(shown.length > 0, `${page} has marked diagram parts`);
+      for (const p of shown) assert.notEqual(p.looks, p.plain, `${page}: ${p.id} (${p.kind}) is highlighted`);
+    }
   });
 });
