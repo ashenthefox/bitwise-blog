@@ -39,6 +39,9 @@
   // Whether unlisted pages are surfaced, decided before first paint by theme/unlisted.js, which also
   // owns the one fragment parser. A page without that script (an older sealed page) treats them as hidden.
   const UNLISTED = window.bhUnlisted || { visible: false, page: false, parseFragment: null };
+  // Whether the change highlights start on, by the one rule in theme/unlisted.js, which has already set
+  // the off state before first paint. A page without it (an older sealed page) starts with them off too.
+  const CHANGES = window.bhChanges || { startsOn: () => false, settled: false };
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
   root.classList.add("js");
@@ -181,7 +184,8 @@
   // ---- Chrome: skip link, top bar, progress ---------------------------------------
 
   function buildChrome() {
-    if (doc.body.dataset.chrome === "none") return;
+    // No top bar, so no button to ask for the change highlights with: they show (see changesButton).
+    if (doc.body.dataset.chrome === "none") { delete root.dataset.changes; CHANGES.settled = true; return; }
     const main = doc.querySelector("main");
     if (main && !main.id) main.id = "main";
     doc.body.prepend(el("a", { class: "skip-link", href: "#" + (main ? main.id : "main"), text: "Skip to content" }));
@@ -236,6 +240,8 @@
     const progress = el("div", { class: "bh-progress", "aria-hidden": "true" });
     const bar = el("header", { class: "bh-topbar" }, [brand, title, el("div", { class: "bh-topbar-actions" }, [searchBtn, changesButton(), reviewBtn, presentBtn, themeBtn].filter(Boolean)), progress]);
     doc.querySelector(".skip-link").after(bar);
+    // The switch agrees with the page and its button is in place: theme/unlisted.js stops standing in.
+    CHANGES.settled = true;
 
     // Show the page title in the bar once the h1 scrolls away.
     if (h1 && "IntersectionObserver" in window) {
@@ -264,8 +270,11 @@
   // component keeps its own choice while the page's switch is off.
   //
   // The page's switch starts off: a page reads as it will look, and the reader asks for the marks.
-  // Where there is no button to ask with, the marks show: without JavaScript, on paper, and in
-  // the slides (the top bar is hidden while presenting).
+  // Where there is no button to ask with, the marks show: without JavaScript, on paper, in the
+  // slides (the top bar is hidden while presenting), and on a page that marks nothing itself.
+  //
+  // This script is deferred, so the off state is first set by theme/unlisted.js in <head>, before
+  // first paint, for every page: it cannot know whether marks follow. changesButton() then settles it.
 
   /**
    * A page diff draws some copies in a shadow tree (`.bh-diff-shadow`, see diff.js). A selector there
@@ -311,9 +320,10 @@
 
   /** The top bar's switch for the whole page, or null when the page marks no change. */
   function changesButton() {
-    if (!doc.querySelector("main [data-change]")) return null;
+    // No mark, no button: a mark that arrives later (a diff of a figure, from the Review panel) shows.
+    if (!doc.querySelector("main [data-change]")) { delete root.dataset.changes; return null; }
     // A page that is itself a diff (npm run diff) is read for its marks, so there the switch starts on.
-    let on = doc.body.hasAttribute("data-bh-diff");
+    let on = CHANGES.startsOn();
     const btn = el("button", {
       class: "btn ghost icon bh-changes-btn", type: "button", "aria-label": "Show change highlights",
       // A square holding + and −; the stroke through it appears only while the highlights are off.

@@ -23,6 +23,9 @@
    The fragment is a list of &-separated tokens. Reserved: k=<43-char key> (repeatable, read by the
    sealed-page shell) and unlisted=<value>. The first other token without "=" is a section id.
    parseFragment is the one parser; bh.js uses it through bh.fragment().
+
+   This file is the last synchronous script in every page's <head>, so it also holds the one other
+   thing that must be settled before first paint: the change highlights' starting state (at the end).
    ========================================================================== */
 (function (g) {
   "use strict";
@@ -105,4 +108,66 @@
     }
   }
   g.bhUnlisted = api;
+})(typeof window !== "undefined" ? window : globalThis);
+
+/* ==========================================================================
+   Change highlights — the state a page opens in.
+
+   Parts marked data-change are highlighted unless an ancestor has data-changes="off" (diagrams.css),
+   so without JavaScript they show. With it, a page opens with them off and the top bar's button
+   turns them on (changesButton in bh.js). bh.js is deferred, so the off state is set here, before
+   first paint: set there, the marks could paint first and then vanish.
+
+   It sets <html data-changes="off"> unless the page starts with them on, and exposes
+   window.bhChanges.startsOn(), the one rule for that, which bh.js reads too. This script cannot
+   know whether the page marks anything; bh.js takes the attribute away again on a page that has no
+   mark, and so no button.
+
+   A diff page (<body data-bh-diff>, npm run diff) starts on. It is a bundle, whose scripts all run
+   at the end of <body>, so the marker has been parsed when this runs. In a <head> there is no
+   body yet, and no diff page either.
+
+   The marks must show wherever there is no button to ask with, so until bh.js has settled the
+   switch (it sets bhChanges.settled, once the top bar is built) this block stands in for it:
+     - on paper: beforeprint lifts the off state and afterprint puts it back. Once bh.js has
+       settled the switch its own pair of handlers does this, and these two do nothing.
+     - if bh.js never settles it (it failed to load, or threw first), the off state is lifted once
+       the page has loaded, for good. The flag is the test, not window.bh: a script that half ran
+       has made no button.
+   ========================================================================== */
+(function (g) {
+  "use strict";
+
+  /** True when the page opens with its change highlights on: a page that is itself a diff. */
+  function startsOn(doc) {
+    return !!(doc && doc.body && doc.body.hasAttribute("data-bh-diff"));
+  }
+
+  /** `settled` is set by bh.js once it has made the page's switch agree with the page (buildChrome). */
+  var api = { startsOn: function () { return startsOn(g.document); }, settled: false };
+
+  var doc = g.document;
+  var root = doc && doc.documentElement;
+  if (root && !startsOn(doc)) {
+    root.setAttribute("data-changes", "off");
+    if (g.addEventListener) {
+      // Until bh.js settles the switch, the off state is this block's to lift and put back.
+      var waiting = true, lifted = false;
+      // bh.js is deferred, so it has run by now if it is going to.
+      g.addEventListener("load", function () {
+        waiting = false;
+        if (!api.settled) root.removeAttribute("data-changes");
+      });
+      g.addEventListener("beforeprint", function () {
+        lifted = !api.settled && root.getAttribute("data-changes") === "off";
+        if (lifted) root.removeAttribute("data-changes");
+      });
+      g.addEventListener("afterprint", function () {
+        // Not after the page loaded without bh.js settling: the off state was lifted for good then.
+        if (lifted && waiting && !api.settled) root.setAttribute("data-changes", "off");
+        lifted = false;
+      });
+    }
+  }
+  g.bhChanges = api;
 })(typeof window !== "undefined" ? window : globalThis);

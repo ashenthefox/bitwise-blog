@@ -186,7 +186,7 @@ theme/
   print.css             Print: chrome removed, all steps and tabs expanded
   bh.js                 Runtime: chrome, TOC/scroll-spy, web components, lazy Prism/Mermaid
   examples.js           Early <head> script: whether example pages are shown (hidden unless ?examples)
-  unlisted.js           Early <head> script: the #unlisted flag and the page-fragment parser
+  unlisted.js           Early <head> script: the #unlisted flag, the page-fragment parser, change highlights off before first paint
   unlisted-pages.js     GENERATED: unlisted pages' cards, search text and backlinks (loaded only with the flag)
   unlisted-slugs.js     GENERATED: unlisted pages' paths, so links to them can be made inert
   unlisted-reviews.js   GENERATED: published review threads of unlisted pages (loaded only by those pages)

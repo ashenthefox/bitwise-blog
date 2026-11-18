@@ -63,7 +63,7 @@ Read it before you use or change the feature; `check` fails if a file named here
 - The social meta block, `bh:image`, `npm run cards` or `docs/assets/og/`? Read [`contracts/social-cards.md`](contracts/social-cards.md).
 - Sealing, `seal`, `unseal`, `bh:group`, `*.private.html` or `theme/private-cards.js`? Read [`contracts/private-pages.md`](contracts/private-pages.md).
 - `bh:example`, `?examples` or `theme/examples.js`? Read [`contracts/example-pages.md`](contracts/example-pages.md).
-- `bh:unlisted`, `#unlisted=true`, `theme/unlisted.js` or the page fragment (`#k=…&…`)? Read [`contracts/unlisted-pages.md`](contracts/unlisted-pages.md).
+- `bh:unlisted`, `#unlisted=true`, `theme/unlisted.js`, the page fragment (`#k=…&…`) or the state the change highlights open in (`data-changes`, `bhChanges`)? Read [`contracts/unlisted-pages.md`](contracts/unlisted-pages.md).
 - `feed.xml`, its autodiscovery link or the footer's Subscribe link? Read [`contracts/feed.md`](contracts/feed.md).
 - `sitemap.xml`, `robots.txt` or `404.html`? Read [`contracts/sitemap-robots-404.md`](contracts/sitemap-robots-404.md).
 - The footer's attribution link, `homepage`, `bh.siteName` or `bh.repoUrl`? Read [`contracts/attribution.md`](contracts/attribution.md).
@@ -96,7 +96,8 @@ Some rules in those contracts guard what this public repo reveals, and no check 
   - optionally `bh:unlisted` (`true` for an unlisted page; see [Unlisted pages](contracts/unlisted-pages.md))
   - optionally `bh:discuss` (`off`, or the post's thread URL; see [Discuss this post](contracts/discuss.md))
   - the synchronous `<script src="…/theme/examples.js">` after the theme script, then
-    `<script src="…/theme/unlisted.js">` (the `bh:unlisted` marker must come before it)
+    `<script src="…/theme/unlisted.js">` (the `bh:unlisted` marker must come before it). The second
+    also turns the change highlights off before first paint (see [Unlisted pages](contracts/unlisted-pages.md))
   - the generated social meta block between its two `bh:social` markers: leave it alone
   - the feed autodiscovery `<link rel="alternate" type="application/atom+xml">` after the icon
     links, and the "Subscribe" link in the footer (both in the templates; see [Atom feed](contracts/feed.md))

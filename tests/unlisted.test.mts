@@ -69,21 +69,26 @@ interface UnlistedApi {
 }
 type Store = Record<string, string>;
 
-/** The slice of a browser window theme/unlisted.js touches; the script adds `bhUnlisted`. */
+/** The slice of a browser window theme/unlisted.js touches; the script adds `bhUnlisted` and `bhChanges`. */
 interface FakeWindow {
   location: { hash: string; reload: () => void };
   addEventListener: (type: string, fn: () => void) => void;
   document: {
-    documentElement: { hasAttribute: (k: string) => boolean; setAttribute: (k: string, v: string) => void };
+    documentElement: { hasAttribute: (k: string) => boolean; getAttribute: (k: string) => string | null; setAttribute: (k: string, v: string) => void; removeAttribute: (k: string) => void };
+    /** Absent while the script runs in <head>; present when it runs at the end of a bundle's <body>. */
+    body?: { hasAttribute: (k: string) => boolean };
     querySelector: (sel: string) => object | null;
   };
   sessionStorage?: { getItem: (k: string) => string | null; setItem: (k: string, v: unknown) => void; removeItem: (k: string) => void };
   window?: FakeWindow;
   bhUnlisted?: UnlistedApi;
+  bhChanges?: { startsOn(): boolean; settled: boolean };
+  /** Set by bh.js when it runs: not what says the switch was settled. */
+  bh?: object;
 }
 
 /** Run theme/unlisted.js as a browser would, in a fresh context. */
-function load(url: string, { bundled = false, unlistedPage = false, store = {}, storageThrows = false }: { bundled?: boolean; unlistedPage?: boolean; store?: Store; storageThrows?: boolean } = {}) {
+function load(url: string, { bundled = false, unlistedPage = false, store = {}, storageThrows = false, body }: { bundled?: boolean; unlistedPage?: boolean; store?: Store; storageThrows?: boolean; body?: string[] } = {}) {
   const u = new URL(url);
   const attrs = new Map<string, string>(bundled ? [["data-bundled", ""]] : []);
   const listeners: [string, () => void][] = [];
@@ -97,7 +102,8 @@ function load(url: string, { bundled = false, unlistedPage = false, store = {}, 
     location: { hash: u.hash, reload: () => { reloads.push(1); } },
     addEventListener: (type, fn) => { listeners.push([type, fn]); },
     document: {
-      documentElement: { hasAttribute: (k) => attrs.has(k), setAttribute: (k, v) => { attrs.set(k, v); } },
+      documentElement: { hasAttribute: (k) => attrs.has(k), getAttribute: (k) => attrs.get(k) ?? null, setAttribute: (k, v) => { attrs.set(k, v); }, removeAttribute: (k) => { attrs.delete(k); } },
+      ...(body ? { body: { hasAttribute: (k: string) => body.includes(k) } } : {}),
       querySelector: (sel) => (unlistedPage && sel === 'meta[name="bh:unlisted"]' ? {} : null),
     },
   };
@@ -107,6 +113,8 @@ function load(url: string, { bundled = false, unlistedPage = false, store = {}, 
   vm.runInNewContext(script, context);
   return { api: must(context.bhUnlisted, "the script publishes bhUnlisted"), attrs, store, context, listeners, reloads };
 }
+/** The listeners the script added for one event. */
+const heard = (found: ReturnType<typeof load>, event: string) => found.listeners.filter(([type]) => type === event).map(([, fn]) => fn);
 // Objects made inside the vm context have another realm's prototypes: compare plain copies.
 const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
 const parse = (hash: string) => plain(load("http://localhost/").api.parseFragment(hash));
@@ -183,13 +191,13 @@ test("a bundled single file always shows its own content", () => {
   assert.equal(found.api.visible, true);
   assert.equal(found.api.source, "bundle");
   assert.equal(found.attrs.get("data-unlisted"), "on");
-  assert.equal(found.listeners.length, 0);
+  assert.equal(heard(found, "hashchange").length, 0);
 });
 
 test("pasting a new #unlisted into an open tab reloads only when the choice changes", () => {
   const found = load("https://bitwise.john-ky.io/");
-  const [type, onChange] = found.listeners[0];
-  assert.equal(type, "hashchange");
+  const [onChange] = heard(found, "hashchange");
+  assert.ok(onChange, "the script listens for hashchange");
   found.context.location.hash = "#some-section";
   onChange();
   assert.equal(found.reloads.length, 0);
@@ -202,8 +210,66 @@ test("pasting a new #unlisted into an open tab reloads only when the choice chan
   // With sessionStorage blocked nothing is remembered; a section link must still not reload.
   const blocked = load("https://bitwise.john-ky.io/#unlisted=true", { storageThrows: true });
   blocked.context.location.hash = "#some-section";
-  blocked.listeners[0][1]();
+  heard(blocked, "hashchange")[0]!();
   assert.equal(blocked.reloads.length, 0);
+});
+
+// ---- theme/unlisted.js: the state the change highlights open in -----------------------------------
+
+test("change highlights start off, set before first paint; a diff page starts with them on", () => {
+  // In <head> there is no <body> yet: every page gets the off state, and bh.js settles it.
+  const page = load("https://bitwise.john-ky.io/docs/x.html");
+  assert.equal(page.attrs.get("data-changes"), "off");
+  assert.equal(must(page.context.bhChanges, "the script publishes bhChanges").startsOn(), false);
+  // A diff page is a bundle: its scripts run at the end of <body>, where the marker has been parsed.
+  const diff = load("file:///tmp/dist/diff/x.html", { bundled: true, body: ["data-bh-diff"] });
+  assert.equal(diff.attrs.has("data-changes"), false);
+  assert.equal(must(diff.context.bhChanges, "the script publishes bhChanges").startsOn(), true);
+  assert.equal(heard(diff, "load").length, 0);
+  const bundle = load("file:///tmp/dist/x.html", { bundled: true, body: [] });
+  assert.equal(bundle.attrs.get("data-changes"), "off");
+});
+
+test("change highlights come back when bh.js never settled the switch: there is no button to ask with", () => {
+  const failed = load("https://bitwise.john-ky.io/docs/x.html");
+  heard(failed, "load")[0]!();
+  assert.equal(failed.attrs.has("data-changes"), false);
+  // A bh.js that ran and threw before the top bar existed has made window.bh, and no button.
+  const halfRan = load("https://bitwise.john-ky.io/docs/x.html");
+  halfRan.context.bh = {};
+  heard(halfRan, "load")[0]!();
+  assert.equal(halfRan.attrs.has("data-changes"), false);
+  const ran = load("https://bitwise.john-ky.io/docs/x.html");
+  must(ran.context.bhChanges, "bhChanges").settled = true;
+  heard(ran, "load")[0]!();
+  assert.equal(ran.attrs.get("data-changes"), "off", "bh.js owns the attribute once it has settled the switch");
+});
+
+test("printing before bh.js has settled the switch lifts the off state, and gives it back", () => {
+  const fire = (found: ReturnType<typeof load>, event: string) => { for (const fn of heard(found, event)) fn(); };
+  const state = (found: ReturnType<typeof load>) => found.attrs.get("data-changes") ?? null;
+  const early = load("https://bitwise.john-ky.io/docs/x.html");
+  fire(early, "beforeprint");
+  assert.equal(state(early), null, "on paper the marks show");
+  fire(early, "afterprint");
+  assert.equal(state(early), "off");
+  // bh.js settles the switch while the page prints: the attribute is its own from then on.
+  const during = load("https://bitwise.john-ky.io/docs/x.html");
+  fire(during, "beforeprint");
+  must(during.context.bhChanges, "bhChanges").settled = true;
+  fire(during, "afterprint");
+  assert.equal(state(during), null, "bh.js's state is left alone");
+  // Settled before printing: bh.js's own handlers lift and restore, and these do nothing.
+  const late = load("https://bitwise.john-ky.io/docs/x.html");
+  must(late.context.bhChanges, "bhChanges").settled = true;
+  fire(late, "beforeprint");
+  assert.equal(state(late), "off");
+  // Loaded without bh.js: the off state was lifted for good, and printing does not bring it back.
+  const never = load("https://bitwise.john-ky.io/docs/x.html");
+  fire(never, "beforeprint"); fire(never, "load"); fire(never, "afterprint");
+  assert.equal(state(never), null);
+  fire(never, "beforeprint"); fire(never, "afterprint");
+  assert.equal(state(never), null);
 });
 
 // ---- the sealed-page shell reads the same fragment ----------------------------------------------
