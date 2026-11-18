@@ -36,6 +36,7 @@ import { linkTargetFindings } from "./check/link-targets.mts";
 import { feedContent, feedInteractives } from "./feed-content.mts";
 import { hiddenPages, hiddenHrefs, HIDDEN_RULE, type HiddenKind } from "./hidden-pages.mts";
 import { LEAK_ALLOWED } from "./leak-allowed.mts";
+import { trackedPrivatePlaintext } from "./private-leaks.mts";
 import { remoteAssetProblems, themeRemoteProblems, vendoredPrismLanguages, codeLanguageProblems } from "./remote-assets.mts";
 import { VENDOR } from "./vendor.mts";
 import { COMMIT_RE, diffPages, renderDiffPage, statsLine, summaryMarkdown, type PageSummary } from "./page-diff.mts";
@@ -1315,7 +1316,8 @@ function cmdCheck(skipKeys = false): void {
   // Private pages: every plaintext is sealed and current; sealed shells are well-formed.
   const privateSlugs = new Set([...privateSources().map((f) => path.basename(f, PRIVATE_EXT)), ...sealedFiles().map((f) => path.basename(f, ".html"))]);
   {
-    const problems: string[] = [];
+    // Only .gitignore keeps the plaintext out, and `git add -f` goes past it (the push checks refuse it too: scripts/private-leaks.mts).
+    const problems: string[] = trackedPrivatePlaintext(ROOT).map((f) => `${f} is tracked by git, but a private page's plaintext must never be committed: \`git rm --cached ${f}\` (and rewrite any commit that has it); \`npm run seal\` makes the copy to commit`);
     for (const shell of sealedFiles()) {
       const slug = path.basename(shell, ".html"), text = fs.readFileSync(shell, "utf8");
       if (!/id="sealed-payload">\s*[A-Za-z0-9+/=\s]{40,}<\/script>/.test(text)) problems.push(`docs/${slug}.html: sealed payload is missing or malformed`);
