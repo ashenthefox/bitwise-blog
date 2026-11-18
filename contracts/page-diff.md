@@ -29,6 +29,16 @@ reader would see it, in three places that share one function, `diffPages` (`scri
   it on, and `diff.js` calls `bh.showChanges()` when it places a changed diagram. A copy drawn in a
   shadow tree cannot see the switch on its ancestors, so `bh.mirrorChanges()` writes `data-changes="off"`
   onto the tree's content whenever an ancestor has it; `upgrade` calls it for a new tree.
+- **A page that marks nothing gets the switch while a diff's marks are on it.** The top bar has the
+  button only when the page has a `data-change` part at load. So when `bh.showChanges()` finds none, it
+  builds the button then, on, in its usual place, and a `bh-diff` listener takes it out again once
+  nothing on the page is marked (the diff was closed) and puts it back for the next diff. Decided in
+  #262: the pair's own "Show changes" button already covered that case, but a reader who knows the page's
+  switch from other pages would find it missing only here, and building it late is a few lines in
+  `showChanges`. The button never appears on a page with no marks and no diff. Taking the button out
+  also turns the switch on, through the button's own state, so the page is never left with
+  `data-changes="off"` and no control (a part marked later would be drawn plain, and leaving the slides
+  would not switch it off again); and if the button had focus, focus moves to the control beside it.
 - **How the source is wrapped or indented is not a change.** Comments are ignored.
 - Each difference says what differs: `text`, `figure` (a picture), or `markup` (attributes or structure only).
 
@@ -116,5 +126,8 @@ anything else, use `npm run diff`.
 - Tests: `tests/page-diff.test.mts` (alignment, the word diff's nesting, inert copies, the data file, the
   git helpers and the published file set on a throwaway repository).
   `tests/page-diff-browser.test.mts` runs `theme/modules/diff.js` in Chrome on a small page: where each
-  mark lands, the outdated-thread jump, the Review panel, and phone width. It is skipped without Chrome.
+  mark lands, the outdated-thread jump, the Review panel, and phone width. It also covers the
+  change-highlight switch, by the computed style of each marked part rather than its attribute: off to on
+  for `?diff=` on a page with marks of its own, the late-built button on a page with none, and a diff page
+  written by the real `bh diff` command, which opens with the highlights on. It is skipped without Chrome.
 - The component gallery's "Diff marks" section is the visual regression sample.
