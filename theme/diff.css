@@ -68,6 +68,8 @@ details.bh-diff-mark > :not(summary) { margin-block: var(--space-3) 0; }
 /* A copy is not one of the page's figures: it takes no number and shows none, so the figures after it keep theirs. */
 .bh-article .bh-diff-mark figure { counter-increment: none; }
 .bh-article .bh-diff-mark figure > figcaption::before { content: none; }
+/* Nor is a sidenote in a copy one of the page's notes: it has no number and no ref to open it, so it is shown where it stands. */
+.js .bh-diff-mark .sidenote { display: block; }
 
 /* The list of changes at the top of a standalone diff page. */
 .bh-diff-summary {

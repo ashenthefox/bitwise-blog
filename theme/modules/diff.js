@@ -68,6 +68,10 @@
       if (byId && byId.parentElement === article) return byId;
       const wrapper = byId && list.find((b) => written(b) === byId);
       if (wrapper) return wrapper;
+      // The page's script may have moved it into another block (a figure put inside a code walk). The mark
+      // then goes on the block that holds it now: a component's own layout is no place for one.
+      const holder = byId && list.find((b) => b.contains(byId));
+      if (holder) return holder;
     }
     // A component rewrites its own content (controls ahead of it, labels between its parts), so its
     // text is only a hint: at the expected position its tag is enough, and elsewhere a short start of
@@ -117,9 +121,11 @@
     btn.textContent = open ? "Collapse all" : "Expand all";
   }
 
-  function buildBar(base, data, placed) {
+  function buildBar(base, data, placed, missing) {
     const total = data.stats.changed + data.stats.added + data.stats.removed + data.stats.moved;
-    const text = total ? `Changes since ${base.slice(0, 7)}: ${statsLine(data.stats)}` : `No changes to this page since ${base.slice(0, 7)}`;
+    let text = total ? `Changes since ${base.slice(0, 7)}: ${statsLine(data.stats)}` : `No changes to this page since ${base.slice(0, 7)}`;
+    // The counts are the data's. A change whose block is not on the page has no mark, so it is named.
+    if (missing.length) text += ` (${missing.length} not marked here: ${missing.map((c) => `“${c.label}”`).join(", ")})`;
     const hasDetails = placed.some((p) => p.mark.localName === "details");
     return el("div", { class: "bh-diff-bar bh-diff-ui", role: "region", "aria-label": "Changes" }, [
       el("span", { class: "bh-diff-bar-text", text }),
@@ -241,11 +247,12 @@
       hide(); // a second call may have landed while this one loaded
       const list = blocks();
       const footer = article.querySelector(":scope > .bh-footer");
-      const placed = [];
+      const placed = [], missing = [];
       for (const change of data.changes) {
         const removed = change.status === "removed";
         const block = removed ? list[change.at] || footer : find(change, list);
-        if (!removed && !block) continue; // the page is not the build this data was made for
+        // The page is not the build this data was made for, or its script took the block out of the article.
+        if (!removed && !block) { missing.push(change); continue; }
         const holder = el("div", { html: change.html });
         const mark = holder.firstElementChild;
         if (!mark) continue;
@@ -261,7 +268,7 @@
       // The reader asked for the changes, so a changed diagram shows its marks: the page's switch goes on.
       if (article.querySelector(".bh-diff-ui [data-change]")) bh.showChanges();
       if (article.querySelector(".bh-diff-ui bh-sequence")) bh.settle(bh.loadModule("sequence.js"));
-      const bar = buildBar(base, data, placed);
+      const bar = buildBar(base, data, placed, missing);
       doc.body.append(bar);
       shown = { base, data, placed, bar, at: -1 };
       if (opts.expand) expandAll(true);
