@@ -267,7 +267,8 @@
   // Two levels, one attribute. On <html> it is the page's switch: no mark is highlighted anywhere,
   // and each <bh-versions> hides its own "Show changes" button. On a <bh-versions> it is that
   // component's switch, which its button sets and which only shows while the page's is on. A
-  // component keeps its own choice while the page's switch is off.
+  // component keeps its own choice while the page's switch is off. On any other wrapper it acts as
+  // the page's switch does, for what is inside the wrapper (no page sets one today).
   //
   // The page's switch starts off: a page reads as it will look, and the reader asks for the marks.
   // Where there is no button to ask with, the marks show: without JavaScript, on paper, in the
@@ -317,6 +318,12 @@
     doc.addEventListener("bh-diff", place); // diff.js sends it after placing or removing its marks
     showChanges(); // changesButton() has replaced this function with the button's own
   };
+  /** Write the page's switch onto <html> again, once there is a top-bar button to hold its state. */
+  let applyPageSwitch = null;
+  // While the page prints or is shown as slides there is no button, so the page's switch is lifted:
+  // the attribute comes off <html>, and the reader's choice waits in the button.
+  let printing = false;
+  const changesLifted = () => printing || root.classList.contains("bh-presenting");
 
   /** The top bar's switch for the whole page, or null when the page marks no change. */
   function changesButton() {
@@ -331,28 +338,43 @@
       onclick: () => { on = !on; apply(); },
     });
     const apply = () => {
-      if (on || root.classList.contains("bh-presenting")) delete root.dataset.changes;
-      else root.dataset.changes = "off";
+      // Written only when it differs: writing the same value again is a mutation too, and the
+      // observer below would answer its own write for ever.
+      const off = !on && !changesLifted();
+      if (!off) delete root.dataset.changes;
+      else if (root.dataset.changes !== "off") root.dataset.changes = "off";
       btn.setAttribute("aria-pressed", String(on));
       btn.title = "Change highlights: " + (on ? "on" : "off");
     };
-    // Entering or leaving the slides changes the class on <html>.
-    if ("MutationObserver" in window) new MutationObserver(apply).observe(root, { attributes: true, attributeFilter: ["class"] });
+    // Entering or leaving the slides changes the class on <html>. And a page script may set the
+    // attribute on <html> itself: unless the switch is lifted, the button then says what it says.
+    if ("MutationObserver" in window) {
+      new MutationObserver((records) => {
+        if (!changesLifted() && records.some((r) => r.attributeName === "data-changes")) on = root.dataset.changes !== "off";
+        apply();
+      }).observe(root, { attributes: true, attributeFilter: ["class", "data-changes"] });
+    }
     apply();
     showChanges = () => { on = true; apply(); };
+    applyPageSwitch = apply;
     return btn;
   }
 
-  // Paper has no button to turn the highlights back on, so a page always prints with them.
-  let changesOffBeforePrint = [];
+  // Paper has no button to turn the highlights back on, so a page always prints with them. A second
+  // beforeprint before any afterprint adds to what is remembered, never replaces it.
+  const changesOffBeforePrint = new Set();
   addEventListener("beforeprint", () => {
-    changesOffBeforePrint = [...doc.querySelectorAll('[data-changes="off"]')];
-    for (const n of changesOffBeforePrint) delete n.dataset.changes;
+    printing = true;
+    for (const n of doc.querySelectorAll('[data-changes="off"]')) { changesOffBeforePrint.add(n); delete n.dataset.changes; }
     mirrorChanges();
   });
   addEventListener("afterprint", () => {
-    for (const n of changesOffBeforePrint) n.dataset.changes = "off";
-    changesOffBeforePrint = [];
+    printing = false;
+    // The page's switch goes back to what its button says now, which code may have changed meanwhile
+    // (a diff that finished loading). Without a button, <html> is restored like any other element.
+    for (const n of changesOffBeforePrint) if (n !== root || !applyPageSwitch) n.dataset.changes = "off";
+    changesOffBeforePrint.clear();
+    if (applyPageSwitch) applyPageSwitch();
     mirrorChanges();
   });
 
