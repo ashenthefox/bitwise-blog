@@ -89,11 +89,21 @@ pages. A new file would need a new tag in every page, template and sealed privat
   true for a diff page (`<body data-bh-diff>`). A diff page is a bundle, and a bundle's scripts all
   run at the end of `<body>`, so the marker has been parsed by then. In a `<head>` there is no body
   yet; if diff pages ever stop being bundles, put the marker on `<html>` and read it there.
-- If `bh.js` never runs (it failed to load), nothing can offer the button, so the block lifts the
-  off state on `load`.
+- **Until `bh.js` has settled the switch, the block stands in for it.** `bh.js` sets
+  `bhChanges.settled` once the top bar, with the button, is on the page (or it has found there is to be
+  no top bar). Before that:
+  - printing lifts the off state (`beforeprint`) and puts it back (`afterprint`), since paper has no
+    button. After that the pair in `bh.js` does it and the block's handlers do nothing, so the state is
+    never restored twice.
+  - if the page finishes loading and the flag is still unset (`bh.js` failed to load, threw before it
+    built the top bar, or is an older cached copy that does not know the flag), the off state is lifted
+    for good. The flag is the test, not `window.bh`: a script that half ran has made no button. With an
+    older cached `bh.js` on a page that has marks, the highlights then show while its button says off
+    until the first click; a page with no marks ends as it should.
 - **A bundle is not covered.** Its scripts run after its whole body has been parsed, so a bundle
   that arrives slowly can paint its highlights first, as it can paint anything else these scripts
   decide.
 - Tests: `tests/unlisted.test.mts` (the rule) and `tests/versions.test.mts`, which holds `bh.js`
   back in Chrome and checks that no frame has marked parts without the off state, and that the
-  highlights show with scripting off.
+  highlights show with scripting off, when printing before `bh.js` runs, when `bh.js` fails or throws, and
+  on a page with `data-chrome="none"`.
