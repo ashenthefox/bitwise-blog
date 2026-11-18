@@ -45,6 +45,8 @@ Guards, because a rule that must hold every time belongs in a check:
 - `.githooks/pre-push` runs `leak-check --pushed` before every push, so it runs without anyone remembering. Enable it
   once per clone with `npm run hooks` (`git config core.hooksPath .githooks`; worktrees share the setting). With no
   private data in the checkout it does not block the push: it says nothing was checked and how to `link`.
+  With no `node_modules` (a new worktree has none) it does block the push, with one line saying to run `npm ci` in
+  that checkout: the `yaml` package must resolve for the check to run at all, and skipping would look like a pass.
   It checks what is being pushed, not what is checked out: it reads the lines git gives a pre-push hook and scans
   the blobs those commits add, meaning the objects reachable from the pushed refs but not from the remote's
   remote-tracking refs or its current value for each ref. So pushing a branch that is not checked out is checked,
