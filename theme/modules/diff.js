@@ -58,18 +58,23 @@
     return collapse(copy.textContent);
   }
 
+  /** The block as the page wrote it: bh.js wraps a code block, and the article's child is then the wrapper around the <pre>. */
+  const written = (b) => (b.matches("div.code-block") && b.querySelector(":scope > pre")) || b;
+
   /** The live block a change is about: by id, else by position, confirmed by its tag and the start of its text. */
   function find(change, list) {
     if (change.id) {
       const byId = doc.getElementById(change.id);
       if (byId && byId.parentElement === article) return byId;
+      const wrapper = byId && list.find((b) => written(b) === byId);
+      if (wrapper) return wrapper;
     }
     // A component rewrites its own content (controls ahead of it, labels between its parts), so its
     // text is only a hint: at the expected position its tag is enough, and elsewhere a short start of
     // the text, found anywhere in it.
     const custom = change.tag.includes("-");
     const probe = custom ? change.probe.slice(0, 24) : change.probe;
-    const fits = (b) => b && b.localName === change.tag && (!probe || textOf(b).includes(probe));
+    const fits = (b) => b && written(b).localName === change.tag && (!probe || textOf(b).includes(probe));
     const expected = list[change.at];
     if (expected && custom && expected.localName === change.tag) return expected;
     if (fits(expected)) return expected;
@@ -127,10 +132,11 @@
 
   // ---- Copies drawn with their own version's CSS ---------------------------------------------
 
-  // What the theme's layout would do to a copy's wrapper, undone; and no "Figure N": the number
-  // would count the copies in this one tree.
+  // What the theme's layout would do to a copy's wrapper, undone; and no "Figure N": a copy is not one
+  // of the page's figures. It must not count either: a counter crosses into a shadow tree, so a copy
+  // that counted would renumber every figure after it on the page.
   const SHADOW_CSS = ":host{display:block}.bh-article{display:block;min-height:0;margin:0;padding:0;background:none;counter-reset:none}"
-    + ".bh-article figure>figcaption::before{content:none}.bh-article>figure{margin:0}";
+    + ".bh-article figure{counter-increment:none}.bh-article figure>figcaption::before{content:none}.bh-article>figure{margin:0}";
   const themeNodes = () => [...doc.querySelectorAll('link[rel="stylesheet"][href*="theme/bh.css"], style[data-bh-theme]')];
   /** This page's own CSS: every <style> in the head that is not the theme (a bundle inlines the theme as one). */
   const pageStyle = () => [...doc.head.querySelectorAll("style:not([data-bh-theme])")].map((s) => s.textContent).join("\n");

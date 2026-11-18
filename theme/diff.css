@@ -65,6 +65,9 @@ details.bh-diff-mark > :not(summary) { margin-block: var(--space-3) 0; }
 /* A side drawn in its own shadow tree shows its own caption, so the pair's shared one would repeat it. */
 .bh-diff-versions:has(> .bh-diff-side, .bh-version > .bh-diff-side) .bh-versions-caption { display: none; }
 .bh-diff-side { margin: 0; }
+/* A copy is not one of the page's figures: it takes no number and shows none, so the figures after it keep theirs. */
+.bh-article .bh-diff-mark figure { counter-increment: none; }
+.bh-article .bh-diff-mark figure > figcaption::before { content: none; }
 
 /* The list of changes at the top of a standalone diff page. */
 .bh-diff-summary {

@@ -56,13 +56,21 @@ mark carries a second copy with its ids kept, in a `<template>` inside `.bh-diff
 `bh.diff.upgrade` (`theme/modules/diff.js`) moves it into a shadow tree holding the theme, that version's
 page CSS (the old version's travels in the data file as `oldStyle`, and on the diff page as a JSON script)
 and the arrow markers. Ids in a shadow tree collide with nothing, and the old CSS styles nothing else. The
-plain copy stays as the fallback until then, and without script. Two limits:
+plain copy stays as the fallback until then, and without script. Three limits:
 
 - A figure that the page's *script* draws (a canvas, SVG built at load) is still not drawn in a copy:
   nothing runs there.
 - The theme reaches a shadow tree through one shared constructed stylesheet. Where its rules cannot be read
   (a page opened from `file://`), each tree gets its own copy of the theme's `<link>` or `<style>` instead.
   `bundle` marks the inlined theme `<style data-bh-theme>` so the page's own CSS can be told from it.
+- A version's page CSS reaches its copy only as far as the block itself. A selector that starts outside the
+  block (`:root`, `html`, `body`, `[data-theme="dark"] #my-figure`) matches nothing in a shadow tree, and a
+  custom property the old CSS declared on `:root` is not set there: the copy inherits the live page's value.
+  So scope page CSS by the block's id, and declare its custom properties on the block.
+
+**A copy is not one of the page's figures.** It shows no "Figure N" and does not count towards it, in the
+mark (`theme/diff.css`) and in a shadow tree (`SHADOW_CSS` in `diff.js`: a counter crosses into a shadow tree).
+Otherwise an open mark renumbers every figure after it.
 
 The word diff replaces a block *in place* only on the standalone diff page, and only when no custom
 element is inside it: a component's script reads its content (a chart's table, a code walk's lines), and
@@ -86,6 +94,10 @@ erase the marks.
    block that differs (a `<details>` holding the inert copy) and a change bar on the block. The page's own
    content is never rewritten, so comments stay anchored. For an outdated thread it opens the change whose
    old text holds the quote.
+   The live block is found by id, else by its position among the article's children (`find`). `bh.js` wraps a
+   code block, so there the article's child is `div.code-block` and the block is the `<pre>` inside it: the
+   mark and the change bar go on the wrapper. A block that the *page's script* moves out of the article's
+   children (a figure put inside a code walk) is not found: it gets no mark, though the bar still counts it.
 
 ## Where the data comes from
 
@@ -126,7 +138,10 @@ anything else, use `npm run diff`.
 - Tests: `tests/page-diff.test.mts` (alignment, the word diff's nesting, inert copies, the data file, the
   git helpers and the published file set on a throwaway repository).
   `tests/page-diff-browser.test.mts` runs `theme/modules/diff.js` in Chrome on a small page: where each
-  mark lands, the outdated-thread jump, the Review panel, and phone width. It also covers the
+  mark lands (a wrapped code block and a component that redrew its text included), the shadow-tree copies
+  (each version's CSS, the shared theme sheet with its layers, no figure number), the outdated-thread jump,
+  the Review panel, and phone width (the page is not widened, each copy is inside the screen and its diagram
+  scrolls in its figure). It also covers the
   change-highlight switch, by the computed style of each marked part rather than its attribute: off to on
   for `?diff=` on a page with marks of its own, the late-built button on a page with none, and a diff page
   written by the real `bh diff` command, which opens with the highlights on, also when its scripts arrive late; and a bundle

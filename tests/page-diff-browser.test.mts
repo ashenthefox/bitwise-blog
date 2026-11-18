@@ -66,8 +66,18 @@ const OWN = `
       <figcaption>The cache is new.</figcaption>
     </figure>`;
 
+// Code blocks: bh.js wraps each <pre> in a <div class="code-block">, so the article's child is no longer the <pre>.
+const CODE = "docs/code.html";
+const codeBlocks = (a: string, b: string) => `
+    <h2 id="alpha">Alpha</h2>
+    <p>A sentence that stays exactly as it was in both versions.</p>
+    <pre><code class="language-js">const limit = ${a};</code></pre>
+    <p>Another sentence that stays exactly as it was.</p>
+    <pre id="named"><code>refill every ${b} ms</code></pre>`;
+
 // Page CSS scoped by the figure's id, different in each version: a copy needs its own version's.
-const CSS = (width: number) => `#flow .node.c1 rect { stroke-width: ${width}px; }`;
+// The second rule is weaker than the theme's own `.edge` rule and wins only because the theme is in layers.
+const CSS = (width: number) => `#flow .node.c1 rect { stroke-width: ${width}px; } figure path { stroke-width: 5px; }`;
 
 function pageOf(content: string, css: string): string {
   const template = fs.readFileSync(path.join(ROOT, "templates/explainer.html"), "utf8")
@@ -179,6 +189,18 @@ const HIGHLIGHTS = `(() => {
     trees: trees.map((r) => r.querySelector(".bh-article").getAttribute("data-changes")),
   };
 })()`;
+// Whether each figure counts towards "Figure N": the page's own do, and no copy in a mark does (a copy that
+// counted would renumber every figure after it).
+const NUMBERED = `(() => {
+  // (A figure that is not drawn, as the plain copy under a shadow tree, has no computed style and counts nothing.)
+  const counts = (f) => !["none", ""].includes(getComputedStyle(f).counterIncrement);
+  // A counter crosses into a shadow tree, so a figure drawn there would count too.
+  const copies = [...document.querySelectorAll(".bh-diff-mark figure"), ...[...document.querySelectorAll(".bh-diff-shadow")].flatMap((h) => (h.shadowRoot ? [...h.shadowRoot.querySelectorAll("figure")] : []))];
+  return {
+    own: [...document.querySelectorAll(".bh-article > figure")].map(counts),
+    copies: copies.length > 0 && copies.some(counts),
+  };
+})()`;
 const SHOW = (opts: string) => `(async () => { await bh.loadModule("diff.js"); return await bh.diff.show("${BASE}", ${opts}); })()`;
 const OPEN = `(() => { ${BLOCK_AFTER} return [...document.querySelectorAll("details.bh-diff-mark[open]")].map((m) => m.dataset.diff + ":" + blockAfter(m).localName); })()`;
 
@@ -193,6 +215,10 @@ test("the diff module marks a live page with what changed since a commit", { ski
   fs.writeFileSync(path.join(root, PAGE), newHtml);
   const oldMarked = pageOf(OLD + OWN, CSS(7)), newMarked = pageOf(NEW + OWN, CSS(3));
   fs.writeFileSync(path.join(root, MARKED), newMarked);
+  const oldCode = pageOf(codeBlocks("10", "100"), ""), newCode = pageOf(codeBlocks("20", "250"), "");
+  fs.writeFileSync(path.join(root, CODE), newCode);
+  const codeDiff = diffPages(oldCode, newCode);
+  assert.ok(codeDiff);
   const markedDiff = diffPages(oldMarked, newMarked);
   const diff = diffPages(oldHtml, newHtml);
   assert.ok(diff && markedDiff);
@@ -204,6 +230,7 @@ test("the diff module marks a live page with what changed since a commit", { ski
     ["/theme/build.js", js(`window.BH_BUILD = ${JSON.stringify({ repo: "example/blog", commit: HEAD, dirty: false, builtAt: "2026-11-18T00:00:00Z" })};`)],
     [`/theme/diffs/post.${BASE}.js`, js(diffScript(PAGE, data))],
     [`/theme/diffs/marked.${BASE}.js`, js(diffScript(MARKED, diffData(markedDiff, BASE)))],
+    [`/theme/diffs/code.${BASE}.js`, js(diffScript(CODE, diffData(codeDiff, BASE)))],
   ]));
   t.after(() => new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); }));
   // /slow/<file> is a slow connection: it sends <file> as far as the end of <main>, and the rest (in a
@@ -260,6 +287,9 @@ test("the diff module marks a live page with what changed since a commit", { ski
     const stroke = `getComputedStyle(root.querySelector("#flow .node.c1 rect")).strokeWidth`;
     assert.deepEqual([await p.evaluate(side(0, stroke)), await p.evaluate(side(1, stroke)), await p.evaluate(`getComputedStyle(document.querySelector("#flow .node.c1 rect")).strokeWidth`)], ["7px", "3px", "3px"], "old CSS on the old copy, the page's on the new copy and on the page");
     assert.equal(await p.evaluate(side(0, `getComputedStyle(root.querySelector(".node.c3 rect")).fill !== "rgb(0, 0, 0)"`)), true, "the theme reaches the copy too");
+    const edge = `getComputedStyle(root.querySelector(".edge")).strokeWidth`;
+    assert.deepEqual([await p.evaluate(side(0, edge)), await p.evaluate(`getComputedStyle(document.querySelector("#flow .edge")).strokeWidth`)], ["5px", "5px"], "the theme keeps its layers in the copy: the page's weaker rule wins there as on the page");
+    assert.deepEqual(await p.evaluate(side(0, `[root.adoptedStyleSheets.length, root.querySelectorAll("link").length]`)), [1, 0], "the theme is one shared sheet, not a copy for each tree");
     assert.equal(await p.evaluate(side(0, `!!root.querySelector("#bh-arrow") && getComputedStyle(root.querySelector(".edge")).markerEnd.includes("bh-arrow")`)), true, "arrowheads resolve inside the tree");
     assert.equal(await p.evaluate(side(0, `root.querySelector("figcaption").textContent`)), "The client calls the service.");
     assert.equal(await p.evaluate(`getComputedStyle(document.querySelector(".bh-diff-ui bh-versions .bh-versions-caption")).display`), "none", "the pair's shared caption would repeat it");
@@ -280,12 +310,38 @@ test("the diff module marks a live page with what changed since a commit", { ski
     assert.equal(await p.evaluate(mark), lit);
     // Expand all, and step through the changes.
     await p.evaluate("document.querySelector('.bh-diff-bar [data-expand]').click()");
+    assert.deepEqual(await p.evaluate(NUMBERED), { own: [true], copies: false }, "no copy takes a figure number, so the page's figures keep theirs");
     assert.equal(await p.evaluate("document.querySelectorAll('details.bh-diff-mark:not([open])').length"), 0);
     await p.evaluate("[...document.querySelectorAll('.bh-diff-bar button')].find((b) => b.textContent === 'Next').click()");
     assert.equal(await p.evaluate("document.activeElement.closest('.bh-diff-mark') === document.querySelector('.bh-diff-mark')"), true, "Next goes to the first change and focuses it");
     // The page's own stepper still works: its content was never touched.
     assert.equal(await p.evaluate("document.querySelector('.bh-article > bh-stepper bh-step p').textContent"), "First, the client sends a single request.");
     await noErrors(p);
+  });
+
+  await t.test("a block the theme wrapped or a component redrew is still found", async () => {
+    // A code block: the article's child is the wrapper bh.js built, and the changed block is the <pre> inside it.
+    const p = await tab();
+    await p.goto(`${base}${CODE}?diff=${BASE}`);
+    assert.equal(await p.evaluate("document.querySelectorAll('.bh-article > .code-block > pre').length"), 2, "the theme wrapped both code blocks");
+    const found = `(() => { ${BLOCK_AFTER} return [...document.querySelectorAll(".bh-article > .bh-diff-mark")].map((m) => { const next = blockAfter(m); return [m.dataset.diff, next.className, next.getAttribute("data-diff"), next.querySelector("pre").textContent]; }); })()`;
+    assert.deepEqual(await p.evaluate(found), [
+      ["changed", "code-block", "changed", "const limit = 20;"],     // no id: by position, the <pre> inside the wrapper
+      ["changed", "code-block", "changed", "refill every 250 ms"],   // by id: the <pre> is no longer the article's child
+    ]);
+    assert.match(await p.evaluate("document.querySelector('.bh-diff-bar').textContent"), /^Changes since bbbbbbb: 2 changed/);
+    assert.equal(await p.evaluate("document.querySelectorAll('.bh-article > .bh-diff-mark').length"), 2, "as many marks as the bar counts");
+    await p.evaluate("bh.diff.hide()");
+    assert.equal(await p.evaluate("document.querySelectorAll('.bh-diff-ui, [data-diff]').length"), 0);
+    await noErrors(p);
+    // A component that redrew its content, so that none of the old text is left: its tag at its place is enough.
+    const q = await tab();
+    await q.goto(base + PAGE);
+    await q.evaluate(`document.querySelectorAll(".bh-article > bh-stepper bh-step p").forEach((s) => { s.textContent = "Drawn by the component."; })`);
+    assert.equal(await q.evaluate(`document.querySelector(".bh-article > bh-stepper").textContent.includes("First, the client")`), false, "the fault was injected");
+    await q.evaluate(SHOW("{}"));
+    assert.equal((await q.evaluate(MARKS)).filter((m: string[]) => m[1] === "bh-stepper").length, 1, "the stepper's change is marked");
+    await noErrors(q);
   });
 
   await t.test("a comment's quote opens the change that held it; a section opens the changes under that heading; hide undoes everything", async () => {
@@ -450,6 +506,12 @@ test("the diff module marks a live page with what changed since a commit", { ski
       await p.goto(base + out);
       assert.deepEqual(await p.evaluate("window.__switch"), [], `${page}: the switch was never off`);
       assert.deepEqual(await highlights(p), { button: "true", buttons: 1, root: null, own: lit([...own]), copies: lit(COPIES), trees: [null, null] }, page);
+      // Each copy has its own version's page CSS (the old one from the page's JSON), and the theme once, shared: the
+      // bundle's theme <style> is told from the page's own, so no tree carries the theme's text again.
+      const trees = `[...document.querySelectorAll(".bh-diff-versions .bh-diff-shadow")].map((h) => h.shadowRoot)`;
+      assert.deepEqual(await p.evaluate(`${trees}.map((r) => getComputedStyle(r.querySelector("#flow .node.c1 rect")).strokeWidth)`), ["7px", "3px"], `${page}: old CSS on the old copy, new on the new`);
+      assert.deepEqual(await p.evaluate(`${trees}.map((r) => [r.adoptedStyleSheets.length, r.adoptedStyleSheets[0].cssRules.length > 0, /@layer|@font-face/.test(r.querySelector("style").textContent)])`), [[1, true, false], [1, true, false]], `${page}: the theme is the shared sheet only`);
+      assert.deepEqual(await p.evaluate(NUMBERED), { own: page === MARKED ? [true, true] : [true], copies: false }, `${page}: no copy takes a figure number`);
       // The switch still works there.
       await p.evaluate("document.querySelector('.bh-topbar .bh-changes-btn').click()");
       assert.deepEqual(await highlights(p), { button: "false", buttons: 1, root: "off", own: plain([...own]), copies: plain(COPIES), trees: ["off", "off"] }, page);
@@ -518,6 +580,12 @@ test("the diff module marks a live page with what changed since a commit", { ski
     assert.deepEqual(await p.evaluate("[innerWidth, document.documentElement.scrollWidth <= 390]"), [390, true], "a wider layout viewport means something overflowed");
     const bar = await p.evaluate("(() => { const r = document.querySelector('.bh-diff-bar').getBoundingClientRect(); return [r.left >= 0, r.right <= 390]; })()");
     assert.deepEqual(bar, [true, true], "the bar fits the screen");
+    // A copy in a shadow tree stays inside the screen, and its diagram keeps its legible width and scrolls inside its figure.
+    const copies = await p.evaluate(`[...document.querySelectorAll(".bh-diff-shadow")].map((h) => {
+      const fig = h.shadowRoot.querySelector("figure"), box = h.getBoundingClientRect(), f = fig.getBoundingClientRect();
+      return [box.width > 0 && box.left >= 0 && box.right <= 390 && f.left >= 0 && f.right <= 390, Math.round(fig.querySelector("svg").getBoundingClientRect().width), fig.scrollWidth > fig.clientWidth, getComputedStyle(fig).overflowX];
+    })`);
+    assert.deepEqual(copies, [[true, 520, true, "auto"], [true, 520, true, "auto"]], "each copy fits, and its 520px diagram scrolls in its figure");
     // This page marks nothing itself, so the top bar's switch was built when ?diff= placed the changed diagram.
     const button = await p.evaluate("(() => { const b = document.querySelector('.bh-topbar .bh-changes-btn'); if (!b) return null; const r = b.getBoundingClientRect(); return [b.getAttribute('aria-pressed'), r.width > 0 && r.left >= 0 && r.right <= 390]; })()");
     assert.deepEqual(button, ["true", true], "the page's switch is there, on, and inside the screen");
