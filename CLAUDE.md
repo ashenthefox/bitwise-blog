@@ -79,7 +79,7 @@ Read it before you use or change the feature; `check` fails if a file named here
 - Applying or answering a review file, `reviews/`, or the Review panel? Read [`contracts/reviews.md`](contracts/reviews.md).
 - `npm run diff`, `scripts/page-diff.mts`, `theme/diffs/`, `?diff=` or "changes since this comment"? Read [`contracts/page-diff.md`](contracts/page-diff.md).
 - An `npm run a11y` failure, `scripts/a11y.mts` or `a11y-allowlist.json`? Read [`contracts/a11y.md`](contracts/a11y.md).
-- Anything in `.claude/skills/`? Read [`contracts/skills.md`](contracts/skills.md), then load the `skill-authoring` skill.
+- Anything in `.claude/skills/` or `.claude/agents/`? Read [`contracts/skills.md`](contracts/skills.md), then load the `skill-authoring` skill.
 <!-- /bh:contracts -->
 
 Some rules in those contracts guard what this public repo reveals, and no check catches a slip, so they hold always:
