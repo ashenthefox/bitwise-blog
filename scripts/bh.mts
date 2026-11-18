@@ -2081,6 +2081,9 @@ async function unseal(fromStorage) {
     try { sessionStorage.setItem(store, key); } catch {}
     // Keep the key out of the address bar, copied section links and screenshots.
     history.replaceState(null, "", location.pathname + location.search + (anchor ? "#" + anchor : ""));
+    // Tells the theme this is a private page, so it offers no review (an exported review quotes the page).
+    // document.open() replaces the document, not the window, so the flag is in place before the page's first script.
+    window.bhSealed = true;
     document.open();
     document.write(html);
     document.close();

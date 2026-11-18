@@ -7,7 +7,9 @@ them select text or use "+ Comment" on a section or block. Comments stay in thei
 reappear on later visits, and are exported from the Review panel as a `bh-review/1` file
 (`.json`, or `.json.gz`). The format is defined in `reviews/schema.json`. Reviewers submit a
 file by adding it to `reviews/inbox/` in a pull request. `check` validates every review file
-against the schema and its own rules (`scripts/reviews.mts`).
+against the schema and its own rules (`scripts/reviews.mts`). Review is off on a page with
+`<body data-review="off">` (no button; `?review` and stored drafts do nothing) and on every private
+page, whose review would quote it in public (see `contracts/private-pages.md`).
 
 **Submitting from the page waits for a hosted service** (#207). A "Submit on GitHub" button that
 filed the review as a GitHub issue, and workflows that turned the issue into a pull request, were

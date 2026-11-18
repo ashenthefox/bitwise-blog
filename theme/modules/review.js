@@ -8,7 +8,8 @@
    and added to the repo by pull request; once merged they become part of the threads,
    and the local drafts are dropped automatically.
 
-   Turn on with the top bar's Review button (or ?review). Then:
+   Turn on with the top bar's Review button (or ?review); never where <body data-review="off">,
+   which bh.js sets on every private page. Then:
    - select text and press "Comment", or use "+ Comment" on any section/figure;
    - open any pin to read the thread and Reply (optionally marking it resolved);
    - the panel lists threads and drafts, and exports your drafts.
@@ -684,8 +685,11 @@
   }
 
   let started = false;
+  // bh.js sets data-review="off" on a private page before anything can load this module: an exported
+  // review quotes the page, and the panel says to submit it in a public pull request (#210).
+  const off = () => doc.body.dataset.review === "off";
   function start(review) {
-    if (!article) return Promise.resolve();
+    if (!article || off()) return Promise.resolve();
     const go = () => {
       if (!started) {
         started = true;
@@ -714,7 +718,7 @@
     return Promise.all(need.map((u) => bh.loadScript(u).catch(() => {}))).then(go);
   }
 
-  function toggle() { return start(false).then(() => setActive(!active)); }
+  function toggle() { return start(false).then(() => { if (started) setActive(!active); }); }
 
   bh.review = { start, toggle, get comments() { return state.comments; }, get threads() { return current; }, file: reviewFile, relocate: relocateAll };
   window.bhModules = Object.assign(window.bhModules || {}, { "review.js": true });

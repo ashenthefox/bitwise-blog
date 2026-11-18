@@ -85,6 +85,19 @@ carries its key.
   its quotes and comments never reach `theme/reviews.js` or `theme/site.js`. The review file
   itself would be public in git, so `check` fails if one under `reviews/` targets a private
   page: keep such review files out of the repo.
+- **A private page offers no review** (#210). An exported review quotes the page, and the Review
+  panel's way to submit one is a public pull request, so a decrypted page has no Review button, and
+  `?review`, drafts stored for it and the review module's own toggle all do nothing.
+  - The shell sets `window.bhSealed` just before `document.open()`, which replaces the document but
+    not the window. `bh.js` then sets `<body data-review="off">` before it builds the top bar, and
+    `theme/modules/review.js` refuses to start on such a body. (A marker the shell put on `<html>`
+    would be lost: `document.open()` replaces that element too.)
+  - It fails closed. `bh.js` also treats a page as private when the tab holds a key for its path
+    (`bh-sealed-key:<path>`, which shells from before the flag set too) or its path ends in
+    `.private.html` (the local plaintext). The plaintext is not changed, so turning review off needed
+    no key and no re-seal: `npm run seal -- --reshell` moved the existing pages to the new shell.
+  - Test: "a decrypted private page offers no review, by any route, and a public page still does"
+    (`tests/private-cards-browser.test.mts`, needs Chrome). It also suppresses each signal in turn.
 - After decrypting, the page removes the key from the address bar and remembers it for the
   browser session. Copied section links therefore have no key: share the full `#k=` link.
 - Never put a `#k=` link in a commit message, PR, issue or any other public place.
