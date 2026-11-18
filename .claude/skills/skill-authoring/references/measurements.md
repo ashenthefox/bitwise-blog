@@ -39,6 +39,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-18: every output suite with the Sonnet judge, both arms, and what it costs (#248)
 - 2026-11-18: `fix-confusing-figure` graded on what the skill adds, and the two dropped conditions (#249)
 - 2026-11-18: why `needs-a-script` scored lower with the skill on two graders (#300)
+- 2026-11-18: `needs-a-script`'s graders named for what they check, and which are guards (#318)
 - 2026-11-18: six `pedagogical-writing` graders that rejected correct answers or passed in no arm (#299)
 - 2026-11-18: "or reading any file" in `skill-authoring`'s description does not make Sonnet load other skills (#306)
 - 2026-11-18: the Haiku misses of `pedagogical-writing` labelled from traces, and seven queries reworded (#308)
@@ -1693,6 +1694,97 @@ the saved answers through `rejudge.mjs`; the fresh run is new answers through th
   `pedagogical-diagrams` with Haiku it was 84% to 89%.
 - **Only Sonnet was run.** Haiku and Opus scored this case +0.07 and +0.13 with the old graders in October, and
   their answers have not been read.
+
+## 2026-11-18: `needs-a-script`'s graders named for what they check, and which are guards (#318)
+
+Judge `claude-sonnet-5-5` through `rejudge.mjs`, three votes. No change to the skill, to the prompt or to the
+text of any rubric: one grader file renamed and two deleted. US$0.71, all of it one judging of saved answers
+(36 verdicts). **No `claude plugin eval` run was made, and none was needed**: the three graders that remain have
+the text they had in #300's fresh run, and the two that went were regexes, which can be run on saved answers by
+hand.
+
+The answers are the twelve of #300: three from each arm of its fresh run
+(`evals/baselines/2026-11-18-needs-a-script-300.json`) and three from each arm of #248's run (`2026-11-18.json`).
+
+**What each grader checked, and the decision.**
+
+- **`bundles-a-script`: deleted.** It was a regex for `scripts/`. No with-skill answer bundles a script in a
+  skill: all six say the check needs no new skill. They passed because each names the repo's lint,
+  `scripts/lint-skill.mjs`, and in four of the six that is the only `scripts/` in the answer. So with the skill
+  it checked what `reuses-existing-lint` checked. Without the skill it checked where a new skill keeps its
+  script: four answers that keep it under `scripts/` pass and two with `check.sh` beside `SKILL.md` fail, and
+  all six bundle a script. No name fits both arms. Making it check what its name says was not an option
+  either: the skill teaches the opposite answer here (section 1), so a grader for "bundles a script" would fail
+  the answers the skill is right to give.
+- **`lowest-rung`: renamed `no-new-skill`.** Since #300 its rubric asks one thing, whether the answer says the
+  check needs no new skill. The old name was from the ladder (a lone `SKILL.md` plus a script), which is what the
+  no-skill answers build and the rubric fails. The text is unchanged.
+- **`reuses-existing-lint`: deleted, which merges it into `no-new-skill`.** It was a regex for `lint-skills` or
+  `lint-skill.mjs`. The two passed and failed together in all twelve answers, so the Δ counted one move twice.
+  Of the two, `no-new-skill` is the one both arms can pass: an answer needs only say the check belongs in CI or
+  a pre-commit step and not in a skill. The regex cannot pass without the skill, because the sandbox is empty
+  and the prompt does not name the lint (#300 said so). A grader that one arm cannot pass shows that the skill
+  was read, which `skill-fired` already shows without being scored.
+- **`run-not-read`: kept, as a guard.** Its name says what it asks (the check is code that is run, not steps
+  Claude reads and follows). It passes every answer in both arms and adds nothing to Δ. It would fail a skill
+  change that led the answer to do the check by written steps.
+- **`no-repo-root-path`: kept, as a guard.** It also passes every answer in both arms. It would fail a
+  with-skill answer that names a bundled file by a `.claude/skills/<name>/…` path (rule 4 of `SKILL.md`).
+
+**The graders of the case now.**
+
+| Grader | Type | Role | What it checks |
+| --- | --- | --- | --- |
+| `no-new-skill` | `llm` | scored, separates the arms | The answer says the check needs no new skill |
+| `run-not-read` | `llm` | scored, guard | The check itself is code that is run |
+| `no-repo-root-path` | `llm` | scored, guard | No bundled file is named by a repo-root path |
+| `skill-fired` | `tool_used` | not scored | The skill loaded (with-skill arm only) |
+
+A guard here is a grader that passes in both arms on purpose: it holds the answer to the main job and is not
+expected to add to Δ.
+
+**On the saved answers.** Passes with the skill and without. The `llm` rows are `rejudge.mjs --rubrics` with
+the files as they are now (`no-new-skill` under its recorded name, from a scratch directory, as in #301); the
+regex rows are the two deleted patterns, from the record.
+
+| Grader | #300's fresh answers | #248's answers |
+| --- | --- | --- |
+| `no-new-skill` | 3 of 3, 0 of 3 | 3 of 3, 0 of 3 |
+| `run-not-read` (guard) | 3 of 3, 3 of 3 | 3 of 3, 3 of 3 |
+| `no-repo-root-path` (guard) | 3 of 3, 3 of 3 | 3 of 3, 3 of 3 |
+| `reuses-existing-lint` (deleted) | 3 of 3, 0 of 3 | 3 of 3, 0 of 3 |
+| `bundles-a-script` (deleted) | 3 of 3, 1 of 3 | 3 of 3, 3 of 3 |
+
+| `needs-a-script` | With | Without | Δ |
+| --- | --- | --- | --- |
+| #300's fresh run, five graders, as recorded | 1.00 | 0.47 | +0.53 |
+| The same answers, three graders | 1.00 | 0.67 | +0.33 |
+| #248's answers, three graders | 1.00 | 0.67 | +0.33 |
+
+- **Each scored grader's name now says what it checks**, and two of the three are guards, which is what #318
+  asks.
+- **The judge split its votes on none of the 36 verdicts.** On the 18 of #300's fresh run, whose record was
+  made with these rubrics, it gave the built-in judge's verdict every time. #248's record was made with the old
+  rubrics of two of the three, so its 7 differences from that record are #300's change, not this one.
+- **The Δ falls from +0.53 to +0.33 by construction.** The answers and the verdicts are the same; two graders
+  that failed the no-skill arm are gone, one of them a second count of `no-new-skill` and the other a check of
+  where a script is kept.
+
+**What this does not show.**
+
+- **The Δ now comes from one grader.** With three scored graders the case moves in steps of 0.11 and cannot
+  exceed +0.33. If `no-new-skill` passes one no-skill answer in three, the case is at +0.22.
+- **Nothing scored now asks whether the answer names the repo's lint.** All six with-skill answers do, and it is
+  the better answer for this repo (#300). A change to section 1 of `SKILL.md` that dropped `npm run lint-skills`
+  would leave the score where it is. A grader marked for the with-skill arm only would keep the check out of
+  the score, as `skill-fired` is; whether a regex grader can be marked that way was not tried, because trying it
+  needs a run.
+- **`no-new-skill` takes the skill's side**, as #300 said of it under its old name.
+- **No baseline has the new names.** `2026-11-18-needs-a-script-300.json` records `lowest-rung`,
+  `reuses-existing-lint` and `bundles-a-script`, and was not rewritten. To judge it again with today's files,
+  copy `no-new-skill.md` to a scratch directory as `lowest-rung.md`. The next run of the suite will be the first
+  record with the new names, and its `needs-a-script` score will not compare with #300's.
+- **Nothing new was measured.** These are the twelve answers of #300, from one model on one day.
 
 ## 2026-11-18: six `pedagogical-writing` graders that rejected correct answers or passed in no arm (#299)
 
