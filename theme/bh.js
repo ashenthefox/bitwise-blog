@@ -206,9 +206,12 @@
       ? el("a", { class: "bh-brand", href: home, title: "Back to index" }, brandChildren)
       : el("span", { class: "bh-brand" }, brandChildren);
 
-    const title = el("span", { class: "bh-topbar-title", "aria-hidden": "true" });
+    // The text is a child of the title so that layout.css can hide it from sight (a container query
+    // cannot style its own container) when the bar leaves the title too little room.
+    const titleText = el("span", { class: "bh-topbar-title-text" });
+    const title = el("span", { class: "bh-topbar-title", "aria-hidden": "true" }, [titleText]);
     const h1 = doc.querySelector("h1");
-    title.textContent = h1 ? h1.textContent.trim() : doc.title;
+    titleText.textContent = h1 ? h1.textContent.trim() : doc.title;
 
     const themeBtn = el("button", { class: "btn ghost icon", type: "button" });
     const syncThemeBtn = () => {
