@@ -33,11 +33,12 @@ when a visibility mechanism or its check changes.
 
 Once per clone, run `npm run hooks`: it points `core.hooksPath` at the tracked `.githooks/`, whose
 `pre-push` runs `leak-check --pushed`, which scans the blobs the pushed commits add (not the working tree) and
-blocks the push when one holds a run of 8+ words from the private corpus (see `corpus/README.md`). A checkout with no private data is not blocked: the
-hook says the check did not run, and `npm run advisor -- link <path-to-data-clone>`, run in that checkout, fixes that. The
+blocks the push when one holds a run of 8+ words from the private corpus (see `corpus/README.md`). It also blocks a pushed blob or
+commit message holding a private page's `#k=` key, and a pushed `*.private.html` (`scripts/private-leaks.mts`), which needs no private data. A checkout with no private data is not blocked by corpus text: the
+hook says that check did not run, and `npm run advisor -- link <path-to-data-clone>`, run in that checkout, fixes that. The
 argument is always the clone of the private data repo, never a checkout of this one (`link` refuses a worktree or
 clone of this repo). Git worktrees don't share ignored files, so run it, and `npm ci`, inside each worktree: a checkout with no
-`node_modules` blocks the push with a line saying so, rather than skipping the check. It is a local guard: `git push --no-verify` and merges made elsewhere skip it. The `Leak check` workflow repeats it in CI against keyed hashes, `corpus/leak-hashes.txt`: regenerate them with `npm run advisor -- leak-hashes` when `leak-check` says they are stale.
+`node_modules` blocks the push with a line saying so, rather than skipping the check. It is a local guard: `git push --no-verify` and merges made elsewhere skip it. The `Leak check` workflow repeats it in CI (the key and plaintext part with no secret, the corpus part against keyed hashes, `corpus/leak-hashes.txt`): regenerate them with `npm run advisor -- leak-hashes` when `leak-check` says they are stale.
 
 Run `npm run index` after **any** change to a document. It regenerates the catalogue, the
 social meta block and feed autodiscovery link in every page's `<head>`, `feed.xml`, `sitemap.xml`,
@@ -83,9 +84,10 @@ Read it before you use or change the feature; `check` fails if a file named here
 - Anything in `.claude/skills/` or `.claude/agents/`? Read [`contracts/skills.md`](contracts/skills.md), then load the `skill-authoring` skill.
 <!-- /bh:contracts -->
 
-Some rules in those contracts guard what this public repo reveals, and no check catches a slip, so they hold always:
+Some rules in those contracts guard what this public repo reveals, and no check catches every slip, so they hold always:
 
 - Never put a `#k=` link (a private page's key, or `seal -- --show-links` output) in a commit, PR, issue or any public place.
+  The pre-push hook and CI refuse one in a pushed file or commit message, but nothing sees a PR, an issue or a comment.
 - Never describe an unlisted page as private: unlisted controls discoverability, not access.
 - Never put the GoatCounter tag in a page, template or theme file, and never paste `npm run stats` output anywhere public.
 
