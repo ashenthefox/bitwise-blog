@@ -43,6 +43,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-18: "or reading any file" in `skill-authoring`'s description does not make Sonnet load other skills (#306)
 - 2026-11-18: the Haiku misses of `pedagogical-writing` labelled from traces, and seven queries reworded (#308)
 - 2026-11-18: the two `pedagogical-diagrams` review cases graded on what the skill adds, and three unsteady graders (#301)
+- 2026-11-18: `prompt-opus-explainers` graded on what the skill adds (#317)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -2213,3 +2214,128 @@ runs, the answers moved.
 - **The first two baselines were graded with files that no longer exist** (`review-deflate-figures` 01, 02 and
   06, `review-stepper-boundary` 02, and the old 03 and 04 under their old names), so per-case scores before and
   after this section do not compare.
+
+## 2026-11-18: `prompt-opus-explainers` graded on what the skill adds (#317)
+
+Claude Code 2.1.318, agent and judge `claude-sonnet-5-5`, three runs per arm, `-j 4`. No change to the skill or
+to the prompt: one grader file deleted, one rewritten and renamed, two added, so `pedagogical-writing` has 61
+`llm` graders again. US$3.29 in all: $1.21 for judging saved answers with `rejudge.mjs` (48 verdicts) and $2.08
+for one fresh run of the case in both arms (`claude plugin eval --case prompt-opus-explainers`, 78 s, $0.74 of it
+the judge) on commit `a4a5f19`. No run errored, and the skill loaded in 3 of 3 with-skill runs.
+
+**What the answers showed.** Twelve saved answers of the case were read, three from each arm of #299's baseline
+(`2026-11-18-299-opus.json`) and three from each arm of #248's (`2026-11-18.json`). Every answer in both arms
+does the four things the prompt hands it: the point goes first, a consequence replaces "This matters.", the
+self-critique loop is replaced, the quoted line goes. So the four `llm` graders passed 6 of 6 in each arm, and
+since #299 the regex `05-effort` passes the no-skill answers too. Three things are in the with-skill answers and
+mostly not in the others, and the skill teaches each (`drafting-with-models.md`):
+
+- **A check that the rewrite kept the content** (step 5 of the workflow, and the last paragraph of the base
+  prompt). All six with-skill answers have it, as a check ("List the claims, conditions, exceptions and reasons in
+  the draft before the rewrite. Then confirm the rewrite keeps all four"), as a line for the prompt ("Simplify the
+  wording and the order of ideas, never the claim. Keep every number, condition and exception"), or both. No
+  no-skill answer raises it: the words "condition", "exception" and "qualifier" are in none of the six.
+- **The other brevity rules in the prompt** (step 1). All six with-skill answers say to search the prompt for
+  "concise", "brief" and "short" and to edit in place ("Edit the conflicting rule where it sits. Don't append a
+  new paragraph that contradicts it"). Five of the six no-skill answers deal with the quoted line only: delete
+  it, replace it, or "scope your system prompt so the conciseness rule applies only to chat-style tasks". One
+  goes further ("The rest of that conciseness block is also tuned for chat, so I'd drop it from this pipeline").
+- **Listing and rewriting as two requests** (the Opus 5.5 section: "have it list the problems, then rewrite in a
+  second request with the list in hand"). All six with-skill answers have a first call that returns the list
+  ("Ask for the list only", "Don't rewrite") and a second that gets the draft and the list. The no-skill answers
+  all move the critique to a fresh context, which the old grader 03 passed as "or similar". Three of them still
+  find and rewrite in one request ("Flag each section where the point isn't in the first two sentences ...
+  Rewrite those"), which is the loop the skill says fails; three separate the two ("Then pass the resulting list
+  of specific problems to the revision call").
+
+**What changed.**
+
+- **`07-keeps-precision`, new.** It passes an instruction to keep every claim, number, condition, exception or
+  qualifier while simplifying, or a check after the rewrite that they are still there. A general "be accurate",
+  a request for mechanisms or numbers, and a before-and-after test of how the drafts read do not pass.
+- **`06-other-brevity-rules`, new.** It passes an answer that looks beyond the quoted line for other brevity
+  rules in the prompt, and says that dropping the rest of the conciseness block counts. It fails an answer that
+  deals with the quoted line only, or only adds a length instruction.
+- **`03-list-then-rewrite`, rewritten from `03-no-self-revision` and renamed.** It asks one thing: one request
+  returns the list of problems and a later request, a person or another model rewrites with the list in hand. A
+  single new request that finds and rewrites fails, fresh context or not.
+- **`05-effort` is deleted.** It is a regex that passes any advice to try `high`, and how many no-skill answers
+  give that advice moves from run to run: 1 of 3 in #248's answers and 3 of 3 in #299's. What differs between the
+  arms every time is the reason, and that was not made a grader: see below.
+- **`01-point-first`, `02-show-consequence` and `04-drops-summary-line` are unchanged and are guards.** They
+  passed 12 of 12 saved answers in each arm and add nothing to Δ. They stay as the check that the answer still
+  does what the prompt asks, as `fix-confusing-figure` 01 and 05 do (#249).
+
+A new grader's name is not in a baseline, so, as in #301, each new rubric was tried under the recorded name of
+another grader, from a scratch directory given to `rejudge.mjs --rubrics`. The rubrics were written before that
+judging and were not changed after it, or after the fresh run.
+
+**Result.** Passes with the skill and without. The saved answers went through `rejudge.mjs`; the fresh run is
+new answers through the built-in judge.
+
+| Grader | #299's answers | #248's answers | Fresh run |
+| --- | --- | --- | --- |
+| `01-point-first` (guard, unchanged) | 3 of 3, 3 of 3 | 3 of 3, 3 of 3 | 3 of 3, 3 of 3 |
+| `02-show-consequence` (guard, unchanged) | 3 of 3, 3 of 3 | 3 of 3, 3 of 3 | 3 of 3, 3 of 3 |
+| `03-list-then-rewrite` (rewritten) | 3 of 3, 2 of 3 | 3 of 3, 1 of 3 | 3 of 3, 0 of 3 |
+| `04-drops-summary-line` (guard, unchanged) | 3 of 3, 3 of 3 | 3 of 3, 3 of 3 | 3 of 3, 3 of 3 |
+| `06-other-brevity-rules` (new) | 3 of 3, 1 of 3 | 3 of 3, 0 of 3 | 3 of 3, 2 of 3 |
+| `07-keeps-precision` (new) | 3 of 3, 0 of 3 | 3 of 3, 0 of 3 | 3 of 3, 0 of 3 |
+
+The rows for 01 and 02 on the saved answers are the record's verdicts; 04 was judged again with its own text and
+got the recorded verdict on all 12.
+
+| `prompt-opus-explainers` | With | Without | Δ |
+| --- | --- | --- | --- |
+| #299's record, old graders | 1.00 | 0.93 | +0.07 |
+| #299's answers, new graders | 1.00 | 0.67 | +0.33 |
+| #248's answers, new graders | 1.00 | 0.56 | +0.44 |
+| Fresh run | 1.00 | 0.61 | +0.39 |
+
+- **The case has a Δ of +0.39 on a fresh run**, which is what #317 asks (+0.2 or more).
+- **No vote was split**: none of the 48 saved verdicts and none of the 36 fresh ones.
+- **The fresh Δ does not hang on one grader.** With 03, 06 or 07 left out in turn it is +0.27, +0.40 and +0.27.
+  With both 03 and 07 left out it is +0.08.
+- **`07-keeps-precision` is the steady one**: 9 of 9 with the skill and 0 of 9 without over the three sets.
+- **`06-other-brevity-rules` passed 2 of 3 fresh no-skill answers**, which name the block the line came from:
+  "Drop the chat-tuned conciseness block for this route", "Remove the 'high-level summary' sentence and the
+  generic 'keep responses brief' lines". Those answers do what the rubric asks, so the grader is right to pass
+  them. Over the three sets it is 9 of 9 and 3 of 9.
+- **`03-list-then-rewrite` failed all three fresh no-skill answers**, each of which gives one fresh call the
+  list and the rewrite ("List every sentence that claims importance without a consequence ... Rewrite only
+  those"). Over the three sets it is 9 of 9 and 3 of 9.
+- **The deleted `05-effort` would have passed 3 of 3 and 1 of 3 on the fresh answers** (its pattern, run on
+  them by hand). Two no-skill answers say "set it explicitly (`medium` or `high`), but don't expect it to fix
+  this" and "Higher effort may help with structure", which the pattern does not match. With it the fresh Δ
+  would be +0.43. It was deleted before the run and stays deleted: over three sets it passed 1, 3 and 1 of 3
+  without the skill, on the wording of advice that both arms give.
+- **A baseline is kept**: `pedagogical-writing/evals/baselines/2026-11-18-317-opus.json`, the fresh run (6
+  answers, both arms), trimmed with `rejudge.mjs --trim --commit a4a5f19`. The case has no fixture.
+
+**What this does not show.**
+
+- **Three answers an arm is a small sample.** The three differences were found in 12 answers, 6 an arm, and
+  confirmed on 3 more an arm, all from one model on one day. A case moves in steps of 0.06 here (6 graders, 3
+  runs), and 06 went from 0 or 1 of 3 to 2 of 3 without the skill between sets. One run is not a spread.
+- **The rubrics were fitted to answers that had been read.** The fresh run is the check `evals.md` asks for,
+  and nothing was changed after it.
+- **Half of the score is guards.** 01, 02 and 04 pass in both arms by design, so the Δ can be at most +0.50
+  and the with-skill score says little: an answer that failed all three new graders would still score 0.50.
+- **Why the arms differ on effort was not made a grader.** Every with-skill answer gives the skill's reason
+  ("reviewers saw less padding at `high` or above"). Eight of the nine no-skill answers say the opposite and
+  name Anthropic's guide for it ("Per the guide, effort doesn't reliably change visible length, so treat it as a
+  quality test, not a fix for the padding"). A grader for the reason would pass the skill's claim because the
+  skill makes it. Which claim is right is a question about the skill's Settings line and its sources, not
+  about this case, and it was not checked here.
+- **Two more differences were seen and left out.** All six saved with-skill answers give the prompt a goal
+  ("after one read, the reader can ..."), and no no-skill answer does; it is the skill's base prompt, but not
+  an answer to what this user asked. All six also explain the failed loop as a diagnosis that is not applied,
+  where the no-skill answers say the model shares the draft's blind spots; 03 grades the step that follows from
+  it, not the explanation.
+- **`07-keeps-precision` and `03-list-then-rewrite` take the skill's side.** A good answer to this prompt can
+  leave out the precision check, and a single fresh editing call can be defended. A change to the workflow in
+  `drafting-with-models.md` should change the graders with it.
+- **`rejudge.mjs` is not the built-in judge.** On this case the two agreed on the 12 verdicts of the one
+  unchanged rubric that was judged again, and the fresh run went as the saved answers did for 03 and 07.
+- **Only Sonnet was run**, and only this case. The other cases with graders that pass in both arms in #248's
+  baseline (`review-deflate-page`, `design-rank-interactive`, the other prompt cases) were not touched.
