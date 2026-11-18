@@ -299,6 +299,10 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
 - **Components must work when `bh.js` runs before the body is parsed.** Bundled pages
   inline the script, so `connectedCallback` must defer to `whenReady()` before reading its
   children.
+- **A synchronous script in `<head>` runs in `<head>` in a bundle too.** `bundle` inlines it in
+  place (the inline theme script, `examples.js`, `unlisted.js`) and moves only the other scripts to
+  the end of `<body>`. So such a script can read `<html>` and the `<meta>` markers before it, never
+  the body: a marker it needs goes on `<html>`, as a diff page's `data-bh-diff` does.
 - **Larger components are on-demand modules** in `theme/modules/*.js`, registered in
   `MODULES` in `bh.js` with the selector that triggers them. A module must be a classic
   script that uses `window.bh` and sets `window.bhModules[file] = true`. `bundle`

@@ -60,7 +60,10 @@ private.
   the same rules when it rebuilds the index, search, backlinks and the two data files.
 - **Prefer a non-guessable slug** (for example a random suffix) for a page meant to be shared by
   link: it is the only protection against guessing.
-- **Bundles** show their own content wherever they are opened (`<html data-bundled>`).
+- **Bundles** show their own content wherever they are opened (`<html data-bundled>`). `bundle`
+  inlines this script, like every synchronous script in a page's `<head>`, where it stands, so it
+  still runs before first paint; only the other scripts (`bh.js`, its modules, the page's own) go to
+  the end of `<body>`.
 
 ## The page fragment
 
@@ -87,9 +90,10 @@ pages. A new file would need a new tag in every page, template and sealed privat
   attribute, so a mark that arrives later shows. On a page with no top bar (`data-chrome="none"`)
   `buildChrome()` removes the attribute itself and never calls `changesButton()`.
 - **One rule for the starting state**: `window.bhChanges.startsOn()`, which both scripts call. It is
-  true for a diff page (`<body data-bh-diff>`). A diff page is a bundle, and a bundle's scripts all
-  run at the end of `<body>`, so the marker has been parsed by then. In a `<head>` there is no body
-  yet; if diff pages ever stop being bundles, put the marker on `<html>` and read it there.
+  true for a diff page (`<html data-bh-diff>`, written by `renderDiffPage`). The marker is on
+  `<html>` because the rule is first asked in `<head>`, where there is no body yet. Nothing reads
+  it from `<body>`: a diff page made before #274 has it there, and carries its own copy of the
+  scripts that read it there.
 - **Until `bh.js` has settled the switch, the block stands in for it.** `bh.js` sets
   `bhChanges.settled` once the top bar, with the button, is on the page (or it has found there is to be
   no top bar). Before that:
@@ -101,10 +105,15 @@ pages. A new file would need a new tag in every page, template and sealed privat
     for good. The flag is the test, not `window.bh`: a script that half ran has made no button. With an
     older cached `bh.js` on a page that has marks, the highlights then show while its button says off
     until the first click; a page with no marks ends as it should.
-- **A bundle is not covered.** Its scripts run after its whole body has been parsed, so a bundle
-  that arrives slowly can paint its highlights first, as it can paint anything else these scripts
-  decide.
+- **A bundle is covered too.** `bundleHtml` leaves a synchronous script that is in `<head>` in
+  `<head>`, inlined in place and in order, so a bundle that arrives slowly has the off state before
+  its body is painted (#274: with every script at the end of `<body>`, a held-back bundle painted
+  its highlights on every frame until the rest arrived). A script added to a page's `<head>`
+  without `defer`, `async` or `type="module"` gets the same treatment, so it must not need
+  anything a bundle lacks (a file beside the page, the body).
 - Tests: `tests/unlisted.test.mts` (the rule) and `tests/versions.test.mts`, which holds `bh.js`
   back in Chrome and checks that no frame has marked parts without the off state, and that the
   highlights show with scripting off, when printing before `bh.js` runs, when `bh.js` fails or throws, and
-  on a page with `data-chrome="none"`.
+  on a page with `data-chrome="none"`. `tests/page-diff-browser.test.mts` makes a bundle and a diff
+  page with the real commands, holds back everything after `</main>`, and checks that the bundle has
+  no frame with marked parts and no off state, and that the diff page is never off.

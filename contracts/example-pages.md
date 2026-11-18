@@ -41,6 +41,7 @@ example.
   examples by design. An example may link to other examples freely.
 - **Bundles** (`npm run bundle`) always show their own content, wherever the file is opened or
   hosted: `<html data-bundled>` overrides the host. A bundle has no index, search or backlinks.
+  `examples.js` is inlined in the bundle's `<head>`, where the page has it.
 - **Cards and private pages.** Example pages keep their social cards (`check` still requires
   them locally; deployment removes their cards). Private and sealed pages are never examples and are
   unaffected.
