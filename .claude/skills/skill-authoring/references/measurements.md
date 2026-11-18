@@ -1691,7 +1691,6 @@ the saved answers through `rejudge.mjs`; the fresh run is new answers through th
 - **Only Sonnet was run.** Haiku and Opus scored this case +0.07 and +0.13 with the old graders in October, and
   their answers have not been read.
 
-
 ## 2026-11-18: six `pedagogical-writing` graders that rejected correct answers or passed in no arm (#299)
 
 Claude Code 2.1.318, agent and judge `claude-sonnet-5-5`, three runs per case per arm, `-j 4`. No change to the
