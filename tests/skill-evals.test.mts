@@ -7,7 +7,7 @@ import { spawnSync, execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import {
-  FORMAT, compare, mergeRetry, outputFromResult, parseRecord, renderSummary, triggerErrors, triggerFromJson,
+  FORMAT, caseGlob, compare, mergeRetry, outputFromResult, parseRecord, renderSummary, triggerErrors, triggerFromJson,
   type EvalRecord, type SkillRecord,
 } from "../scripts/skill-evals.mts";
 
@@ -167,6 +167,45 @@ test("output scores are not compared across a change of judge model", () => {
   assert.equal(compare(record({ beta: out({ x: [1], y: [1] }) }), record({ beta: out({ x: [1], y: [0.5] }) }), 0.1).regressions.length, 1);
 });
 
+test("caseGlob matches the whole name with * and ? only, as claude plugin eval does", () => {
+  const hit = (pattern: string, name: string) => caseGlob(pattern).test(name);
+  assert.ok(hit("review-*", "review-deflate-page"));
+  assert.ok(hit("*", "anything"));
+  assert.ok(hit("case?", "case1"));
+  assert.ok(!hit("case?", "case12"));
+  // Anchored at both ends: part of a name is not a match.
+  assert.ok(!hit("review", "review-deflate-page"));
+  assert.ok(!hit("deflate*", "review-deflate-page"));
+  // Braces, brackets and dots are literal text.
+  assert.ok(!hit("{case1,case2}", "case1"));
+  assert.ok(!hit("case[12]", "case1"));
+  assert.ok(hit("case[12]", "case[12]"));
+  assert.ok(!hit("a.c", "abc"));
+});
+
+test("a record filtered with --case is compared case by case, never by its mean", () => {
+  const full = record({ beta: out({ x: [1], y: [1] }) });
+  const part = record({ beta: out({ y: [0.5] }) }, { caseFilter: "y" });
+  // Unfiltered, the same numbers are a regression: the control.
+  assert.equal(compare(full, record({ beta: out({ y: [0.5] }) }), 0.1).regressions.length, 1);
+  const r = compare(full, part, 0.1);
+  assert.deepEqual(r.regressions, []);
+  assert.deepEqual(r.changes, [
+    "beta: mean output score not compared, this run ran only the output cases matching --case 'y'",
+    "beta: output case y 1.00 → 0.50",
+  ]);
+  // A filtered record used later as the previous one is not a full record either.
+  const back = compare(record({ beta: out({ y: [1] }) }, { caseFilter: "y" }), record({ beta: out({ x: [0.5], y: [0.5] }) }), 0.1);
+  assert.deepEqual(back.regressions, []);
+  assert.deepEqual(back.changes, [
+    "beta: mean output score not compared, the previous record ran only the output cases matching --case 'y'",
+    "beta: output case y 1.00 → 0.50",
+  ]);
+  // The trigger pass rate has nothing to do with the filter and still regresses.
+  const both = compare(record({ alpha: trig(18, 20) }, { caseFilter: "y" }), record({ alpha: trig(10, 20) }), 0.1);
+  assert.equal(both.regressions.length, 1);
+});
+
 test("a skill with trigger evals in only one of the two records is not compared", () => {
   assert.deepEqual(compare(record({ alpha: { errors: [] } }), record({ alpha: trig(0, 10) }), 0.1).regressions, []);
 });
@@ -177,6 +216,10 @@ test("parseRecord accepts only this format", () => {
   assert.equal(parseRecord("not json"), null);
   assert.equal(parseRecord(JSON.stringify({ ...r, format: "bh-skill-evals/0" })), null);
   assert.equal(parseRecord("[]"), null);
+  // A filtered record keeps its pattern; a record written before --case existed has none.
+  assert.equal(parseRecord(JSON.stringify({ ...r, caseFilter: "review-*" }))!.caseFilter, "review-*");
+  assert.equal(parseRecord(JSON.stringify(r))!.caseFilter, undefined);
+  assert.equal(parseRecord(JSON.stringify({ ...r, caseFilter: 3 })), null);
 });
 
 test("parseRecord rejects a record whose skills compare would trip over", () => {
@@ -223,6 +266,21 @@ test("renderSummary tables the rates and names regressions, errors and the basel
   assert.match(md, /^## Regressions$/m);
   assert.match(renderSummary(cur, null, null, []), /no previous record, so this run is the baseline/);
   assert.doesNotMatch(renderSummary(prev, prev, compare(prev, prev, 0.1), []), /Regressions|Errors/);
+});
+
+test("renderSummary states the filter and shows no previous mean beside a filtered one", () => {
+  const prev = record({ beta: out({ x: [1], y: [1] }) });
+  const cur = record({ beta: out({ y: [0.5] }, 0.25) }, { caseFilter: "y" });
+  const md = renderSummary(cur, prev, compare(prev, cur, 0.1), []);
+  assert.match(md, /^Filtered run: only the output cases matching `--case 'y'` ran\./m);
+  assert.match(md, /^\| beta \| n\/a \| n\/a \| 0\.50 \| n\/a \| \+0\.25 \|$/m);
+  assert.doesNotMatch(md, /^## Regressions$/m);
+  assert.match(md, /The mean output scores were not compared: this run ran only the output cases matching --case 'y'\.$/m);
+  // A full run after a filtered record: no "Filtered run" line, and still no previous mean.
+  const after = renderSummary(prev, cur, compare(cur, prev, 0.1), []);
+  assert.doesNotMatch(after, /Filtered run/);
+  assert.match(after, /^\| beta \| n\/a \| n\/a \| 1\.00 \| n\/a \| \+0\.60 \|$/m);
+  assert.match(after, /not compared: the previous record ran only the output cases matching --case 'y'\.$/m);
 });
 
 // ---- the whole script, against fakes of the two tools ------------------------------------------------
@@ -274,7 +332,7 @@ process.exit(1);
     const rec = path.join(dir, "out", "record.json");
     return { ...res, calls, record: fs.existsSync(rec) ? (JSON.parse(fs.readFileSync(rec, "utf8")) as EvalRecord) : null, out: path.join(dir, "out") };
   };
-  return { dir, repo, run, runIn };
+  return { dir, repo, run, runIn, out: path.join(dir, "out") };
 }
 
 const healthy = () => ({
@@ -391,6 +449,104 @@ test("--skills and --kind select what runs, and bad flags are refused", (t) => {
     assert.equal(res.status, 2, bad.join(" "));
     assert.equal(res.calls.length, 0);
   }
+});
+
+test("--case runs only the matching cases, is recorded as filtered and is neither a baseline nor compared as a full run", (t) => {
+  const { dir, run } = setup(healthy());
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const full = run();
+  const baseline = path.join(full.out, "baseline.json");
+  const previous = path.join(dir, "previous.json");
+  fs.copyFileSync(baseline, previous);
+
+  // The filtered run's one case scores 0.5. The full record's mean is 0.92, so unfiltered this would regress.
+  const part = setup({ trigger: {}, output: { alpha: outputJson({ case1: { with: [0.5], without: [0.5] } }, { costUsd: 0.7 }) } });
+  t.after(() => fs.rmSync(part.dir, { recursive: true, force: true }));
+  fs.mkdirSync(part.out, { recursive: true });
+  fs.writeFileSync(path.join(part.out, "baseline.json"), "stale");
+  const res = part.run("--skills", "alpha", "--kind", "output", "--case", "case1", "--previous", previous);
+  assert.equal(res.status, 0, res.stderr + res.stdout);
+  assert.equal(res.calls.length, 1);
+  assert.match(res.calls[0], /^claude plugin eval \S+\/alpha .* --json \S+ --case case1$/);
+  assert.equal(res.record!.caseFilter, "case1");
+  assert.deepEqual(res.record!.skills.alpha.output!.cases.map(c => c.name), ["case1"]);
+  // case2 did not match, so its absence from the result is not a case that failed to load.
+  assert.deepEqual(res.record!.skills.alpha.errors, []);
+  assert.match(res.stdout, /== alpha: output evals, 1 of 2 cases \(--case 'case1': case1\)/);
+  assert.match(res.stdout, /^Filtered run: only the output cases matching `--case 'case1'` ran\./m);
+  assert.doesNotMatch(res.stdout, /^## Regressions$/m);
+  assert.match(res.stdout, /alpha: mean output score not compared, this run ran only the output cases matching --case 'case1'/);
+  assert.match(res.stdout, /alpha: output case case1 1\.00 → 0\.50/);
+  assert.ok(!fs.existsSync(path.join(res.out, "baseline.json")), "a filtered run removes a stale baseline and writes none");
+
+  // The filtered record as the previous one of a full run: its mean (0.5) is not a bar the full run is held to,
+  // nor one it could hide behind.
+  const filtered = path.join(dir, "filtered.json");
+  fs.copyFileSync(path.join(res.out, "record.json"), filtered);
+  const next = run("--previous", filtered);
+  assert.equal(next.status, 0, next.stderr + next.stdout);
+  assert.match(next.stdout, /alpha: mean output score not compared, the previous record ran only the output cases matching --case 'case1'/);
+  assert.equal(next.record!.caseFilter, undefined);
+});
+
+test("--case is passed with its wildcards, and a matching case missing from the result is still an error", (t) => {
+  const { dir, run } = setup({ trigger: {}, output: { alpha: outputJson({ case1: { with: [1], without: [0.5] } }) } });
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const res = run("--kind", "output", "--case", "case?");
+  assert.equal(res.status, 2, res.stderr + res.stdout);
+  assert.match(res.calls[0], / --case case\?$/);
+  assert.match(res.stdout, /alpha: case2: the case failed to load/);
+});
+
+test("a --case pattern that matches no case is refused before anything is paid for", (t) => {
+  const { dir, run } = setup(healthy());
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  // Braces and brackets are not wildcards for claude plugin eval, a pattern is anchored, and a typo matches nothing.
+  for (const pattern of ["{case1,case2}", "case[12]", "case", "csae1"]) {
+    const res = run("--skills", "alpha", "--kind", "output", "--case", pattern);
+    assert.equal(res.status, 2, pattern);
+    assert.equal(res.calls.length, 0, pattern);
+    assert.equal(res.record, null, pattern);
+    assert.ok(res.stderr.includes(`--case '${pattern}' matches no output case of alpha`), res.stderr);
+    assert.match(res.stderr, /alpha: case1, case2/);
+    assert.equal(/Only \* and \? are wildcards/.test(res.stderr), /[{[]/.test(pattern), pattern);
+  }
+  // A skill with no output cases at all, and every skill at once.
+  assert.match(run("--skills", "beta", "--kind", "output", "--case", "case1").stderr, /matches no output case of beta[\s\S]*These skills have no output cases/);
+  const all = run("--kind", "output", "--case", "nope");
+  assert.equal(all.status, 2);
+  assert.match(all.stderr, /matches no output case of any skill/);
+  assert.equal(all.calls.length, 0);
+});
+
+test("--case that matches in one skill and not in another runs the first and says the second was skipped", (t) => {
+  const { dir, repo, run } = setup(healthy());
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const other = path.join(repo, ".claude", "skills", "beta", "evals", "other");
+  fs.mkdirSync(other);
+  fs.writeFileSync(path.join(other, "prompt.md"), "x\n");
+  const res = run("--kind", "output", "--case", "case*");
+  assert.equal(res.status, 0, res.stderr + res.stdout);
+  assert.deepEqual(res.calls.map(c => c.split(" ").slice(0, 3).join(" ")), ["claude plugin eval"]);
+  assert.match(res.calls[0], /\/alpha /);
+  assert.match(res.stdout, /== beta: output evals skipped, none of its 1 cases matches --case 'case\*'/);
+  assert.deepEqual(Object.keys(res.record!.skills), ["alpha"]);
+});
+
+test("--case needs --kind output and a pattern", (t) => {
+  const { dir, run } = setup(healthy());
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  for (const bad of [["--case", "case1"], ["--case", "case1", "--kind", "both"], ["--case", "case1", "--kind", "trigger"], ["--kind", "output", "--case"], ["--kind", "output", "--case", " "]]) {
+    const res = run(...bad);
+    assert.equal(res.status, 2, bad.join(" "));
+    assert.equal(res.calls.length, 0, bad.join(" "));
+  }
+  assert.match(run("--case", "case1").stderr, /--case filters output cases only: add --kind output/);
+  // What `npm run skill-evals -- --case '{case1,case2}'` hands over: npm's shell expands the braces.
+  const expanded = run("--kind", "output", "--case", "case1", "case2");
+  assert.equal(expanded.status, 2);
+  assert.equal(expanded.calls.length, 0);
+  assert.match(expanded.stderr, /unknown argument case2 after --case case1: --case takes one pattern, and only \* and \? are wildcards/);
 });
 
 test("an unreadable previous record is ignored, not fatal", (t) => {

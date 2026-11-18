@@ -206,7 +206,8 @@ claude plugin eval .claude/skills/<name> \
   -j 4 --max-cost-usd 15 --no-publish
 ```
 
-- Add `--case '<glob>'` (`*` and `?` only: `{a,b}` and `[ab]` match no case) or `--tag <tag>` to run part of the suite, `--runs N` to change the
+- Add `--case '<glob>'` (`*` and `?` only, and the whole name must match: `{a,b}` and `[ab]` match no case, with no
+  error) or `--tag <tag>` to run part of the suite, `--runs N` to change the
   runs per arm, `--ablation none` to skip the baseline while tuning graders (halves cost),
   `--keep-temp` to look at what a run left behind, `--allow-tools "Bash(node *)"` only for a case
   that needs `Bash` (see the sandbox notes above). Put the target before `--tag` and
@@ -352,7 +353,9 @@ schedules it: start it yourself, locally or from the Actions tab (the Skill eval
 a full run costs about US$73. Both tools above write machine-readable results for it:
 `run-trigger-evals.mjs --json <file>` and `claude plugin eval --json <file>`. How to start it,
 what the record holds, what fails a run and what it costs are in
-[maintenance.md](maintenance.md#the-full-run).
+[maintenance.md](maintenance.md#the-full-run). It also runs part of one suite and keeps the record:
+`npm run skill-evals -- --skills <name> --kind output --case '<glob>'` takes the same pattern as
+`claude plugin eval --case`, and stops before spending anything when the pattern matches no case.
 
 ## Converting skill-creator's `evals.json`
 

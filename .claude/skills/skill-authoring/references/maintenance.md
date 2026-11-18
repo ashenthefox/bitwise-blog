@@ -58,6 +58,22 @@ the output suites alone.
 - **On your machine:** `npm run skill-evals -- --skills <name> --kind trigger --out <dir>
   --max-cost-usd 15`, on your own login. Leave out `--skills` for every skill, and add
   `--previous <record.json>` to compare with an earlier record.
+- **Some output cases:** add `--kind output --case '<glob>'`, for example `npm run skill-evals --
+  --skills pedagogical-diagrams --kind output --case 'review-*'`. It runs only the cases whose
+  directory name matches, in each selected skill, and says which skills it skipped because none
+  of their cases matched. The pattern is the one `claude plugin eval --case` takes: the whole
+  name must match, and `*` and `?` are the only wildcards. `{a,b}` and `[ab]` are literal text
+  there and match no case, so run once for each pattern (through `npm run`, the shell expands
+  `{a,b}` into two arguments even inside quotes, and the script refuses the second). A pattern
+  that matches no case of the selected skills stops the run (exit 2) before anything is paid
+  for, and lists the case names.
+  `--case` without `--kind output` is refused, because trigger evals have no cases and would
+  still all run. The workflow has no input for it.
+- **A filtered run is not a full one.** Its record carries the pattern (`caseFilter`), and its
+  output score is the mean of the cases that ran, not of the suite. So against `--previous` it is
+  compared case by case only: a case that moved by 0.30 or more is listed, and the mean is neither
+  compared nor able to fail the run. The same holds when the previous record is the filtered one.
+  It never writes `baseline.json`.
 - **On GitHub:** the Actions tab → Skill evals → Run workflow, or
   `gh workflow run skill-evals.yml -f skills=<name> -f kind=trigger -f max_cost_usd=15`. It
   needs the secret `ANTHROPIC_API_KEY` (the workflow's header lists the set-up) and finds the
@@ -70,8 +86,8 @@ the output suites alone.
   `summary.md` and `baseline.json` as the artifact `skill-evals-record` (kept 90 days, the most a
   public repository allows). The raw results are not uploaded: they hold model output.
 - **`baseline.json` is `record.json` of a run that can be compared with.** The script writes it only
-  for a run of every skill and both kinds with no error. A run of one skill (a dispatch with
-  `skills` set) or one that errored is a record but not a baseline: it would hide every other
+  for a run of every skill, both kinds and every case with no error. A run of one skill (a dispatch
+  with `skills` set), of some cases (`--case`) or one that errored is a record but not a baseline: it would hide every other
   skill's drop until the next full run, or lower the bar.
 - **What fails the run.** A skill whose trigger pass rate, or mean output score with the skill,
   fell by more than 0.10 against the baseline (exit 1); a run that measured nothing, such as a case

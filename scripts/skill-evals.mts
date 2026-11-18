@@ -3,8 +3,12 @@
 // changes how a skill behaves can be found with one command (#122, proposal 20). It runs only when
 // someone starts it: it costs real money, so nothing schedules it.
 //
-//   node scripts/skill-evals.mts [--skills a,b] [--kind trigger|output|both] [--out DIR]
+//   node scripts/skill-evals.mts [--skills a,b] [--kind trigger|output|both] [--case GLOB] [--out DIR]
 //        [--previous record.json] [--model ID] [--judge-model ID] [--max-cost-usd N] [--tolerance 0.1]
+//
+// --case GLOB runs only the output cases whose directory name matches (`*` and `?` are the only wildcards), and
+// needs --kind output. A pattern that matches no case of the selected skills is exit 2 before anything is paid
+// for. A filtered run's mean covers fewer cases, so it is compared with a previous record case by case only.
 //
 // It runs the two existing tools and reads their JSON; it measures nothing itself:
 //   trigger evals  .claude/skills/skill-authoring/scripts/run-trigger-evals.mjs <skill> --json
@@ -12,7 +16,7 @@
 // and writes <out>/record.json (format bh-skill-evals/1) and <out>/summary.md, which it also appends to
 // $GITHUB_STEP_SUMMARY when that is set. When the run covered every skill and both kinds without an error it
 // also writes <out>/baseline.json (the same record): the file the next run should compare with. A subset run
-// or one that errored is a fine record but a bad baseline, so it never writes one.
+// (--skills, --kind or --case) or one that errored is a fine record but a bad baseline, so it never writes one.
 // The workflow that runs it on request is .github/workflows/skill-evals.yml.
 //
 // Exit codes: 0 clean, 1 a regression against the previous record, 2 an error (a case that failed to
@@ -81,6 +85,11 @@ export interface EvalRecord {
   claudeVersion: string | null;
   models: { agent: string; judge: string };
   costUsd: number;
+  /**
+   * The `--case` pattern of a run that ran only some output cases. Its output means cover fewer cases than a
+   * full run's, so `compare` never sets them against another record's. Absent from a run of every case.
+   */
+  caseFilter?: string;
   skills: Record<string, SkillRecord>;
 }
 export interface Comparison {
@@ -220,7 +229,18 @@ export function parseRecord(text: string): EvalRecord | null {
   try { j = JSON.parse(text); } catch { return null; }
   if (!isObj(j) || j.format !== FORMAT || !isObj(j.skills) || !isObj(j.models)) return null;
   if (typeof j.models.agent !== "string" || typeof j.models.judge !== "string") return null;
+  if (j.caseFilter !== undefined && typeof j.caseFilter !== "string") return null;
   return Object.values(j.skills).every(isSkillRecord) ? (j as unknown as EvalRecord) : null;
+}
+
+/**
+ * Why the mean output scores of two records cannot be set against each other: one of them ran only the cases a
+ * `--case` pattern matched. Null when both ran every case.
+ */
+export function filterNote(prev: EvalRecord | null, cur: EvalRecord): string | null {
+  if (cur.caseFilter !== undefined) return `this run ran only the output cases matching --case '${cur.caseFilter}'`;
+  if (prev?.caseFilter !== undefined) return `the previous record ran only the output cases matching --case '${prev.caseFilter}'`;
+  return null;
 }
 
 export function compare(prev: EvalRecord, cur: EvalRecord, tolerance: number): Comparison {
@@ -228,6 +248,7 @@ export function compare(prev: EvalRecord, cur: EvalRecord, tolerance: number): C
   const pc = (x: number) => `${Math.round(x * 100)}%`;
   // More than the tolerance, with a margin for floating point (two of twenty queries is exactly 0.1).
   const fell = (a: number | null, b: number | null) => a !== null && b !== null && a - b > tolerance + 1e-9;
+  const filtered = filterNote(prev, cur);
 
   if (prev.claudeVersion !== cur.claudeVersion) changes.push(`Claude Code ${prev.claudeVersion ?? "unknown"} → ${cur.claudeVersion ?? "unknown"}`);
   if (prev.models.agent !== cur.models.agent) changes.push(`agent model ${prev.models.agent} → ${cur.models.agent}`);
@@ -250,7 +271,9 @@ export function compare(prev: EvalRecord, cur: EvalRecord, tolerance: number): C
     // (#237). Across a judge change a fall or a rise says nothing, so the output scores are not compared.
     if (now.output && before.output && prev.models.judge !== cur.models.judge) changes.push(`${name}: output scores not compared, the judge model changed`);
     else if (now.output && before.output) {
-      if (fell(before.output.meanWith, now.output.meanWith)) regressions.push(`${name}: mean output score with the skill fell from ${before.output.meanWith!.toFixed(2)} to ${now.output.meanWith!.toFixed(2)}`);
+      // A mean over some of the cases is not the mean over all of them: only the cases both records hold are compared.
+      if (filtered) changes.push(`${name}: mean output score not compared, ${filtered}`);
+      else if (fell(before.output.meanWith, now.output.meanWith)) regressions.push(`${name}: mean output score with the skill fell from ${before.output.meanWith!.toFixed(2)} to ${now.output.meanWith!.toFixed(2)}`);
       const was = new Map(before.output.cases.map(c => [c.name, c.withSkill]));
       for (const c of now.output.cases) {
         const w = was.get(c.name);
@@ -274,17 +297,26 @@ export function renderSummary(cur: EvalRecord, prev: EvalRecord | null, cmp: Com
   out.push(`# Skill evals, ${cur.date.slice(0, 10)}`, "");
   out.push(`Claude Code ${cur.claudeVersion ?? "unknown"}, agent \`${cur.models.agent}\`, judge \`${cur.models.judge}\`, ` +
     `cost $${cur.costUsd.toFixed(2)}${cur.commit ? `, commit \`${cur.commit.slice(0, 7)}\`` : ""}.`, "");
+  // The previous mean is left out beside a filtered one: side by side they would read as a comparison.
+  const filtered = filterNote(prev, cur);
+  if (cur.caseFilter !== undefined) {
+    out.push(`Filtered run: only the output cases matching \`--case '${cur.caseFilter}'\` ran. Each output score below is the mean of ` +
+      "those cases, not of the suite, so it is not compared with a previous mean and this run is not a baseline.", "");
+  }
   out.push("| Skill | Trigger pass rate | Previous | Output score with skill | Previous | Δ vs no skill |", "| --- | --- | --- | --- | --- | --- |");
   for (const name of Object.keys(cur.skills).sort()) {
     const s = cur.skills[name], p = prev?.skills[name];
-    out.push(`| ${name} | ${frac(s.trigger?.counts.all)} | ${p ? frac(p.trigger?.counts.all) : "n/a"} | ${score(s.output?.meanWith)} | ${p ? score(p.output?.meanWith) : "n/a"} | ${signed(s.output?.meanDelta)} |`);
+    out.push(`| ${name} | ${frac(s.trigger?.counts.all)} | ${p ? frac(p.trigger?.counts.all) : "n/a"} | ${score(s.output?.meanWith)} | ${p && !filtered ? score(p.output?.meanWith) : "n/a"} | ${signed(s.output?.meanDelta)} |`);
   }
   out.push("");
   if (errors.length) out.push("## Errors", "", "These runs measured nothing, so no pass rate below is a result for them. Fix the setup and re-run.", "", ...errors.map(e => `- ${e}`), "");
   if (cmp?.regressions.length) out.push("## Regressions", "", ...cmp.regressions.map(r => `- ${r}`), "");
   if (cmp?.changes.length) out.push("## Changes since the previous run", "", ...cmp.changes.map(c => `- ${c}`), "");
   if (!prev) out.push("There is no previous record, so this run is the baseline: it can't regress.", "");
-  else if (cmp && !cmp.regressions.length && !errors.length) out.push(`No skill fell by more than the tolerance (previous record: ${prev.date.slice(0, 10)}).`, "");
+  else if (cmp && !cmp.regressions.length && !errors.length) {
+    out.push(`No skill fell by more than the tolerance (previous record: ${prev.date.slice(0, 10)}).` +
+      (filtered ? ` The mean output scores were not compared: ${filtered}.` : ""), "");
+  }
   return out.join("\n");
 }
 
@@ -294,6 +326,7 @@ export function renderSummary(cur: EvalRecord, prev: EvalRecord | null, cmp: Com
 interface Options {
   skills: string[] | null;
   kind: Kind;
+  caseFilter: string | null;
   out: string;
   previous: string | null;
   model: string;
@@ -303,11 +336,16 @@ interface Options {
   triggerRunner: string | null;
 }
 
-const KNOWN_FLAGS = ["--skills", "--kind", "--out", "--previous", "--model", "--judge-model", "--max-cost-usd", "--tolerance", "--trigger-runner"];
+const KNOWN_FLAGS = ["--skills", "--kind", "--case", "--out", "--previous", "--model", "--judge-model", "--max-cost-usd", "--tolerance", "--trigger-runner"];
 
 function parseArgs(argv: string[]): Options {
   // Every flag takes a value. A paid command refuses what it does not know: `--skill x` must not mean "every skill".
   for (let i = 0; i < argv.length; i++) {
+    // `npm run skill-evals -- --case '{a,b}'` arrives as `--case a b`: npm's shell expands the braces despite the quotes.
+    if (!KNOWN_FLAGS.includes(argv[i]) && argv[i - 2] === "--case" && !argv[i].startsWith("--")) {
+      throw new Error(`unknown argument ${argv[i]} after --case ${argv[i - 1]}: --case takes one pattern, and only * and ? are wildcards. ` +
+        "{a,b} is not one (the shell npm run uses expands it into several arguments): run once for each pattern");
+    }
     if (!KNOWN_FLAGS.includes(argv[i])) throw new Error(`unknown argument ${argv[i]} (flags: ${KNOWN_FLAGS.join(", ")})`);
     i++;
   }
@@ -327,9 +365,15 @@ function parseArgs(argv: string[]): Options {
   };
   const kind = flag("--kind") ?? "both";
   if (kind !== "trigger" && kind !== "output" && kind !== "both") throw new Error("--kind is trigger, output or both");
+  // Only output evals have cases. With trigger evals in the same run, `--case x` would read as "only x" while
+  // every trigger query was still paid for, so the kind must be said.
+  const caseFilter = flag("--case");
+  if (caseFilter !== null && !caseFilter.trim()) throw new Error("--case takes a pattern");
+  if (caseFilter !== null && kind !== "output") throw new Error("--case filters output cases only: add --kind output");
   return {
     skills: flag("--skills")?.split(",").map(s => s.trim()).filter(Boolean) ?? null,
     kind,
+    caseFilter,
     out: flag("--out") ?? "skill-evals",
     previous: flag("--previous"),
     model: flag("--model") ?? DEFAULT_MODEL,
@@ -347,6 +391,16 @@ function outputCaseDirs(skillDir: string): string[] {
   return fs.readdirSync(evals, { withFileTypes: true })
     .filter(d => d.isDirectory() && d.name !== "results" && ["prompt.md", "case.yaml"].some(f => fs.existsSync(path.join(evals, d.name, f))))
     .map(d => d.name).sort();
+}
+
+/**
+ * The pattern of `--case` as `claude plugin eval` reads it (2.1.318): the whole name must match, `*` is any run of
+ * characters, `?` is one, and every other character is itself. So `{a,b}` and `[ab]` are literal text and match
+ * no case. `rejudge.mjs` has the same function. The CLI matches a case's name, which is its directory name
+ * unless `case.yaml` says otherwise; this script knows cases by directory, as `outputFromResult` does.
+ */
+export function caseGlob(pattern: string): RegExp {
+  return new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".")}$`);
 }
 
 function readJson(file: string): unknown {
@@ -368,12 +422,28 @@ export function main(argv: string[]): number {
   const found = fs.readdirSync(skillsDir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name).sort();
   for (const s of opt.skills ?? []) if (!found.includes(s)) { console.error(`no skill ${s} in .claude/skills`); return 2; }
 
+  // A pattern that matches nothing would make `claude plugin eval` run no case and look like a clean run, so it
+  // is settled here, from the case directories, before anything is written or paid for.
+  const only = opt.caseFilter === null ? null : caseGlob(opt.caseFilter);
+  if (only) {
+    const selected = found.filter(s => !opt.skills || opt.skills.includes(s));
+    const names = selected.map(s => ({ skill: s, cases: outputCaseDirs(path.join(skillsDir, s)) })).filter(x => x.cases.length);
+    if (!names.some(x => x.cases.some(c => only.test(c)))) {
+      console.error(`--case '${opt.caseFilter}' matches no output case of ${opt.skills ? opt.skills.join(", ") : "any skill"}, so nothing was run.`);
+      if (/[{}[\],]/.test(opt.caseFilter!)) console.error("Only * and ? are wildcards. {a,b}, [ab] and a,b are read as literal text: run once for each pattern.");
+      console.error("The whole name must match. " + (names.length ? "Cases:" : "These skills have no output cases."));
+      for (const x of names) console.error(`  ${x.skill}: ${x.cases.join(", ")}`);
+      return 2;
+    }
+  }
+
   // The tools run with the repo as their working directory, so no path handed to them may depend on ours.
   const outDir = path.resolve(opt.out);
   fs.mkdirSync(outDir, { recursive: true });
   const record: EvalRecord = {
     format: FORMAT, date: new Date().toISOString(), commit: process.env.GITHUB_SHA ?? git(repo, "rev-parse", "HEAD"),
-    claudeVersion: null, models: { agent: opt.model, judge: opt.judgeModel }, costUsd: 0, skills: {},
+    claudeVersion: null, models: { agent: opt.model, judge: opt.judgeModel }, costUsd: 0,
+    ...(opt.caseFilter === null ? {} : { caseFilter: opt.caseFilter }), skills: {},
   };
   const errors: string[] = [];
   let spent = 0;
@@ -391,7 +461,10 @@ export function main(argv: string[]): number {
     if (opt.skills && !opt.skills.includes(skill)) continue;
     const dir = path.join(skillsDir, skill);
     const hasTrigger = fs.existsSync(path.join(dir, "evals", "trigger-evals.json"));
-    const caseDirs = outputCaseDirs(dir);
+    const allCaseDirs = outputCaseDirs(dir);
+    // The cases this run expects in the result: with --case, only the matching ones can "fail to load".
+    const caseDirs = only ? allCaseDirs.filter(c => only.test(c)) : allCaseDirs;
+    if (only && allCaseDirs.length && !caseDirs.length) console.log(`\n== ${skill}: output evals skipped, none of its ${allCaseDirs.length} cases matches --case '${opt.caseFilter}'`);
     const rec: SkillRecord = { errors: [] };
     const fail = (msg: string) => { rec.errors.push(msg); errors.push(`${skill}: ${msg}`); };
 
@@ -433,11 +506,11 @@ export function main(argv: string[]): number {
       const cap = budget(OUTPUT_STEP_CAP_USD);
       if (cap === null) fail("output evals not run: the cost ceiling was spent");
       else {
-        console.log(`\n== ${skill}: output evals, ${caseDirs.length} cases (up to $${cap.toFixed(2)})`);
+        console.log(`\n== ${skill}: output evals, ${only ? `${caseDirs.length} of ${allCaseDirs.length} cases (--case '${opt.caseFilter}': ${caseDirs.join(", ")})` : `${caseDirs.length} cases`} (up to $${cap.toFixed(2)})`);
         const file = path.join(outDir, `output-${skill}.json`);
         fs.rmSync(file, { force: true });
         spawnSync("claude", ["plugin", "eval", dir, "--scaffold", "--trust-plugin", "--model", opt.model, "--judge-model", opt.judgeModel,
-          "-j", "4", "--max-cost-usd", String(cap), "--no-publish", "--json", file], { cwd: repo, stdio });
+          "-j", "4", "--max-cost-usd", String(cap), "--no-publish", "--json", file, ...(opt.caseFilter === null ? [] : ["--case", opt.caseFilter])], { cwd: repo, stdio });
         const result = readJson(file);
         if (result === null) { spent += cap; fail("output evals wrote no result"); }
         else {
@@ -471,11 +544,11 @@ export function main(argv: string[]): number {
   const summary = renderSummary(record, prev, cmp, errors);
   const json = JSON.stringify(record, null, 2) + "\n";
   fs.writeFileSync(path.join(outDir, "record.json"), json);
-  // Only a run of every skill and both kinds, with no error, can be the next run's baseline. A debugging run of one
-  // skill would otherwise hide every other skill's regression for a month, and an errored one would lower the bar.
+  // Only a run of every skill, both kinds and every case, with no error, can be the next run's baseline. A debugging
+  // run of one skill would otherwise hide every other skill's regression for a month, and an errored one would lower the bar.
   const baseline = path.join(outDir, "baseline.json");
   fs.rmSync(baseline, { force: true });
-  if (!errors.length && !opt.skills && opt.kind === "both") fs.writeFileSync(baseline, json);
+  if (!errors.length && !opt.skills && opt.kind === "both" && opt.caseFilter === null) fs.writeFileSync(baseline, json);
   fs.writeFileSync(path.join(outDir, "summary.md"), summary);
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + "\n");
   console.log("\n" + summary);
