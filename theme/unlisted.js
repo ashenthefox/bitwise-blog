@@ -123,9 +123,9 @@
    know whether the page marks anything; bh.js takes the attribute away again on a page that has no
    mark, and so no button.
 
-   A diff page (<body data-bh-diff>, npm run diff) starts on. It is a bundle, whose scripts all run
-   at the end of <body>, so the marker has been parsed when this runs. In a <head> there is no
-   body yet, and no diff page either.
+   A diff page (<html data-bh-diff>, npm run diff) starts on. The marker is on <html> because this
+   runs in <head>, in a bundle too (bundle keeps the synchronous head scripts where they are), and
+   there is no body yet.
 
    The marks must show wherever there is no button to ask with, so until bh.js has settled the
    switch (it sets bhChanges.settled, once the top bar is built) this block stands in for it:
@@ -140,7 +140,7 @@
 
   /** True when the page opens with its change highlights on: a page that is itself a diff. */
   function startsOn(doc) {
-    return !!(doc && doc.body && doc.body.hasAttribute("data-bh-diff"));
+    return !!(doc && doc.documentElement && doc.documentElement.hasAttribute("data-bh-diff"));
   }
 
   /** `settled` is set by bh.js once it has made the page's switch agree with the page (buildChrome). */

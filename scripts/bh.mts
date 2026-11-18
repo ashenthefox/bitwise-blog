@@ -1631,9 +1631,15 @@ function bundleHtml(html: string, file: string, reviews = true): string {
     return `<style data-bh-theme>\n${[...remote].join("\n")}\n${css}\n</style>`;
   });
 
-  html = html.replace(/<script\s+src="([^"]+)"[^>]*><\/script>/g, (m, src) => {
+  // A synchronous script in <head> (the theme's examples.js and unlisted.js) decides something before
+  // first paint, so it is inlined where it is. Every other script goes to the end of <body>, in source order:
+  // a bundle can arrive slowly, and scripts at the end would run only after the whole body had been
+  // parsed and, perhaps, painted.
+  const headEnd = html.search(/<\/head>/i);
+  html = html.replace(/<script\s+src="([^"]+)"[^>]*><\/script>/g, (m, src, at: number) => {
     if (/^https?:/.test(src)) return m;
     const abs = path.resolve(dir, src);
+    if (at < headEnd && !/\s(?:defer|async|type="module")(?=[\s=>])/.test(m)) return `<script>\n${fs.readFileSync(abs, "utf8").replace(/<\/script/gi, "<\\/script")}\n</script>`;
     // bh.js loads the glossary at runtime; a standalone file must carry it inline, first.
     if (abs === path.join(ROOT, "theme", "bh.js")) {
       if (fs.existsSync(GLOSSARY_OUT)) scripts.push(fs.readFileSync(GLOSSARY_OUT, "utf8").replace(/<\/script/gi, "<\\/script"));

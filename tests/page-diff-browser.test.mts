@@ -100,6 +100,15 @@ async function openTab(chrome: ChromeHandle, { width = 1100, height = 900, mobil
       const now = document.documentElement.getAttribute("data-changes");
       if (!window.__switch.length || window.__switch.at(-1) !== now) window.__switch.push(now);
     }).observe(document, { attributes: true, attributeFilter: ["data-changes"], subtree: true });
+    // Rendering frames (a frame callback runs just before a paint) that had a marked part in the document, and how many of those lacked the off state.
+    window.__marks = { frames: 0, lit: 0 };
+    (function frame() {
+      if (document.querySelector("[data-change]")) {
+        window.__marks.frames++;
+        if (document.documentElement.getAttribute("data-changes") !== "off") window.__marks.lit++;
+      }
+      requestAnimationFrame(frame);
+    })();
     addEventListener("error", (e) => window.__errors.push(String(e.message)));
     addEventListener("unhandledrejection", (e) => window.__errors.push(String(e.reason)));` });
   const evaluate = async (expression: string) => {
@@ -115,7 +124,9 @@ async function openTab(chrome: ChromeHandle, { width = 1100, height = 900, mobil
     throw new Error("the page never became ready");
   };
   const goto = async (url: string) => { await s("Page.navigate", { url }); await sleep(150); await ready(); };
-  return { evaluate, goto, close: () => chrome.send("Target.closeTarget", { targetId }).catch(() => {}) };
+  /** Start loading `url` and return at once: for a response the server holds back. */
+  const start = async (url: string) => { await s("Page.navigate", { url }); };
+  return { evaluate, goto, start, ready, close: () => chrome.send("Target.closeTarget", { targetId }).catch(() => {}) };
 }
 
 // What the page shows: each mark with its status and the block it sits before.
@@ -194,7 +205,22 @@ test("the diff module marks a live page with what changed since a commit", { ski
     [`/theme/diffs/post.${BASE}.js`, js(diffScript(PAGE, data))],
     [`/theme/diffs/marked.${BASE}.js`, js(diffScript(MARKED, diffData(markedDiff, BASE)))],
   ]));
-  t.after(() => new Promise<void>((resolve) => server.close(() => resolve())));
+  t.after(() => new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => resolve()); }));
+  // /slow/<file> is a slow connection: it sends <file> as far as the end of <main>, and the rest (in a
+  // bundle, the scripts at the end of <body>) only when `release` is called.
+  let release = () => {};
+  t.after(() => release());
+  const serve = server.listeners("request")[0] as (req: http.IncomingMessage, res: http.ServerResponse) => void;
+  server.removeAllListeners("request");
+  server.on("request", (req: http.IncomingMessage, res: http.ServerResponse) => {
+    const url = req.url || "";
+    if (!url.startsWith("/slow/")) { serve(req, res); return; }
+    const html = fs.readFileSync(path.join(root, url.slice("/slow/".length)), "utf8"), cut = html.indexOf("</main>");
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    res.write(html.slice(0, cut));
+    const before = release;
+    release = () => { before(); res.end(html.slice(cut)); };
+  });
   const base = `http://127.0.0.1:${portOf(server)}/`;
   const chrome = await launchChrome();
   t.after(() => chrome.close());
@@ -327,6 +353,14 @@ test("the diff module marks a live page with what changed since a commit", { ski
   const COPIES = ["service:changed", "call:changed"];
   const lit = (list: string[]) => list.map((x) => x + ":lit"), plain = (list: string[]) => list.map((x) => x + ":plain");
   const OWN_PART = ["cache:added"];
+  /** Wait until a page whose response is held back has painted its marked parts, on at least three frames. */
+  const painted = async (p: Awaited<ReturnType<typeof tab>>) => {
+    for (let i = 0; i < 150; i++) {
+      if (await p.evaluate(`document.readyState === "loading" && performance.getEntriesByType("paint").length > 0 && window.__marks.frames >= 3`).catch(() => false)) return;
+      await sleep(100);
+    }
+    assert.fail("the held page never painted its marked parts");
+  };
 
   await t.test("?diff=<commit> on a page with marked parts of its own: the page's switch goes from off to on, and every mark is drawn", async () => {
     const p = await tab();
@@ -409,7 +443,7 @@ test("the diff module marks a live page with what changed since a commit", { ski
       assert.equal(made.status, 0, made.stdout + made.stderr);
       const out = "dist/diff/" + path.basename(page);
       const html = fs.readFileSync(path.join(root, out), "utf8");
-      assert.match(html, /<body\b[^>]*\sdata-bh-diff>/, "the page says it is a diff");
+      assert.match(html, /<html\b[^>]*\sdata-bh-diff[\s>]/, "the page says it is a diff, where a script in <head> can read it");
       assert.match(html, /<bh-versions\b/, "the redrawn figure is a before/after pair");
 
       const p = await tab();
@@ -420,7 +454,60 @@ test("the diff module marks a live page with what changed since a commit", { ski
       await p.evaluate("document.querySelector('.bh-topbar .bh-changes-btn').click()");
       assert.deepEqual(await highlights(p), { button: "false", buttons: 1, root: "off", own: plain([...own]), copies: plain(COPIES), trees: ["off", "off"] }, page);
       await noErrors(p);
+
+      // Arriving slowly, it paints before the scripts at the end of its body run, and is never off.
+      const slow = await tab();
+      await slow.start(base + "slow/" + out);
+      await painted(slow);
+      assert.deepEqual(await slow.evaluate(`[typeof window.bh, typeof window.bhChanges, window.bhChanges && window.bhChanges.startsOn(), document.documentElement.getAttribute("data-changes")]`), ["undefined", "object", true, null], `${page}: the head script has run, and left the highlights on`);
+      if (own.length) assert.deepEqual((await highlights(slow)).own, lit([...own]), `${page}: its own marks show while it loads`);
+      release();
+      await slow.ready();
+      assert.deepEqual(await slow.evaluate("window.__switch"), [], `${page}: arriving slowly, the switch was never off`);
+      assert.deepEqual(await highlights(slow), { button: "true", buttons: 1, root: null, own: lit([...own]), copies: lit(COPIES), trees: [null, null] }, page);
+      await noErrors(slow);
     }
+  });
+
+  await t.test("a bundle (npm run bundle) that arrives slowly never paints its highlights before the off state", async () => {
+    // Made by the real command, in the repository the test above set up.
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    for (const key of Object.keys(env)) if (key.startsWith("BH_")) delete env[key];
+    const made = spawnSync(process.execPath, [path.join(root, "scripts/bh.mts"), "bundle", MARKED], { cwd: root, env, encoding: "utf8", timeout: 60_000 });
+    assert.equal(made.status, 0, made.stdout + made.stderr);
+    const out = "dist/" + path.basename(MARKED);
+    const html = fs.readFileSync(path.join(root, out), "utf8"), head = html.slice(0, html.indexOf("</head>")), body = html.slice(html.indexOf("</main>"));
+    assert.ok(html.slice(html.indexOf("</head>"), html.indexOf("</main>")).includes('data-change="added"'), "the marked part arrives before the held part");
+
+    const slow = await tab();
+    await slow.start(base + "slow/" + out);
+    await painted(slow);
+    assert.deepEqual(await slow.evaluate(`[document.readyState, typeof window.bh, document.documentElement.getAttribute("data-changes"), window.bhExamples.source, window.bhUnlisted.source]`), ["loading", "undefined", "off", "bundle", "bundle"], "the head scripts ran before the body arrived");
+    assert.deepEqual((await highlights(slow)).own, plain(OWN_PART), "the marked part is drawn plain while the rest is on its way");
+    assert.equal((await slow.evaluate("window.__marks")).lit, 0, "no frame so far had a marked part without the off state");
+    release();
+    await slow.ready();
+    const frames = await slow.evaluate("window.__marks");
+    assert.ok(frames.frames >= 3, "frames were counted");
+    assert.equal(frames.lit, 0, "nor any frame since");
+    assert.deepEqual(await slow.evaluate("[window.__switch, window.bhChanges.settled]"), [["off"], true]);
+    assert.deepEqual(await highlights(slow), { button: "false", buttons: 1, root: "off", own: plain(OWN_PART), copies: [], trees: [] });
+    await noErrors(slow);
+
+    assert.doesNotMatch(html, /<script\b[^>]*\ssrc=/, "every script is inline");
+    // The synchronous head scripts stay in <head>, in their order; bh.js, which the page defers, goes to the end of <body>.
+    const marks = ["bh-theme", "g.bhExamples = api", "g.bhUnlisted = api", "g.bhChanges = api"].map((text) => head.indexOf(text));
+    assert.ok(marks.every((at, i) => at > 0 && (i === 0 || at > marks[i - 1]!)), `the head scripts are in <head>, in order (${marks})`);
+    assert.ok(!head.includes("window.bhModules") && body.includes("window.bhModules") && !body.includes("g.bhChanges = api"), "bh.js and its modules are at the end of <body>, and the head scripts are not there again");
+
+    // Opened whole, as from disk: the same page, and its switch works.
+    const p = await tab();
+    await p.goto(base + out);
+    assert.deepEqual(await p.evaluate("[window.__switch, window.__marks.lit, window.bhExamples.source, window.bhUnlisted.source]"), [["off"], 0, "bundle", "bundle"]);
+    assert.deepEqual(await highlights(p), { button: "false", buttons: 1, root: "off", own: plain(OWN_PART), copies: [], trees: [] });
+    await p.evaluate("document.querySelector('.bh-topbar .bh-changes-btn').click()");
+    assert.deepEqual(await highlights(p), { button: "true", buttons: 1, root: null, own: lit(OWN_PART), copies: [], trees: [] });
+    await noErrors(p);
   });
 
   await t.test("at phone width nothing overflows with every change expanded", async () => {

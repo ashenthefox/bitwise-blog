@@ -941,7 +941,9 @@ export function renderDiffPage(diff: PageDiff, labels: DiffLabels): string {
   summarise();
   const before = diff.before
     .replace(/<title>([^<]*)<\/title>/i, (_m, t) => `<title>Diff: ${t}</title>\n  <meta name="robots" content="noindex">`)
-    .replace(/<body\b([^>]*)>/i, (_m, attrs) => `<body${String(attrs).replace(/\sdata-(?:present|review)="[^"]*"/g, "")} data-present="off" data-review="off" data-bh-diff>`);
+    // The marker is on <html>, where a script in <head> can read it (bhChanges.startsOn in theme/unlisted.js).
+    .replace(/<html\b/i, "<html data-bh-diff")
+    .replace(/<body\b([^>]*)>/i, (_m, attrs) => `<body${String(attrs).replace(/\sdata-(?:present|review)="[^"]*"/g, "")} data-present="off" data-review="off">`);
   const body = out.join("\n\n");
   // The old version's CSS, for the copies that need it (theme/modules/diff.js reads it). JSON in a script: "</" must not end the element.
   const oldCss = body.includes('data-style="old"') ? `\n\n<script type="application/json" id="bh-diff-old-style">${JSON.stringify(diff.oldStyle).replace(/</g, "\\u003c")}</script>` : "";
