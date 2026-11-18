@@ -10,8 +10,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const chromeModule = new URL("../scripts/chrome.mts", import.meta.url).href;
 
 interface RunResult { code: number | null; signal: NodeJS.Signals | null; output: string; elapsed: number; reportDelay: number | undefined }
-/** The environment a fake Chrome is run with. */
-type FixtureEnv = { CHROME_PATH: string; PROFILE_RECORD: string };
+/** The environment a fake Chrome is run with. `TMPDIR` is the fixture's own, so it holds every profile `launchChrome` makes. */
+type FixtureEnv = { CHROME_PATH: string; PROFILE_RECORD: string; TMPDIR: string };
 
 // The child must exit naturally. Killing a timed-out child is test cleanup, never success.
 function run(args: string[], env: Record<string, string>, timeout = 10000): Promise<RunResult> {
@@ -56,7 +56,9 @@ function fixture(t: TestContext, body: string): FixtureEnv {
   const exe = path.join(dir, "chrome");
   // Use the exact Node binary, including when running the suite on Node 22.
   fs.writeFileSync(exe, `#!${process.execPath}\n${body}\n`, { mode: 0o755 });
-  return { CHROME_PATH: exe, PROFILE_RECORD: path.join(dir, "profile.txt") };
+  const tmp = path.join(dir, "tmp");
+  fs.mkdirSync(tmp);
+  return { CHROME_PATH: exe, PROFILE_RECORD: path.join(dir, "profile.txt"), TMPDIR: tmp };
 }
 
 function rendererFixture(env: FixtureEnv, renderer = "visual.mts"): string {
@@ -67,13 +69,21 @@ function rendererFixture(env: FixtureEnv, renderer = "visual.mts"): string {
 }
 
 const profileRecorder = `const fs = require('node:fs');
+const path = require('node:path');
 const profile = process.argv.find(a => a.startsWith('--user-data-dir=')).split('=')[1];
 fs.writeFileSync(process.env.PROFILE_RECORD, profile);
-fs.writeFileSync(require('node:path').join(require('node:path').dirname(process.env.PROFILE_RECORD), 'browser.pid'), String(process.pid));`;
+fs.writeFileSync(path.join(path.dirname(process.env.PROFILE_RECORD), 'browser.pid'), String(process.pid));`;
 
-function assertProfileRemoved(env: FixtureEnv): void {
+/**
+ * No profile `launchChrome` made is left: it makes them in `os.tmpdir()`, the fixture's `TMPDIR`, which must end
+ * empty. A profile the fake recorded must lie there, which proves the listing is not vacuous. `recorded` requires
+ * a record; pass `false` only where every fake may be killed before it runs.
+ */
+function assertProfileRemoved(env: FixtureEnv, { recorded = true } = {}): void {
+  assert.deepEqual(fs.readdirSync(env.TMPDIR), [], `profiles left behind in ${env.TMPDIR}`);
+  if (!recorded && !fs.existsSync(env.PROFILE_RECORD)) return;
   const profile = fs.readFileSync(env.PROFILE_RECORD, "utf8");
-  assert.equal(fs.existsSync(profile), false, `profile left behind: ${profile}`);
+  assert.equal(path.dirname(profile), env.TMPDIR, `launchChrome made its profile outside TMPDIR: ${profile}`);
 }
 
 test("Chrome cleanup cancels its deadline and repeated close is safe", async (t) => {
@@ -117,11 +127,17 @@ for (const mode of ["exit", "websocket"]) {
 }
 
 test("a Chrome that is slow to start is launched again, and each failed attempt releases its profile", async (t) => {
-  // The first launch prints nothing and hangs; the second behaves.
+  // Attempt 1 hangs and attempt 2 behaves. The launcher's retry notice is what tells them apart, not a marker
+  // the first fake writes: under load a fake can be killed before it runs a line, and then attempt 2 hung too.
+  // Attempt 2 lists the profiles in TMPDIR, to show attempt 1's was removed before it launched.
   const env = fixture(t, `${profileRecorder}
-const marker = require('node:path').join(require('node:path').dirname(process.env.PROFILE_RECORD), 'attempted');
-if (!fs.existsSync(marker)) { fs.writeFileSync(marker, profile); setInterval(() => {}, 1000); }
-else { console.error('DevTools listening on ws://fake'); setInterval(() => {}, 1000); }`);
+const dir = path.dirname(process.env.PROFILE_RECORD);
+if (fs.existsSync(path.join(dir, 'retried'))) {
+  fs.writeFileSync(path.join(dir, 'seen.json'), JSON.stringify(fs.readdirSync(require('node:os').tmpdir())));
+  console.error('DevTools listening on ws://fake');
+}
+setInterval(() => {}, 1000);`);
+  const dir = path.dirname(env.CHROME_PATH);
   const result = await run(["--input-type=module", "-e", `
     globalThis.WebSocket = class {
       static OPEN = 1;
@@ -129,17 +145,24 @@ else { console.error('DevTools listening on ws://fake'); setInterval(() => {}, 1
       constructor() { setTimeout(() => this.onopen(), 0); }
       close() {}
     };
+    const fs = (await import('node:fs')).default;
+    const warn = console.warn;
+    console.warn = (...args) => {
+      if (String(args[0]).includes('retrying, attempt')) fs.writeFileSync(${JSON.stringify(path.join(dir, "retried"))}, '');
+      warn(...args);
+    };
     const { launchChrome } = await import(${JSON.stringify(chromeModule)});
-    const chrome = await launchChrome(300);
+    // Attempt 2 must start Node and print within this; under load that took more than 300 ms.
+    const chrome = await launchChrome(2000);
     await chrome.close();
     console.log('CLOSED');
   `], env);
   assert.equal(result.code, 0, result.output);
-  assert.match(result.output, /retrying, attempt 2 of 3/);
+  assert.deepEqual(result.output.match(/retrying, attempt \d of 3/g), ["retrying, attempt 2 of 3"], result.output);
   assert.match(result.output, /CLOSED/);
   assertProfileRemoved(env);
-  const first = fs.readFileSync(path.join(path.dirname(env.CHROME_PATH), "attempted"), "utf8");
-  assert.equal(fs.existsSync(first), false, `the failed attempt's profile was left behind: ${first}`);
+  const own = path.basename(fs.readFileSync(env.PROFILE_RECORD, "utf8"));
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, "seen.json"), "utf8")), [own], "attempt 1's profile was still there when attempt 2 launched");
 });
 
 test("a Chrome that never starts fails after three attempts, naming the cause", async (t) => {
@@ -151,7 +174,8 @@ test("a Chrome that never starts fails after three attempts, naming the cause", 
   assert.equal(result.code, 0, result.output);
   assert.match(result.output, /Chrome did not start/);
   assert.equal((result.output.match(/retrying, attempt/g) ?? []).length, 2, result.output);
-  assertProfileRemoved(env);
+  // Under load a fake killed after 200 ms may never have run, so none may have recorded its profile.
+  assertProfileRemoved(env, { recorded: false });
 });
 
 test("renderer startup failure closes the static server and exits nonzero", async (t) => {
