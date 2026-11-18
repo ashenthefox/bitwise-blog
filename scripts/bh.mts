@@ -9,7 +9,7 @@
 //   node scripts/bh.mts diff <page> [base] [head]   what changed in a page between two versions → dist/diff/<name>.html (see contracts/page-diff.md)
 //   node scripts/bh.mts seal [--show-links|--reshell]   encrypt docs/*.private.html → docs/<slug>.html (see contracts/private-pages.md)
 //   node scripts/bh.mts unseal [slug…]        decrypt docs/<slug>.html → docs/<slug>.private.html
-//   node scripts/bh.mts serve [port]          static server (pages also work from file://)
+//   node scripts/bh.mts serve [port] [host]   static server (pages also work from file://); port 0 picks a free one
 
 import fs from "node:fs";
 import path from "node:path";
@@ -2260,11 +2260,11 @@ function buildInfo() {
 }
 const buildScript = (info: ReturnType<typeof buildInfo>) => `/* Review build stamp (generated, not committed). */\nwindow.BH_BUILD = ${JSON.stringify(info)};\n`;
 
-function cmdServe([port = "8000"]: string[]): void {
+function cmdServe([port = "8000", host]: string[]): void {
   const root = fs.realpathSync(ROOT);
   const contains = (file: string) => file === root || file.startsWith(root + path.sep);
   const types: Record<string, string> = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json", ".xml": "application/xml; charset=utf-8", ".woff2": "font/woff2", ...MIME };
-  http.createServer((req, res) => {
+  const server = http.createServer((req, res) => {
     let p: string;
     try { p = decodeURIComponent(new URL(req.url!, "http://x").pathname); } catch { res.writeHead(400).end(); return; }
     // A missing path gets the 404 page with status 404, as on GitHub Pages (plain text if it has not been generated yet).
@@ -2305,11 +2305,19 @@ function cmdServe([port = "8000"]: string[]): void {
       if (e) { notFound(); return; }
       res.writeHead(200, { "content-type": types[path.extname(file)] || "application/octet-stream", "cache-control": "no-cache" }).end(data);
     });
-  }).listen(+port, () => {
-    console.log(`Serving ${ROOT} at ${c.green(`http://localhost:${port}/`)}`);
-    console.log(c.dim(`Unlisted pages stay hidden here, as for readers: open any page with #unlisted=true to see them (http://localhost:${port}/#unlisted=true).`));
-    console.log(c.dim(`Example pages are hidden too: open any page with ?examples to see them (http://localhost:${port}/?examples).`));
   });
+  const listening = () => {
+    // The port actually bound, so `serve 0` (any free port, as the tests use) says which one it got.
+    const base = `http://${host ?? "localhost"}:${(server.address() as { port: number }).port}/`;
+    console.log(`Serving ${ROOT} at ${c.green(base)}`);
+    console.log(c.dim(`Unlisted pages stay hidden here, as for readers: open any page with #unlisted=true to see them (${base}#unlisted=true).`));
+    console.log(c.dim(`Example pages are hidden too: open any page with ?examples to see them (${base}?examples).`));
+  };
+  // Every interface by default. A host binds that address only: the tests pass 127.0.0.1, because on macOS a
+  // port the kernel picks for the dual-stack wildcard may already be held on 127.0.0.1 by another process,
+  // which then answers the tests' requests.
+  if (host) server.listen(+port, host, listening);
+  else server.listen(+port, listening);
 }
 
 // ---- main -------------------------------------------------------------------------
@@ -2334,7 +2342,8 @@ if (!commands[cmd]) {
   seal [--show-links | --reshell]              encrypt docs/*.private.html → docs/<slug>.html (keys in 1Password);
                                                --reshell rewraps sealed pages in the current shell, no key needed
   unseal [slug…] [--force]                     recreate docs/<slug>.private.html from the sealed page and its key
-  serve [port]                                 static server on http://localhost:8000/`);
+  serve [port] [host]                          static server on http://localhost:8000/ (every interface unless
+                                               a host is given; port 0 picks a free port and prints it)`);
   process.exit(cmd ? 2 : 0);
 }
 try { await commands[cmd](args); } catch (e) { console.error(c.red(`bh ${cmd}: ${(e as Error).message}`)); process.exit(1); }

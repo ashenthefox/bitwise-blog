@@ -86,26 +86,24 @@ async function fixture(t: TestContext, { shared = false, symlinkRoot = false, se
     server = await serveStatic(root, new Map([["/dynamic.js", { type: "text/javascript", body: "dynamic route" }]]));
     port = portOf(server);
   } else {
-    // Allocate an available port before launching the actual CLI, which accepts a port argument.
-    const reservation = http.createServer();
-    reservation.listen(0, "127.0.0.1");
-    await once(reservation, "listening");
-    port = portOf(reservation);
-    await new Promise((resolve) => reservation.close(resolve));
-    const child = spawn(process.execPath, [path.join(root, "scripts/bh.mts"), "serve", String(port)], { cwd: root, stdio: ["ignore", "pipe", "pipe"] });
+    // Port 0 on 127.0.0.1, the address the requests use: the CLI binds a free port there and names it. A port
+    // reserved here and released before the CLI started could be taken in between (EADDRINUSE under a loaded
+    // parallel run), and on macOS a port picked for every interface may already be held on 127.0.0.1 by
+    // another process, which then answers the requests.
+    const child = spawn(process.execPath, [path.join(root, "scripts/bh.mts"), "serve", "0", "127.0.0.1"], { cwd: root, stdio: ["ignore", "pipe", "pipe"] });
     proc = child;
     let output = "";
     child.stderr.on("data", (data) => { output += data; });
-    await new Promise<void>((resolve, reject) => {
+    port = await new Promise<number>((resolve, reject) => {
       const timer = setTimeout(() => finish(new Error(`Server startup timed out: ${output}`)), 5000);
       const onExit = () => finish(new Error(`Server exited during startup: ${output}`));
-      const onData = (data: Buffer) => { output += data; if (output.includes("Serving ")) finish(); };
-      const finish = (error?: Error) => {
+      const onData = (data: Buffer) => { output += data; const m = output.match(/Serving .* at .*http:\/\/127\.0\.0\.1:(\d+)\//); if (m) finish(undefined, Number(m[1])); };
+      const finish = (error?: Error, bound?: number) => {
         clearTimeout(timer);
         child.off("exit", onExit);
         child.off("error", finish);
         child.stdout.off("data", onData);
-        if (error) reject(error); else resolve();
+        if (error) reject(error); else resolve(bound!);
       };
       child.once("exit", onExit);
       child.once("error", finish);
