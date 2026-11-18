@@ -81,6 +81,15 @@
 .bh-topbar.show-title .bh-topbar-title { opacity: 1; transform: none; }
 
 .bh-topbar-actions { display: flex; gap: var(--space-1); margin-left: auto; }
+/* At 480px and below the title has no width, yet still costs a gap on each side. With five buttons
+   (a page with change marks has the switch below) the bar was then too narrow at 390px, and a flex
+   row shrinks its icons to fit. So there, on every page, the gap is halved and the search button,
+   which is its icon alone from 640px down, is padded like the icon buttons beside it. Wider than
+   480px the bar has room, and nothing changes. */
+@media (max-width: 480px) {
+  .bh-topbar { gap: var(--space-2); }
+  .bh-search-btn { padding-inline: 0.45em; }
+}
 /* Change highlights for the whole page. The stroke through the icon carries "off" without colour. */
 .bh-changes-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 .bh-changes-btn:not([aria-pressed="false"]) .bh-changes-off { display: none; }

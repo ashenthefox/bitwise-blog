@@ -272,6 +272,74 @@ test("<bh-versions>: \"Show changes\" turns the change highlights off and on", {
     });
   });
 
+  await t.test("the page's switch stays true to its button through printing, a page script and a wrapper's switch", async () => {
+    // A phone's width, whatever view the loop above ended on: the icon's size below depends on it.
+    await s("Emulation.setDeviceMetricsOverride", { width: 375, height: 800, deviceScaleFactor: 1, mobile: true });
+    await sleep(200);
+    const found = await evaluate(`(async () => {
+      const tick = () => new Promise((r) => setTimeout(r, 0));
+      const html = document.documentElement;
+      const page = document.querySelector(".bh-topbar .bh-changes-btn");
+      const state = () => [page.getAttribute("aria-pressed"), html.getAttribute("data-changes")];
+      const fire = async (name) => { window.dispatchEvent(new Event(name)); await tick(); }; // one task each, as a real print is
+      const out = { icon: [innerWidth, page.querySelector("svg").getBoundingClientRect().width] };
+      if (page.getAttribute("aria-pressed") === "true") { page.click(); await tick(); }
+      out.start = state();
+      // A second beforeprint must not forget what the first one lifted.
+      await fire("beforeprint"); await fire("beforeprint");
+      out.printing = state();
+      await fire("afterprint");
+      out.afterTwoBeforeprints = state();
+      // An afterprint that never comes must not leave the switch lifted: the next press of the
+      // button ends the printing state, and so does code that turns the switch on.
+      await fire("beforeprint");
+      page.click(); await tick();
+      page.click(); await tick();
+      out.pressedAfterLostAfterprint = state();
+      await fire("beforeprint");
+      window.bh.showChanges(); await tick();
+      page.click(); await tick();
+      out.shownAfterLostAfterprint = state();
+      // While the page prints, nothing puts the switch back: not a class change on <html> ...
+      await fire("beforeprint");
+      html.classList.add("x-test"); await tick();
+      out.classChangeWhilePrinting = state();
+      html.classList.remove("x-test");
+      // ... and code that turns the switch on meanwhile is not undone when printing ends.
+      window.bh.showChanges(); await tick();
+      await fire("afterprint");
+      out.shownWhilePrinting = state();
+      // A page script that sets the attribute on <html>: the button says what the attribute says.
+      html.setAttribute("data-changes", "off"); await tick();
+      out.scriptOff = state();
+      page.click(); await tick();
+      out.clickAfterScript = state();
+      html.setAttribute("data-changes", "off"); await tick();
+      html.removeAttribute("data-changes"); await tick();
+      out.scriptOn = state();
+      // A switch on a wrapper other than <html> acts like the page's for what is inside it.
+      const v = [...document.querySelectorAll("bh-versions.is-ready")].find((x) => x.querySelector("[data-change]"));
+      const own = v.querySelector(".bh-versions-changes"), rect = v.querySelector(".node[data-change] rect");
+      const lit = getComputedStyle(rect).stroke;
+      const read = () => ({ ownButtonShown: getComputedStyle(own).display !== "none", legend: getComputedStyle(v.querySelector(".bh-versions-legend")).visibility, highlighted: getComputedStyle(rect).stroke === lit });
+      const main = document.querySelector("main");
+      main.setAttribute("data-changes", "off"); await tick();
+      out.wrapperOff = read();
+      main.removeAttribute("data-changes"); await tick();
+      out.wrapperOn = read();
+      return out;
+    })()`);
+    assert.deepEqual(found, {
+      icon: [375, 18], // the bar has room for its five buttons on a phone: a flex row would shrink the icons otherwise
+      start: ["false", "off"], printing: ["false", null], afterTwoBeforeprints: ["false", "off"],
+      pressedAfterLostAfterprint: ["false", "off"], shownAfterLostAfterprint: ["false", "off"],
+      classChangeWhilePrinting: ["false", null], shownWhilePrinting: ["true", null],
+      scriptOff: ["false", "off"], clickAfterScript: ["true", null], scriptOn: ["true", null],
+      wrapperOff: { ownButtonShown: false, legend: "hidden", highlighted: false },
+      wrapperOn: { ownButtonShown: true, legend: "visible", highlighted: true },
+    });
+  });
+
   await t.test("a component with no marked part gets no button", async () => {
     const found = await evaluate(`(async () => {
       const v = document.createElement("bh-versions");
@@ -387,6 +455,8 @@ test("change highlights: off before a slow bh.js runs, and on without JavaScript
     return await evaluate(partsProbe);
   };
   const rootAttr = () => evaluate(`document.documentElement.getAttribute("data-changes")`);
+  /** Count, in window.__writes, every later write to data-changes on <html>, a rewrite of the same value included. */
+  const countWrites = `window.__writes = 0; new MutationObserver((records) => { window.__writes += records.length; }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-changes"] }); 0`;
   const { identifier } = await s("Page.addScriptToEvaluateOnNewDocument", { source: frameCounter });
 
   for (const page of marked) {
@@ -410,10 +480,14 @@ test("change highlights: off before a slow bh.js runs, and on without JavaScript
       assert.equal(await rootAttr(), "off", "and it comes back after printing");
       await evaluate("new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))");
       const printed = (await evaluate("window.__marks")).lit;
+      await evaluate(countWrites);
       release(); release = () => {};
       await until("document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')", "the page settled");
       assert.equal(await rootAttr(), "off", "bh.js keeps the off state");
       assert.equal(await evaluate(`document.querySelector(".bh-topbar .bh-changes-btn").getAttribute("aria-pressed")`), "false");
+      // The button agrees with what the head script set, so bh.js writes nothing: the attribute is not
+      // rewritten, and the button (which follows the attribute) has no change to answer.
+      assert.equal(await evaluate("window.__writes"), 0, "bh.js did not touch the attribute on <html>");
       const frames = await evaluate("window.__marks");
       assert.ok(frames.frames >= 3, "frames were counted");
       assert.equal(frames.lit, printed, "nor any frame since, but those while printing");
@@ -423,8 +497,39 @@ test("change highlights: off before a slow bh.js runs, and on without JavaScript
       assert.equal(await rootAttr(), null);
       await evaluate(`window.dispatchEvent(new Event("afterprint"))`);
       assert.equal(await rootAttr(), "off");
+      assert.equal(await evaluate("window.__writes"), 2, "one write to lift and one to restore");
     });
   }
+
+  await t.test("printing that starts before bh.js runs and ends after it leaves the switch off, and its button working", async () => {
+    mode = "hold"; held = 0;
+    await s("Page.navigate", { url: base + marked[0] + "?examples" });
+    await until(`document.readyState === "interactive" && performance.getEntriesByType("paint").length > 0`, "the page painted");
+    assert.equal(held, 1, "bh.js is held");
+    await evaluate(`window.dispatchEvent(new Event("beforeprint"))`);
+    assert.equal(await rootAttr(), null, "the head script lifted the off state");
+    release(); release = () => {};
+    await until("document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')", "the page settled");
+    await evaluate(`window.dispatchEvent(new Event("afterprint"))`);
+    const state = `[document.documentElement.getAttribute("data-changes"), document.querySelector(".bh-topbar .bh-changes-btn").getAttribute("aria-pressed")]`;
+    assert.deepEqual(await evaluate(state), ["off", "false"], "neither afterprint handler leaves the attribute and the button apart");
+    assert.deepEqual(await evaluate(`new Promise((r) => { document.querySelector(".bh-topbar .bh-changes-btn").click(); setTimeout(() => r(${state}), 0); })`), [null, "true"]);
+  });
+
+  await t.test("a page with no marked part: bh.js takes the off state away, and nothing puts it back", async () => {
+    mode = "hold"; held = 0;
+    await s("Page.navigate", { url: base + "glossary.html" });
+    await until(`document.readyState === "interactive" && performance.getEntriesByType("paint").length > 0`, "the page painted");
+    assert.equal(held, 1, "bh.js is held");
+    assert.equal(await rootAttr(), "off", "the head script cannot know the page marks nothing");
+    await evaluate(countWrites);
+    release(); release = () => {};
+    await until("document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')", "the page settled");
+    assert.deepEqual(await evaluate(`[document.documentElement.getAttribute("data-changes"), !!document.querySelector(".bh-topbar"), !!document.querySelector(".bh-changes-btn"), window.bhChanges.settled, window.__writes]`), [null, true, false, true, 1], "removed once, and no button");
+    // Neither pair of print handlers has anything to lift or restore.
+    await evaluate(`new Promise((r) => { window.dispatchEvent(new Event("beforeprint")); setTimeout(() => { window.dispatchEvent(new Event("afterprint")); setTimeout(r, 0); }, 0); })`);
+    assert.deepEqual(await evaluate(`[document.documentElement.getAttribute("data-changes"), window.__writes]`), [null, 1]);
+  });
 
   await t.test("a page whose bh.js throws before it builds the top bar shows its highlights", async () => {
     mode = "broken";
@@ -441,6 +546,10 @@ test("change highlights: off before a slow bh.js runs, and on without JavaScript
     await until("document.readyState === 'complete' && document.documentElement.hasAttribute('data-bh-ready')", "the page settled");
     assert.deepEqual(await evaluate(`[!!document.querySelector(".bh-topbar"), window.bhChanges.settled]`), [false, true]);
     assert.equal(await rootAttr(), null);
+    // With no button, printing changes nothing: there is no off state left to lift or to put back.
+    await evaluate(countWrites);
+    await evaluate(`new Promise((r) => { window.dispatchEvent(new Event("beforeprint")); setTimeout(() => { window.dispatchEvent(new Event("afterprint")); setTimeout(r, 0); }, 0); })`);
+    assert.deepEqual(await evaluate(`[document.documentElement.getAttribute("data-changes"), window.__writes]`), [null, 0]);
     const shown = await parts();
     assert.ok(shown.length > 0, "the page has marked diagram parts");
     for (const p of shown) assert.notEqual(p.looks, p.plain, `${p.id} (${p.kind}) is highlighted`);

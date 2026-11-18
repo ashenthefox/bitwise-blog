@@ -771,10 +771,11 @@ bh-versions.is-comparing .bh-versions-tabs [role="tab"] { background: none; colo
 .bh-versions-changes[aria-pressed="false"] .bh-versions-tick { visibility: hidden; }
 /* The legend keeps its space while the marks are off, so nothing below it moves. */
 [data-changes="off"] .bh-versions-legend { visibility: hidden; }
-/* The page's switch (data-changes="off" on <html>: set in <head> by theme/unlisted.js, then by the top
-   bar's button) also takes away each component's own button: there is nothing for it to turn on.
-   Compare keeps its place at the end. */
-:root[data-changes="off"] .bh-versions-changes { display: none; }
+/* A switch above the component (data-changes="off" on <html>: set in <head> by theme/unlisted.js, then
+   by the top bar's button; or on any other wrapper) also takes away the component's own button: there
+   is nothing for it to turn on. The component's own attribute does not, or its button could never turn
+   the marks on again. Compare keeps its place at the end. */
+[data-changes="off"] bh-versions .bh-versions-changes { display: none; }
 
 /* Every version shares one grid cell: switching never changes the height. */
 .bh-versions-stage { position: relative; display: grid; }

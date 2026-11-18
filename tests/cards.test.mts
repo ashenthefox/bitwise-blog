@@ -83,9 +83,12 @@ test("cards: the page is captured with its change highlights on", { skip, timeou
   assert.ok(!box.error && box.width >= 8 && box.height >= 8, "the figure's picture was found");
 
   assert.equal(await evaluate(`document.documentElement.getAttribute("data-changes")`), null, "the page's switch is on");
-  // Only bh.showChanges() moves the button: with the attribute merely lifted, the button would still say off.
-  assert.equal(await evaluate(pressed), "true", "the page's switch was turned on through its button");
-  // Only the lift reaches the component's own switch.
+  // The button follows the attribute on <html>, so it agrees with the lift and cannot undo it:
+  // a later class change on <html> (which re-applies the button's state) leaves the switch on.
+  assert.equal(await evaluate(pressed), "true", "the page's button says on, as the attribute does");
+  await evaluate(`new Promise((r) => { document.documentElement.classList.add("x-test"); setTimeout(r, 0); })`);
+  assert.equal(await evaluate(`document.documentElement.getAttribute("data-changes")`), null, "the button's state does not switch the marks off again");
+  // The same lift reaches the component's own switch, which the page's does not.
   assert.equal(await evaluate(`${own}.getAttribute("data-changes")`), null, "the figure's own switch is on");
   const after: Part[] = await evaluate(probe);
   for (const p of after) assert.notEqual(p.looks, p.plain, `${p.id} is highlighted when the card is captured`);
