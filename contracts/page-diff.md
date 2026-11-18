@@ -135,6 +135,24 @@ anything else, use `npm run diff`.
 - **Published diff data re-publishes text that was since deleted.** It is in the public history either
   way; `docs/visibility-threat-model.html` records it. Rewriting history to remove text does not remove
   it from an already-deployed site until the next deploy.
+- **A copy hides what the page hides.** The theme draws an element marked `data-unlisted` or `data-example` only
+  while `<html>` has that switch on (`data-unlisted="on"`, `data-examples="on"`; see [Unlisted pages](unlisted-pages.md)
+  and [Example pages](example-pages.md)). A copy keeps those attributes, so in the page the same rule covers it.
+  A rule keyed on `<html>` matches nothing in a shadow tree, so `diff.js` repeats the two rules there (`HIDDEN_CSS`),
+  keyed on the tree's content, and `mirrorSwitches` writes the switches onto it: when a tree is drawn, and whenever
+  either attribute on `<html>` changes. It fails closed:
+
+  - The rule hides unless the tree's content says `on`, so a tree that was never written to shows no such element.
+  - It is important and in a layer of its own, in the tree's first `<style>`. An important rule in the first layer
+    beats every later one, so the version's page CSS cannot show the element (on the page itself, such CSS can).
+  - It is a rule and not a removal (the other design considered: take the elements out of the copy before it is
+    attached), because the switch can change after a copy is drawn, both ways, and a rule follows it. `:host-context()`
+    would read the switch without mirroring, but only Chrome supports it. Neither design withholds anything: the
+    element's text is in the page's HTML and in the diff data, and the switch only decides what is drawn.
+
+  `docs/visibility-threat-model.html` has a row for each switch, and names the test (in
+  `tests/page-diff-browser.test.mts`). Adding another rule to the theme that hides content
+  by an attribute on `<html>` means adding it here too.
 
 ## Changing it
 

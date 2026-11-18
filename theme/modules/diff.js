@@ -137,6 +137,27 @@
   // that counted would renumber every figure after it on the page.
   const SHADOW_CSS = ":host{display:block}.bh-article{display:block;min-height:0;margin:0;padding:0;background:none;counter-reset:none}"
     + ".bh-article figure{counter-increment:none}.bh-article figure>figcaption::before{content:none}.bh-article>figure{margin:0}";
+  // The page hides an element marked data-unlisted or data-example unless <html> has that switch on
+  // (components.css, set by unlisted.js and examples.js). A rule keyed on <html> matches nothing in a
+  // shadow tree, so the rules are repeated for a tree, keyed on its content, which `mirrorSwitches`
+  // writes the two switches onto. They hide unless the tree says "on", so a tree that was never written
+  // to shows no such element. They are in a layer and important, in a <style> ahead of the version's
+  // page CSS: an important rule in the first layer beats every later one, so that CSS cannot show one either.
+  const HIDDEN_CSS = '@layer bh-diff-hidden{.bh-article:not([data-unlisted="on"]) [data-unlisted],.bh-article:not([data-examples="on"]) [data-example]{display:none!important}}';
+  const SWITCHES = ["data-unlisted", "data-examples"];
+  function mirrorSwitches() {
+    for (const host of doc.querySelectorAll(".bh-diff-shadow")) {
+      const body = host.shadowRoot && host.shadowRoot.querySelector(".bh-article");
+      if (!body) continue;
+      for (const name of SWITCHES) {
+        if (doc.documentElement.getAttribute(name) === "on") body.setAttribute(name, "on");
+        else body.removeAttribute(name);
+      }
+    }
+  }
+  // The two scripts set a switch once, before first paint, and reload the page to change it. Should one change
+  // in place all the same, the copies follow, as the page's own rule does.
+  if ("MutationObserver" in window) new MutationObserver(mirrorSwitches).observe(doc.documentElement, { attributes: true, attributeFilter: SWITCHES });
   const themeNodes = () => [...doc.querySelectorAll('link[rel="stylesheet"][href*="theme/bh.css"], style[data-bh-theme]')];
   /** This page's own CSS: every <style> in the head that is not the theme (a bundle inlines the theme as one). */
   const pageStyle = () => [...doc.head.querySelectorAll("style:not([data-bh-theme])")].map((s) => s.textContent).join("\n");
@@ -178,6 +199,7 @@
     const markers = doc.getElementById("bh-arrow") && doc.getElementById("bh-arrow").closest("svg");
     for (const host of hosts) {
       const root = host.attachShadow({ mode: "open" });
+      root.append(el("style", { "data-hidden": "", text: HIDDEN_CSS })); // first, so its layer is the first
       adoptTheme(root);
       root.append(el("style", { text: (host.dataset.style === "old" ? oldStyle || "" : pageStyle()) + "\n" + SHADOW_CSS }));
       // url(#bh-arrow) in the theme resolves inside the tree it is used in.
@@ -193,6 +215,8 @@
     measure();
     // A tree cannot see whether the change highlights are off around it, so bh.js writes it in.
     bh.mirrorChanges();
+    // Nor whether unlisted or example elements are shown: until this runs, a tree hides them.
+    mirrorSwitches();
   }
 
   function hide() {

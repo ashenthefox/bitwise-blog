@@ -514,7 +514,7 @@ test("the diff module marks a live page with what changed since a commit", { ski
       // bundle's theme <style> is told from the page's own, so no tree carries the theme's text again.
       const trees = `[...document.querySelectorAll(".bh-diff-versions .bh-diff-shadow")].map((h) => h.shadowRoot)`;
       assert.deepEqual(await p.evaluate(`${trees}.map((r) => getComputedStyle(r.querySelector("#flow .node.c1 rect")).strokeWidth)`), ["7px", "3px"], `${page}: old CSS on the old copy, new on the new`);
-      assert.deepEqual(await p.evaluate(`${trees}.map((r) => [r.adoptedStyleSheets.length, r.adoptedStyleSheets[0].cssRules.length > 0, /@layer|@font-face/.test(r.querySelector("style").textContent)])`), [[1, true, false], [1, true, false]], `${page}: the theme is the shared sheet only`);
+      assert.deepEqual(await p.evaluate(`${trees}.map((r) => [r.adoptedStyleSheets.length, r.adoptedStyleSheets[0].cssRules.length > 0, /@layer|@font-face/.test(r.querySelector("style:not([data-hidden])").textContent)])`), [[1, true, false], [1, true, false]], `${page}: the theme is the shared sheet only`);
       assert.deepEqual(await p.evaluate(NUMBERED), { own: page === MARKED ? [true, true] : [true], copies: false }, `${page}: no copy takes a figure number`);
       // The switch still works there.
       await p.evaluate("document.querySelector('.bh-topbar .bh-changes-btn').click()");
@@ -664,5 +664,79 @@ test("the diff module marks a live page with what changed since a commit", { ski
     assert.deepEqual(await phone.evaluate(figures), [["0", null, null, true], ["0", null, null, true]], "each side scrolls in its figure and is a tab stop; a figure keeps its role, and its caption names it");
     await noErrors(q);
     await noErrors(phone);
+  });
+
+  await t.test("a copy in a shadow tree hides an unlisted or example element whenever the page hides it", async () => {
+    // A list that its page styles by id, so its copy is drawn in a shadow tree, where the theme's rules keyed on <html> match nothing.
+    const HIDDEN = "docs/hidden.html";
+    const series = (word: string) => `
+    <h2 id="alpha">Alpha</h2>
+    <p>A sentence that stays exactly as it was in both versions.</p>
+    <ul id="series">
+      <li>The ${word} part, which every reader sees.</li>
+      <li data-unlisted>A part that is unlisted.</li>
+      <li data-example>A part that is an example.</li>
+    </ul>`;
+    const css = "#series li { padding-inline-start: 4px; }";
+    const oldPage = pageOf(series("first"), css), newPage = pageOf(series("opening"), css);
+    const hiddenDiff = diffPages(oldPage, newPage);
+    assert.ok(hiddenDiff);
+    fs.writeFileSync(path.join(root, HIDDEN), newPage);
+    fs.mkdirSync(path.join(root, "theme/diffs"), { recursive: true });
+    fs.writeFileSync(path.join(root, `theme/diffs/hidden.${BASE}.js`), diffScript(HIDDEN, diffData(hiddenDiff, BASE)));
+
+    // Whether the unlisted and the example element are drawn: on the page, and in the copy. A mutation observer
+    // runs before a timer does, so a switch changed just before this is read has reached the copy.
+    const SEEN = `(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+      const tree = document.querySelector(".bh-diff-mark .bh-diff-shadow").shadowRoot;
+      const drawn = (scope) => ["[data-unlisted]", "[data-example]"].map((q) => { const n = scope.querySelector("li" + q); return n ? getComputedStyle(n).display !== "none" : null; });
+      return { switches: [document.documentElement.getAttribute("data-unlisted"), document.documentElement.getAttribute("data-examples")], page: drawn(document.querySelector("#series")), copy: drawn(tree), text: tree.querySelector("li").textContent };
+    })()`;
+    const text = "The firstopening part, which every reader sees."; // the word diff, so the copy is the one in the tree
+    const open = async (suffix: string) => {
+      const p = await tab(); // a new tab: each switch is remembered for the tab
+      await p.goto(`${base}${HIDDEN}?diff=${BASE}${suffix}`);
+      await p.evaluate("document.querySelector('.bh-diff-bar [data-expand]').click()");
+      return p;
+    };
+
+    // By default both switches are off: the page hides both elements, and so does the copy.
+    const p = await open("");
+    assert.deepEqual(await p.evaluate(SEEN), { switches: ["off", "off"], page: [false, false], copy: [false, false], text });
+    // A switch that changes in place reaches the copy, on and off, each on its own.
+    const set = (name: string, value: string | null) => p.evaluate(value === null ? `document.documentElement.removeAttribute("${name}")` : `document.documentElement.setAttribute("${name}", "${value}")`);
+    await set("data-unlisted", "on");
+    assert.deepEqual(await p.evaluate(SEEN), { switches: ["on", "off"], page: [true, false], copy: [true, false], text });
+    await set("data-examples", "on");
+    assert.deepEqual(await p.evaluate(SEEN), { switches: ["on", "on"], page: [true, true], copy: [true, true], text });
+    await set("data-unlisted", "off");
+    assert.deepEqual(await p.evaluate(SEEN), { switches: ["off", "on"], page: [false, true], copy: [false, true], text });
+    // With no switch at all (the head scripts did not run) the page hides both, and so does the copy.
+    await set("data-unlisted", null);
+    await set("data-examples", null);
+    assert.deepEqual(await p.evaluate(SEEN), { switches: [null, null], page: [false, false], copy: [false, false], text });
+    // It fails closed. A tree whose content was never told the switches hides both, whatever the page says,
+    await set("data-unlisted", "on");
+    await set("data-examples", "on");
+    assert.deepEqual((await p.evaluate(SEEN)).copy, [true, true]);
+    const body = `document.querySelector(".bh-diff-mark .bh-diff-shadow").shadowRoot.querySelector(".bh-article")`;
+    await p.evaluate(`(() => { const b = ${body}; b.removeAttribute("data-unlisted"); b.removeAttribute("data-examples"); })()`);
+    assert.deepEqual(await p.evaluate(SEEN), { switches: ["on", "on"], page: [true, true], copy: [false, false], text });
+    // and with the switches off, CSS of the version's own that would show them does not: on the page such a rule wins.
+    await set("data-unlisted", "off");
+    await set("data-examples", "off");
+    const force = `(scope) => { const s = document.createElement("style"); s.textContent = "#series li { display: list-item !important; outline-style: dotted; }"; scope.append(s); return getComputedStyle(scope.getRootNode().querySelector("#series li[data-example]")).outlineStyle; }`;
+    assert.deepEqual(await p.evaluate(`[(${force})(document.head), (${force})(${body})]`), ["dotted", "dotted"], "the rule was added to the page and to the tree, and reaches the element in each");
+    assert.deepEqual(await p.evaluate(SEEN), { switches: ["off", "off"], page: [true, true], copy: [false, false], text });
+    await noErrors(p);
+
+    // Opened with a switch on, as a reader turns it on: the copy shows what the page shows.
+    const unlisted = await open("#unlisted=true");
+    assert.deepEqual(await unlisted.evaluate(SEEN), { switches: ["on", "off"], page: [true, false], copy: [true, false], text });
+    await noErrors(unlisted);
+    const examples = await open("&examples");
+    assert.deepEqual(await examples.evaluate(SEEN), { switches: ["off", "on"], page: [false, true], copy: [false, true], text });
+    await noErrors(examples);
   });
 });
