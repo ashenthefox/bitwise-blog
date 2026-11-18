@@ -284,7 +284,22 @@
   if ("MutationObserver" in window) new MutationObserver(mirrorChanges).observe(root, { attributes: true, attributeFilter: ["data-changes"], subtree: true });
 
   /** Turn the page's switch on: for code that shows the reader a change they asked for (diff.js). */
-  let showChanges = () => {};
+  let showChanges = () => {
+    // A page that marks no change of its own has no switch, until a diff brings a marked diagram.
+    // The switch is built then, and stays only while something on the page is marked.
+    const actions = doc.querySelector(".bh-topbar-actions");
+    const btn = actions && changesButton();
+    if (!btn) return;
+    const place = () => {
+      if (!doc.querySelector("main [data-change]")) return btn.remove();
+      if (btn.isConnected) return;
+      const search = actions.querySelector(".bh-search-btn");
+      if (search) search.after(btn); else actions.prepend(btn);
+    };
+    place();
+    doc.addEventListener("bh-diff", place); // diff.js sends it after placing or removing its marks
+    showChanges(); // changesButton() has replaced this function with the button's own
+  };
 
   /** The top bar's switch for the whole page, or null when the page marks no change. */
   function changesButton() {

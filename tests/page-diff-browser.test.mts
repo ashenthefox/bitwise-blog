@@ -9,6 +9,7 @@ import path from "node:path";
 import type http from "node:http";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
+import { spawnSync } from "node:child_process";
 import { findChrome, launchChrome, serveStatic, sleep, type ChromeHandle } from "../scripts/chrome.mts";
 import { diffPages, diffData, diffScript } from "../scripts/page-diff.mts";
 
@@ -17,6 +18,9 @@ const skip = !findChrome() || typeof WebSocket === "undefined" ? "needs Chrome a
 
 const BASE = "b".repeat(40), HEAD = "c".repeat(40), UNKNOWN = "1".repeat(40);
 const PAGE = "docs/post.html";
+// The same page with a diagram the author marked: it has change highlights of its own, so its top
+// bar has the switch for them, and the switch is off when the page opens.
+const MARKED = "docs/marked.html";
 
 const figure = (x: number, extra = "") => `<figure class="diagram wide" id="flow">
       <svg viewBox="-16 -16 432 112" role="img" aria-label="A client calls a service">
@@ -53,6 +57,15 @@ const NEW = `
     <p>A burst is allowed while the bucket still holds enough tokens to cover it.</p>
     <p>A brand new closing paragraph.</p>`;
 
+// A part the author marked, the same in both versions.
+const OWN = `
+    <figure class="diagram wide" id="own">
+      <svg viewBox="-16 -16 162 112" role="img" aria-label="A cache was added">
+        <g class="node c2" data-id="cache" data-change="added"><rect x="0" y="12" width="130" height="56" rx="10"/><text x="65" y="40">Cache</text></g>
+      </svg>
+      <figcaption>The cache is new.</figcaption>
+    </figure>`;
+
 // Page CSS scoped by the figure's id, different in each version: a copy needs its own version's.
 const CSS = (width: number) => `#flow .node.c1 rect { stroke-width: ${width}px; }`;
 
@@ -81,6 +94,12 @@ async function openTab(chrome: ChromeHandle, { width = 1100, height = 900, mobil
   await s("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
   await s("Page.addScriptToEvaluateOnNewDocument", { source: `
     window.__errors = [];
+    // Every value the page's change-highlight switch (data-changes on <html>) takes, in order.
+    window.__switch = [];
+    new MutationObserver(() => {
+      const now = document.documentElement.getAttribute("data-changes");
+      if (!window.__switch.length || window.__switch.at(-1) !== now) window.__switch.push(now);
+    }).observe(document, { attributes: true, attributeFilter: ["data-changes"], subtree: true });
     addEventListener("error", (e) => window.__errors.push(String(e.message)));
     addEventListener("unhandledrejection", (e) => window.__errors.push(String(e.reason)));` });
   const evaluate = async (expression: string) => {
@@ -106,6 +125,43 @@ const MARKS = `(() => { ${BLOCK_AFTER} return [...document.querySelectorAll(".bh
   const next = blockAfter(m);
   return [m.dataset.diff, next.localName + (next.id ? "#" + next.id : ""), next.getAttribute("data-diff") || ""];
 }); })()`;
+
+/**
+ * The change highlights as the reader sees them: the page's switch, and for each marked part whether
+ * it is drawn highlighted. A part is "lit" when its computed style differs from the same part's with
+ * its data-change attribute taken away for the reading, so the attribute alone proves nothing.
+ * `own` is the page's own marked figure, `copies` the parts a diff marked in its shadow-tree copies.
+ */
+interface Highlights { button: string | null; buttons: number; root: string | null; own: string[]; copies: string[]; trees: (string | null)[] }
+const HIGHLIGHTS = `(() => {
+  const trees = [...document.querySelectorAll(".bh-diff-shadow")].map((h) => h.shadowRoot).filter(Boolean);
+  // A computed style read in the same task as a change is the old value while a transition runs. So none run.
+  for (const r of [document.head, ...trees]) if (!r.querySelector("style[data-still]")) {
+    const s = document.createElement("style");
+    s.dataset.still = ""; s.textContent = "*, *::before, *::after { transition: none !important; }";
+    r.append(s);
+  }
+  const looks = (n) => {
+    const a = getComputedStyle(n.matches(".node") ? n.querySelector("rect") : n), b = getComputedStyle(n);
+    return [a.stroke, a.strokeWidth, a.strokeDasharray, b.opacity, b.filter].join(" | ");
+  };
+  const part = (n) => {
+    const kind = n.dataset.change, marked = looks(n);
+    n.removeAttribute("data-change");
+    const plain = looks(n);
+    n.setAttribute("data-change", kind);
+    return n.dataset.id + ":" + kind + ":" + (marked === plain ? "plain" : "lit");
+  };
+  const parts = (scope) => [...scope.querySelectorAll("[data-change]")].map(part);
+  const buttons = document.querySelectorAll(".bh-topbar .bh-changes-btn");
+  return {
+    button: buttons.length ? buttons[0].getAttribute("aria-pressed") : null, buttons: buttons.length,
+    root: document.documentElement.getAttribute("data-changes"),
+    own: [...document.querySelectorAll("#own")].flatMap(parts),
+    copies: trees.flatMap(parts),
+    trees: trees.map((r) => r.querySelector(".bh-article").getAttribute("data-changes")),
+  };
+})()`;
 const SHOW = (opts: string) => `(async () => { await bh.loadModule("diff.js"); return await bh.diff.show("${BASE}", ${opts}); })()`;
 const OPEN = `(() => { ${BLOCK_AFTER} return [...document.querySelectorAll("details.bh-diff-mark[open]")].map((m) => m.dataset.diff + ":" + blockAfter(m).localName); })()`;
 
@@ -118,8 +174,11 @@ test("the diff module marks a live page with what changed since a commit", { ski
   fs.writeFileSync(path.join(root, "index.html"), "<!doctype html><title>Home</title>");
   const oldHtml = pageOf(OLD, CSS(7)), newHtml = pageOf(NEW, CSS(3));
   fs.writeFileSync(path.join(root, PAGE), newHtml);
+  const oldMarked = pageOf(OLD + OWN, CSS(7)), newMarked = pageOf(NEW + OWN, CSS(3));
+  fs.writeFileSync(path.join(root, MARKED), newMarked);
+  const markedDiff = diffPages(oldMarked, newMarked);
   const diff = diffPages(oldHtml, newHtml);
-  assert.ok(diff);
+  assert.ok(diff && markedDiff);
   const data = diffData(diff, BASE);
   assert.deepEqual(data.changes.map((c) => c.status), ["changed", "removed", "changed", "changed", "changed", "added"], "the fixture's differences");
 
@@ -127,6 +186,7 @@ test("the diff module marks a live page with what changed since a commit", { ski
   const server = await serveStatic(root, new Map([
     ["/theme/build.js", js(`window.BH_BUILD = ${JSON.stringify({ repo: "example/blog", commit: HEAD, dirty: false, builtAt: "2026-11-18T00:00:00Z" })};`)],
     [`/theme/diffs/post.${BASE}.js`, js(diffScript(PAGE, data))],
+    [`/theme/diffs/marked.${BASE}.js`, js(diffScript(MARKED, diffData(markedDiff, BASE)))],
   ]));
   t.after(() => new Promise<void>((resolve) => server.close(() => resolve())));
   const base = `http://127.0.0.1:${portOf(server)}/`;
@@ -251,6 +311,80 @@ test("the diff module marks a live page with what changed since a commit", { ski
     await p.evaluate(`(() => { const s = document.querySelector(".bh-review-since-select"); s.value = ""; s.dispatchEvent(new Event("change")); })()`);
     assert.equal(await p.evaluate("document.querySelectorAll('.bh-diff-ui, [data-diff]').length"), 0, "Off removes the marks");
     await p.evaluate(`localStorage.clear()`);
+    await noErrors(p);
+  });
+
+  const highlights = async (p: Awaited<ReturnType<typeof tab>>): Promise<Highlights> => await p.evaluate(HIGHLIGHTS);
+  // What the fixture's redrawn figure marks in its "After" copy (the "Before" copy has no part that
+  // is gone), and the page's own marked part.
+  const COPIES = ["service:changed", "call:changed"];
+  const lit = (list: string[]) => list.map((x) => x + ":lit"), plain = (list: string[]) => list.map((x) => x + ":plain");
+  const OWN_PART = ["cache:added"];
+
+  await t.test("?diff=<commit> on a page with marked parts of its own: the page's switch goes from off to on, and every mark is drawn", async () => {
+    const p = await tab();
+    // Without a diff the page opens with its switch off: the marked part is drawn like any other.
+    await p.goto(base + MARKED);
+    assert.deepEqual(await highlights(p), { button: "false", buttons: 1, root: "off", own: plain(OWN_PART), copies: [], trees: [] });
+    assert.deepEqual(await p.evaluate("window.__switch"), ["off"]);
+    // With one, the switch starts off like on any page, and placing the changed diagram turns it on.
+    await p.goto(`${base}${MARKED}?diff=${BASE}`);
+    assert.deepEqual(await p.evaluate("window.__switch"), ["off", null], "off when the page opened, then on");
+    assert.deepEqual(await highlights(p), { button: "true", buttons: 1, root: null, own: lit(OWN_PART), copies: lit(COPIES), trees: [null, null] });
+    // It is still the reader's switch: off again takes the marks away, in the copies too.
+    await p.evaluate("document.querySelector('.bh-topbar .bh-changes-btn').click()");
+    assert.deepEqual(await highlights(p), { button: "false", buttons: 1, root: "off", own: plain(OWN_PART), copies: plain(COPIES), trees: ["off", "off"] });
+    await noErrors(p);
+  });
+
+  await t.test("a page with no marked part gets the page's switch, on, when a diff brings a marked diagram, and loses it with the diff", async () => {
+    const p = await tab();
+    await p.goto(base + PAGE);
+    const none = { button: null, buttons: 0, root: null, own: [], copies: [], trees: [] };
+    assert.deepEqual(await highlights(p), none, "no marks, so no switch");
+    await p.evaluate(SHOW("{}"));
+    assert.deepEqual(await highlights(p), { button: "true", buttons: 1, root: null, own: [], copies: lit(COPIES), trees: [null, null] });
+    const actions = `[...document.querySelector(".bh-topbar-actions").children].map((b) => b.className.split(" ").find((c) => c.startsWith("bh-")) || "")`;
+    assert.deepEqual((await p.evaluate(actions)).slice(0, 3), ["bh-search-btn", "bh-changes-btn", "bh-review-btn"], "where a page with marks of its own has it");
+    // It is the page's switch like any other: it reaches the copies in their shadow trees.
+    await p.evaluate("document.querySelector('.bh-topbar .bh-changes-btn').click()");
+    assert.deepEqual(await highlights(p), { button: "false", buttons: 1, root: "off", own: [], copies: plain(COPIES), trees: ["off", "off"] });
+    // With the diff gone nothing is marked, so the switch goes too; the next diff brings it back, on.
+    await p.evaluate("bh.diff.hide()");
+    assert.deepEqual(await highlights(p), { ...none, root: "off" });
+    await p.evaluate(SHOW("{}"));
+    assert.deepEqual(await highlights(p), { button: "true", buttons: 1, root: null, own: [], copies: lit(COPIES), trees: [null, null] });
+    await p.evaluate(SHOW("{}"));
+    assert.equal((await highlights(p)).buttons, 1, "showing a diff again does not add a second switch");
+    await noErrors(p);
+  });
+
+  await t.test("a generated diff page (npm run diff) opens with the highlights on", async () => {
+    // The real command, on a repository whose HEAD holds the old page and whose working tree holds the new one.
+    for (const entry of ["scripts", "package.json"]) fs.cpSync(path.join(ROOT, entry), path.join(root, entry), { recursive: true });
+    const git = (...args: string[]) => spawnSync("git", ["-C", root, "-c", "user.name=T", "-c", "user.email=t@example.test", "-c", "commit.gpgsign=false", ...args], { encoding: "utf8", timeout: 30_000 });
+    fs.writeFileSync(path.join(root, MARKED), oldMarked);
+    for (const args of [["init", "-q"], ["add", MARKED], ["commit", "-q", "-m", "old"]]) {
+      const r = git(...args);
+      assert.equal(r.status, 0, `git ${args[0]}: ${r.stderr}`);
+    }
+    fs.writeFileSync(path.join(root, MARKED), newMarked);
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    for (const key of Object.keys(env)) if (key.startsWith("BH_")) delete env[key];
+    const made = spawnSync(process.execPath, [path.join(root, "scripts/bh.mts"), "diff", MARKED], { cwd: root, env, encoding: "utf8", timeout: 60_000 });
+    assert.equal(made.status, 0, made.stdout + made.stderr);
+    const out = path.join(root, "dist/diff/marked.html");
+    const html = fs.readFileSync(out, "utf8");
+    assert.match(html, /<body\b[^>]*\sdata-bh-diff>/, "the page says it is a diff");
+    assert.match(html, /<bh-versions\b/, "the redrawn figure is a before/after pair");
+
+    const p = await tab();
+    await p.goto(base + "dist/diff/marked.html");
+    assert.deepEqual(await p.evaluate("window.__switch"), [], "the switch was never off");
+    assert.deepEqual(await highlights(p), { button: "true", buttons: 1, root: null, own: lit(OWN_PART), copies: lit(COPIES), trees: [null, null] });
+    // The switch still works there.
+    await p.evaluate("document.querySelector('.bh-topbar .bh-changes-btn').click()");
+    assert.deepEqual(await highlights(p), { button: "false", buttons: 1, root: "off", own: plain(OWN_PART), copies: plain(COPIES), trees: ["off", "off"] });
     await noErrors(p);
   });
 
