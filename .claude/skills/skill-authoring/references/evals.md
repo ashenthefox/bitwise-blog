@@ -345,10 +345,11 @@ repo, so do not keep a baseline of a case whose fixture is not public.
 - Cost: cases × runs × 2 arms agent runs, plus three judge calls per `llm` grader per run.
   A four-case, three-run suite with a Sonnet agent costs about US$1.20 an arm for the agent,
   plus about $0.12 an arm for a Haiku judge or $1.75 for a Sonnet one: about $6 for both arms
-  as this repo runs it, in a few minutes at `-j 4`. That suite has 22 `llm` graders; the judge's
-  share follows their number, about $0.025 a judged verdict with Sonnet, so the 13 cases and 61
-  `llm` graders of `pedagogical-writing` cost $21.76 and the 5 cases and 9 of `skill-authoring`
-  $3.04 ([measurements](measurements.md), 2026-11-18). Always pass `--max-cost-usd`.
+  as this repo runs it, in a few minutes at `-j 4`. That suite had 22 `llm` graders then (20 since
+  #301, at $5.30 and $5.67); the judge's share follows their number, about $0.025 a judged
+  verdict with Sonnet, so the 13 cases and 61 `llm` graders of `pedagogical-writing` cost $21.76
+  and the 5 cases and 9 of `skill-authoring` $3.04 ([measurements](measurements.md), 2026-11-18).
+  Always pass `--max-cost-usd`.
 - Threshold: the default 1.0 is too strict for judged graders. Use 0.8 once a suite is
   stable, and watch the trend in `Δ` rather than the absolute score.
 
