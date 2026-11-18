@@ -44,9 +44,10 @@ nothing for this; two generated things do the work.
   (`data-changes="off"` on `<html>`) and a button in the top bar to ask for them. The rule for a
   place with no button is that the marks show: without JavaScript, in print and in the slides. A
   card has no button either, and it is the first thing a reader sees of a page whose subject is a
-  change, so `scripts/cards.mts` turns the page's switch on (`bh.showChanges()`) before the
-  screenshot and, as printing does, lifts every `data-changes="off"` left in the document (a
-  `<bh-versions>` switched off on its own). The card therefore differs from the page as it opens:
+  change, so before the screenshot `scripts/cards.mts` lifts, as printing does, every
+  `data-changes="off"` in the document: the page's switch on `<html>`, and a `<bh-versions>` switched
+  off on its own. The page's button follows the attribute on `<html>`, so it says on as well and
+  cannot switch the marks off again. The card therefore differs from the page as it opens:
   that is decided, not a bug. No `data-changes` attribute decides what a card shows, so none is
   part of the staleness hash below.
 - **Staleness.** Each PNG records a hash (a `tEXt` chunk named `bh-card`) of the chosen
