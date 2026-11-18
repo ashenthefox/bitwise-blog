@@ -360,6 +360,44 @@ test("link: refuses another checkout of this repository, and changes nothing (#3
   assert.equal(git(repoRoot, "status", "--porcelain"), "", "and the link is ignored");
 });
 
+test("link: refuses a separate clone or copy of this repository, which has its own git directory (#334)", async (t) => {
+  // A throwaway stand-in for this repository: what marks it is the advisor command at its root, as in the real one.
+  const origin = path.join(tmp(t), "origin");
+  const git = (cwd: string, ...args: string[]) => execFileSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", ...args], { encoding: "utf8", stdio: "pipe", timeout: 60_000 });
+  fs.mkdirSync(path.join(origin, "scripts"), { recursive: true });
+  fs.mkdirSync(path.join(origin, "corpus"));
+  fs.writeFileSync(path.join(origin, "scripts", "advisor.mts"), "// stand-in\n");
+  fs.writeFileSync(path.join(origin, "corpus", "README.md"), "corpus\n");
+  git(origin, "init", "-q", "-b", "main");
+  git(origin, "add", ".");
+  git(origin, "commit", "-q", "-m", "first");
+  const clone = path.join(tmp(t), "clone");
+  execFileSync("git", ["clone", "-q", "--depth", "1", `file://${origin}`, clone], { stdio: "pipe", timeout: 60_000 });
+  const copy = path.join(tmp(t), "copy");
+  fs.cpSync(origin, copy, { recursive: true, filter: (from) => path.basename(from) !== ".git" });
+  const run = async (target: string) => {
+    const s = sink();
+    return { code: await main(["link", target], { corpusRoot: path.join(origin, "corpus"), repoRoot: origin, out: s.out }), ...s };
+  };
+  const refused = /is a checkout of this repository, not the private data/;
+
+  // A shallow clone shares no git directory and may lack the root commit: the file at its root is what gives it away.
+  for (const target of [clone, path.join(clone, "corpus"), copy]) {
+    const r = await run(target);
+    assert.equal(r.code, 1, target);
+    assert.match(r.errors[0], refused);
+    assert.deepEqual(r.lines, []);
+  }
+  assert.equal(fs.lstatSync(privateDir(path.join(origin, "corpus")), { throwIfNoEntry: false }), undefined, "no link was made");
+
+  // A data clone with a directory named scripts, but not this command, still links.
+  const data = privateDir(copyOfFixtures(t));
+  git(data, "init", "-q", "-b", "main");
+  fs.mkdirSync(path.join(data, "scripts"));
+  const linked = await run(data);
+  assert.equal(linked.code, 0, linked.errors.join("\n"));
+});
+
 test("link: a target with no writers is linked, with a warning that leak-check will have nothing to check", async (t) => {
   const repoRoot = tmp(t);
   const empty = tmp(t);

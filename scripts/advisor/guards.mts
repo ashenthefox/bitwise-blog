@@ -6,7 +6,7 @@
 // quotes and statements, voice negatives, authored samples). Its output is meant to be safe to paste:
 // file names, line numbers and run lengths, never the matched words.
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -15,6 +15,36 @@ import { writers } from "./index.mts";
 import { LEAK_ALLOWED, type LeakAllowance } from "../leak-allowed.mts";
 
 export { LEAK_ALLOWED, type LeakAllowance };
+
+/**
+ * How long one git command a check runs may take. A scan of every blob in this repository's history takes about a
+ * second, so this is only reached when git is stuck (a lock, a prompt, an unresponsive filesystem). Without it, a
+ * stuck git would hang a push or a CI job with no message (contracts/tooling.md: nothing may hang).
+ */
+export const GIT_TIMEOUT_MS = 120_000;
+
+/**
+ * Run git in `repoRoot`, with a timeout. Throws when git runs past it or can't be started, so a check that did not
+ * run never looks like one that passed. The exit status is the caller's to read: see `gitOut` for one that must succeed.
+ */
+export function runGit(repoRoot: string, args: string[], options: { input?: string; timeout?: number } = {}): SpawnSyncReturns<Buffer> {
+  const timeout = options.timeout ?? GIT_TIMEOUT_MS;
+  const r = spawnSync("git", ["-C", repoRoot, ...args], { input: options.input, maxBuffer: 1024 * 1024 * 1024, timeout });
+  if (r.error) {
+    const timedOut = (r.error as NodeJS.ErrnoException).code === "ETIMEDOUT";
+    throw new Error(timedOut
+      ? `\`git ${args[0]}\` in ${repoRoot} did not finish within ${timeout / 1000} s and was stopped, so the check did not run`
+      : `\`git ${args[0]}\` in ${repoRoot} could not be run (${r.error.message}), so the check did not run`);
+  }
+  return r;
+}
+
+/** git's output for a command that must succeed; otherwise an error with git's own message. */
+export function gitOut(repoRoot: string, args: string[], input?: string): Buffer {
+  const r = runGit(repoRoot, args, { input });
+  if (r.status !== 0) throw new Error(`\`git ${args[0]}\` in ${repoRoot} failed: ${r.stderr.toString("utf8").trim() || `exit status ${r.status ?? r.signal}`}`);
+  return r.stdout;
+}
 
 /** A shared run this long is taken to be copied text. */
 export const LEAK_RUN_WORDS = 8;
@@ -181,7 +211,7 @@ interface Text { file: string; blob?: string; text: string }
 
 /** The files git tracks in `repoRoot`, skipping binaries and symlinks. */
 function* trackedTexts(repoRoot: string): Generator<Text> {
-  const listed = execFileSync("git", ["-C", repoRoot, "ls-files", "-z"], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  const listed = gitOut(repoRoot, ["ls-files", "-z"]).toString("utf8");
   for (const rel of listed.split("\0")) {
     if (!rel) continue;
     const file = path.join(repoRoot, rel);
@@ -208,8 +238,8 @@ interface HistoryStats { tooLarge: number }
  * fills in a blob that no commit's diff names (one only a tag or a tree points at). Only objects `rev-list`
  * reports for `revs` count, so for a range, a blob a merge's diff shows against an excluded parent is left out.
  */
-function blobPaths(gitOut: (args: string[], input?: string) => Buffer, revs: string[]): Map<string, Set<string>> {
-  const listed = gitOut(["rev-list", "--objects", ...revs]).toString("utf8").split("\n");
+function blobPaths(git: (args: string[], input?: string) => Buffer, revs: string[]): Map<string, Set<string>> {
+  const listed = git(["rev-list", "--objects", ...revs]).toString("utf8").split("\n");
   const reachable = new Set(listed.map((line) => line.split(" ", 1)[0]).filter(Boolean));
   const paths = new Map<string, Set<string>>();
   const note = (sha: string, file: string) => {
@@ -218,7 +248,7 @@ function blobPaths(gitOut: (args: string[], input?: string) => Buffer, revs: str
     if (known) known.add(file);
     else paths.set(sha, new Set([file]));
   };
-  const tokens = gitOut(["log", ...revs, "--root", "--no-renames", "-m", "--format=", "--raw", "--no-abbrev", "-z"]).toString("utf8").split("\0");
+  const tokens = git(["log", ...revs, "--root", "--no-renames", "-m", "--format=", "--raw", "--no-abbrev", "-z"]).toString("utf8").split("\0");
   for (let i = 0; i + 1 < tokens.length; i++) {
     if (!tokens[i].startsWith(":")) continue;
     note(tokens[i].split(" ")[3], tokens[++i]);
@@ -232,10 +262,10 @@ function blobPaths(gitOut: (args: string[], input?: string) => Buffer, revs: str
 
 /** Every text blob reachable from `revs`, read once and yielded once per path it has been committed at. */
 function* historyTexts(repoRoot: string, stats: HistoryStats, revs: string[]): Generator<Text> {
-  const gitOut = (args: string[], input?: string) => execFileSync("git", ["-C", repoRoot, ...args], { input, maxBuffer: 1024 * 1024 * 1024 });
-  const paths = blobPaths(gitOut, revs);
+  const git = (args: string[], input?: string) => gitOut(repoRoot, args, input);
+  const paths = blobPaths(git, revs);
   if (paths.size === 0) return;
-  const sizes = gitOut(["cat-file", "--batch-check=%(objectname) %(objecttype) %(objectsize)"], [...paths.keys()].join("\n") + "\n").toString("utf8");
+  const sizes = git(["cat-file", "--batch-check=%(objectname) %(objecttype) %(objectsize)"], [...paths.keys()].join("\n") + "\n").toString("utf8");
   const blobs: [sha: string, size: number][] = [];
   for (const line of sizes.split("\n")) {
     const [sha, type, size] = line.split(" ");
@@ -246,7 +276,7 @@ function* historyTexts(repoRoot: string, stats: HistoryStats, revs: string[]): G
   for (let from = 0; from < blobs.length;) {
     let to = from, bytes = 0;
     while (to < blobs.length && (to === from || bytes + blobs[to][1] <= HISTORY_BATCH_BYTES)) bytes += blobs[to++][1];
-    const batch = gitOut(["cat-file", "--batch"], blobs.slice(from, to).map(([sha]) => sha).join("\n") + "\n");
+    const batch = git(["cat-file", "--batch"], blobs.slice(from, to).map(([sha]) => sha).join("\n") + "\n");
     for (let at = 0; at < batch.length;) {
       const headerEnd = batch.indexOf("\n", at);
       const [sha, , size] = batch.toString("utf8", at, headerEnd).split(" ");
@@ -408,7 +438,7 @@ export function leakCheckPushed(repoRoot: string, updates: PushUpdate[] | (() =>
   if (pushed.length === 0) return { status: "done", sources: found.sources, digest, unread: 0, files: 0, hits: [], allowed: [] };
   // The remote's current value for each ref, where this clone has that commit (one call, whatever the number of refs).
   const remoteShas = [...new Set(updates.map((u) => u.remoteSha).filter((sha) => !ZERO_SHA.test(sha)))];
-  const onRemote = remoteShas.length === 0 ? [] : spawnSync("git", ["-C", repoRoot, "cat-file", "--batch-check=%(objectname) %(objecttype)"], { input: remoteShas.map((sha) => `${sha}^{commit}`).join("\n") + "\n", encoding: "utf8" }).stdout
+  const onRemote = remoteShas.length === 0 ? [] : gitOut(repoRoot, ["cat-file", "--batch-check=%(objectname) %(objecttype)"], remoteShas.map((sha) => `${sha}^{commit}`).join("\n") + "\n").toString("utf8")
     .split("\n").filter((line) => line.endsWith(" commit")).map((line) => line.split(" ")[0]);
   // `--remotes=<pattern>` is a glob, so only a plain remote name is passed; a URL has no tracking refs anyway.
   const revs = [...pushed, "--not", ...(/^[\w.-]+$/.test(remote) ? [`--remotes=${remote}`] : []), ...onRemote];

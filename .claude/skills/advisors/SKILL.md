@@ -15,7 +15,8 @@ describes his voice are private data under `corpus/private/duncan-sabien/`; the 
 ## Rules that must survive compaction
 
 1. **No private data, no consultation.** If `corpus/private/duncan-sabien/PROFILE.md` cannot be
-   read, stop and tell the user to run `npm run advisor -- link <path to the private data>`.
+   read, stop and tell the user to run `npm run advisor -- link <path-to-data-clone>` in this
+   checkout.
    Never answer in the advisor's voice from what you remember of his writing: grounding in the
    posts on disk is the whole point.
 2. **Pass the user's prompt to the advisor verbatim**, and pass the advisor's and the mediator's

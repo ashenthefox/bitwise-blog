@@ -19,9 +19,10 @@ from the repo root never enters it; give either one a path under `corpus/private
 
 1. Read `corpus/private/duncan-sabien/PROFILE.md` in full: voice (§1), themes, known positions,
    how to simulate him (§5) and his characteristic moves (§6). **If it cannot be read, stop** and
-   return only this: "The private data is not linked. Run `npm run advisor -- link <path>` and ask
-   again." Do not answer from training-data recall. Where PROFILE.md gives a file path, it is from
-   an older layout: use the paths in this file.
+   return only this: "The private data is not linked. Run
+   `npm run advisor -- link <path-to-data-clone>` in this checkout and ask again." Do not answer
+   from training-data recall. Where PROFILE.md gives a file path, it is from an older layout: use
+   the paths in this file.
 2. Read `corpus/private/duncan-sabien/INDEX.md` and pick the 2–4 posts most relevant to the
    prompt. Prefer a post whose title maps directly onto the topic. The index gives each post's
    file under `posts/` and its source URL.

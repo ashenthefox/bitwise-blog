@@ -6,12 +6,12 @@
 // padded with entries derived from the key up to a power of two, so its size says little about the corpus. The text
 // a blob holds is read by `findRuns`, the same function the local check uses: only the membership test differs.
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { createHash, createHmac, createSecretKey, type KeyObject } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { CORPUS_DIR, privateDir } from "./corpus.mts";
-import { LEAK_ALLOWED, compareRevs, privateRuns, runsDigest, type BlobComparison, type LeakAllowance } from "./guards.mts";
+import { LEAK_ALLOWED, compareRevs, privateRuns, runGit, runsDigest, type BlobComparison, type LeakAllowance } from "./guards.mts";
 
 /** The committed list, in corpus/. */
 export const LEAK_HASHES_FILE = "leak-hashes.txt";
@@ -125,7 +125,7 @@ export function writeLeakHashes(secret: string, corpusRoot: string = CORPUS_DIR,
 /** The list as committed at `rev` in `repoRoot`, or null when that commit has none. */
 function committedList(repoRoot: string, rev: string, corpusRoot: string): Buffer | null {
   const rel = path.relative(repoRoot, leakHashesPath(corpusRoot)).split(path.sep).join("/");
-  const shown = spawnSync("git", ["-C", repoRoot, "show", `${rev}:${rel}`], { maxBuffer: 1024 * 1024 * 1024 });
+  const shown = runGit(repoRoot, ["show", `${rev}:${rel}`]);
   return shown.status === 0 ? shown.stdout : null;
 }
 
@@ -181,8 +181,9 @@ export type HashedResult = HashedSkip | ({ status: "done"; /** Set when a base w
 
 /** The commit `rev` names, as a full id, or null. `--end-of-options` keeps a value such as `--all` from being read as an option. */
 function resolveCommit(repoRoot: string, rev: string): string | null {
-  const r = spawnSync("git", ["-C", repoRoot, "rev-parse", "--verify", "-q", "--end-of-options", `${rev}^{commit}`], { encoding: "utf8" });
-  return r.status === 0 && /^[0-9a-f]{40,64}$/.test(r.stdout.trim()) ? r.stdout.trim() : null;
+  const r = runGit(repoRoot, ["rev-parse", "--verify", "-q", "--end-of-options", `${rev}^{commit}`]);
+  const printed = r.stdout.toString("utf8").trim();
+  return r.status === 0 && /^[0-9a-f]{40,64}$/.test(printed) ? printed : null;
 }
 
 /**

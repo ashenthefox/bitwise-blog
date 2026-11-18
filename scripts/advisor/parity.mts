@@ -92,7 +92,7 @@ export type ParityResult = { status: "skipped"; reason: string } | { status: "do
 
 export function parity(repoRoot: string, corpusRoot: string = CORPUS_DIR): ParityResult {
   const checked = writers(corpusRoot).filter((w) => fs.existsSync(parityFile(w, corpusRoot)));
-  if (checked.length === 0) return { status: "skipped", reason: "no private data with a parity reference (see `npm run advisor -- link`)" };
+  if (checked.length === 0) return { status: "skipped", reason: "no private data with a parity reference (run `npm run advisor -- link <path-to-data-clone>` in this checkout)" };
   const rows: [string, ParityRow][] = checked.flatMap((w) => writerParity(w, corpusRoot).map((r): [string, ParityRow] => [w, r]));
   // A malformed private file fails this one row (its message names a line, never text) instead of the whole report.
   try {

@@ -65,19 +65,43 @@ export interface AdvisorContext {
 /** How the hints name the command: where to run it, and that its argument is the data clone, not a checkout to link (#323). */
 const linkHint = (repoRoot: string) => `run \`npm run advisor -- link <path-to-data-clone>\` in ${repoRoot} (the checkout to link; the argument is your clone of the private data repo, not a checkout of this one)`;
 
+/** What `git rev-parse <flag>` prints for `dir`, or undefined when `dir` is in no git repository (or git can't say). */
+function revParse(dir: string, flag: "--git-common-dir" | "--show-toplevel"): string | undefined {
+  // Without git's own variables: GIT_DIR (set when a hook or an alias runs this) would answer for both directories alike.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_PREFIX"].includes(name)));
+  const r = spawnSync("git", ["-C", dir, "rev-parse", flag], { encoding: "utf8", env, timeout: 30_000 });
+  const printed = r.status === 0 ? r.stdout.replace(/\r?\n$/, "") : "";
+  return printed || undefined;
+}
+
 /**
  * The real path of the git directory that every worktree of `dir`'s repository shares, or undefined when `dir`
  * is in no git repository (or git can't say). Two directories with the same one are checkouts of one repository.
  */
 function gitCommonDir(dir: string): string | undefined {
-  // Without git's own variables: GIT_DIR (set when a hook or an alias runs this) would answer for both directories alike.
-  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_PREFIX"].includes(name)));
-  const r = spawnSync("git", ["-C", dir, "rev-parse", "--git-common-dir"], { encoding: "utf8", env, timeout: 30_000 });
-  const printed = r.status === 0 ? r.stdout.replace(/\r?\n$/, "") : "";
+  const printed = revParse(dir, "--git-common-dir");
   if (!printed) return undefined;
   // git prints it relative to `dir` in a main checkout (".git") and absolute in a linked worktree.
   const common = path.resolve(dir, printed);
   return fs.existsSync(common) ? fs.realpathSync(common) : undefined;
+}
+
+/**
+ * A file every checkout of this repository has at its root and the private data never would: this command itself
+ * (`scripts/advisor.mts`). It moves with the code, so a rename can't leave the check looking for a file that is gone.
+ */
+const OWN_FILE = path.relative(ROOT, fileURLToPath(import.meta.url));
+
+/**
+ * Whether `target` is in a checkout of this repository: another worktree (the same git common directory), or a
+ * separate clone, fork or copy, which has a git directory of its own (or none) but this command at its root (#334).
+ * The root looked at is the target's git top level, so a directory inside a clone counts, and the target itself.
+ */
+function isCheckoutOfThisRepo(target: string, repoRoot: string): boolean {
+  const ours = gitCommonDir(repoRoot);
+  if (ours !== undefined && gitCommonDir(target) === ours) return true;
+  const top = revParse(target, "--show-toplevel");
+  return [target, ...(top ? [top] : [])].some((root) => fs.statSync(path.join(root, OWN_FILE), { throwIfNoEntry: false })?.isFile() ?? false);
 }
 
 /**
@@ -97,10 +121,9 @@ function cmdLink(target: string, force: boolean, corpusRoot: string, repoRoot: s
     out.error(`error: ${resolved} is inside this repository; the private data must live outside it`);
     return 1;
   }
-  // Another worktree or checkout of this repository is not the private data: linked, it would make this checkout
-  // look linked while leak-check found no posts and checked nothing, and it would dangle once the worktree went (#323).
-  const ours = gitCommonDir(repoRoot);
-  if (ours !== undefined && gitCommonDir(resolved) === ours) {
+  // Another worktree, clone or copy of this repository is not the private data: linked, it would make this checkout
+  // look linked while leak-check found no posts and checked nothing, and it would dangle once a worktree went (#323, #334).
+  if (isCheckoutOfThisRepo(resolved, repoRoot)) {
     out.error(`error: ${resolved} is a checkout of this repository, not the private data. The argument is your clone of the private data repo; to link a worktree, run this command in that worktree with the data clone's path. Nothing was changed.`);
     return 1;
   }
