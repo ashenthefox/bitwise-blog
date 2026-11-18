@@ -7,6 +7,7 @@ import http from "node:http";
 import net from "node:net";
 import { fileURLToPath } from "node:url";
 import { test, type TestContext } from "node:test";
+import { metaOf } from "./support/page-meta.mts";
 
 const source = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SITE = JSON.parse(fs.readFileSync(path.join(source, "package.json"), "utf8")).homepage;
@@ -33,7 +34,6 @@ function fixture(t: TestContext) {
   return { root, bh, read, edit };
 }
 const locs = (xml: string) => [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1]);
-const metaOf = (html: string, name: string) => (html.match(new RegExp(`<meta name="${name}" content="([^"]*)"`)) || [])[1] || "";
 
 test("the committed sitemap lists the home page and every surfaced page, and check accepts all three files", (t) => {
   const f = fixture(t);

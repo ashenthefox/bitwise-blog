@@ -6,6 +6,7 @@ const { chromium, firefox } = await import(process.env.BH_PLAYWRIGHT_MODULE || '
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import { serveStatic, findChrome } from './chrome.mts';
+import { classifyPage } from './hidden-pages.mts';
 import type { AddressInfo } from 'node:net';
 // Playwright is installed outside the site (see above), so it has no types here: its pages are `any`.
 type Page = any;
@@ -14,7 +15,8 @@ declare const document: any, window: any, getComputedStyle: any, innerWidth: num
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output=path.resolve(process.env.BH_LIVE_OUTPUT || path.join(root,'.visual/hidden-examples-live'));
 const base='https://bitwise.john-ky.io/';
-const actual=fs.readdirSync(root+'/docs').filter(f=>f.endsWith('.html')&&fs.readFileSync(root+'/docs/'+f,'utf8').includes('<meta name="bh:example" content="true">'));
+// classifyPage ignores a marker inside a comment, which every template carries.
+const actual=fs.readdirSync(root+'/docs').filter(f=>f.endsWith('.html')&&classifyPage(f,fs.readFileSync(root+'/docs/'+f,'utf8'))==='example');
 console.log('EXAMPLES',actual);
 const results:Record<string,unknown>[]=[];
 const server=await serveStatic(root);
