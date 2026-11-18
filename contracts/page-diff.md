@@ -35,9 +35,10 @@ reader would see it, in three places that share one function, `diffPages` (`scri
   nothing on the page is marked (the diff was closed) and puts it back for the next diff. Decided in
   #262: the pair's own "Show changes" button already covered that case, but a reader who knows the page's
   switch from other pages would find it missing only here, and building it late is a few lines in
-  `showChanges`. The button never appears on a page with no marks and no diff. If the reader switched
-  the highlights off before closing the diff, `<html>` keeps `data-changes="off"` with no button;
-  nothing is marked then, and the next diff turns it on again.
+  `showChanges`. The button never appears on a page with no marks and no diff. Taking the button out
+  also turns the switch on, through the button's own state, so the page is never left with
+  `data-changes="off"` and no control (a part marked later would be drawn plain, and leaving the slides
+  would not switch it off again); and if the button had focus, focus moves to the control beside it.
 - **How the source is wrapped or indented is not a change.** Comments are ignored.
 - Each difference says what differs: `text`, `figure` (a picture), or `markup` (attributes or structure only).
 

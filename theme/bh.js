@@ -291,7 +291,15 @@
     const btn = actions && changesButton();
     if (!btn) return;
     const place = () => {
-      if (!doc.querySelector("main [data-change]")) return btn.remove();
+      if (!doc.querySelector("main [data-change]")) {
+        if (!btn.isConnected) return;
+        // The page must not stay "off" with no control: the switch goes back on through the button's
+        // own state, so leaving the slides cannot switch it off again. Focus moves to a neighbour.
+        showChanges();
+        const next = btn.nextElementSibling || btn.previousElementSibling;
+        if (doc.activeElement === btn && next) next.focus();
+        return btn.remove();
+      }
       if (btn.isConnected) return;
       const search = actions.querySelector(".bh-search-btn");
       if (search) search.after(btn); else actions.prepend(btn);

@@ -349,9 +349,29 @@ test("the diff module marks a live page with what changed since a commit", { ski
     // It is the page's switch like any other: it reaches the copies in their shadow trees.
     await p.evaluate("document.querySelector('.bh-topbar .bh-changes-btn').click()");
     assert.deepEqual(await highlights(p), { button: "false", buttons: 1, root: "off", own: [], copies: plain(COPIES), trees: ["off", "off"] });
-    // With the diff gone nothing is marked, so the switch goes too; the next diff brings it back, on.
-    await p.evaluate("bh.diff.hide()");
-    assert.deepEqual(await highlights(p), { ...none, root: "off" });
+    // With the diff gone nothing is marked, so the switch goes too. It goes while off and focused here:
+    // the page is not left off with no control, and focus goes to the control beside it, not to <body>.
+    await p.evaluate("document.querySelector('.bh-topbar .bh-changes-btn').focus(); bh.diff.hide()");
+    assert.deepEqual(await highlights(p), none);
+    assert.equal(await p.evaluate("document.activeElement.className"), await p.evaluate("document.querySelector('.bh-topbar .bh-review-btn').className"), "focus is on the next top-bar control");
+    // Nothing brings the off state back: not leaving the slides, not printing. A part marked later is drawn marked.
+    const later = await p.evaluate(`(async () => {
+      const tick = () => new Promise((r) => setTimeout(r, 0));
+      const root = document.documentElement, seen = [];
+      root.classList.add("bh-presenting"); await tick();
+      root.classList.remove("bh-presenting"); await tick();
+      seen.push(root.getAttribute("data-changes"));
+      window.dispatchEvent(new Event("beforeprint")); window.dispatchEvent(new Event("afterprint")); await tick();
+      seen.push(root.getAttribute("data-changes"));
+      const node = document.querySelector('#flow [data-id="service"]'), rect = node.querySelector("rect");
+      const before = getComputedStyle(rect).stroke;
+      node.setAttribute("data-change", "added");
+      seen.push(getComputedStyle(rect).stroke !== before);
+      node.removeAttribute("data-change");
+      return seen;
+    })()`);
+    assert.deepEqual(later, [null, null, true]);
+    // The next diff brings the switch back, on.
     await p.evaluate(SHOW("{}"));
     assert.deepEqual(await highlights(p), { button: "true", buttons: 1, root: null, own: [], copies: lit(COPIES), trees: [null, null] });
     await p.evaluate(SHOW("{}"));
@@ -364,28 +384,33 @@ test("the diff module marks a live page with what changed since a commit", { ski
     for (const entry of ["scripts", "package.json"]) fs.cpSync(path.join(ROOT, entry), path.join(root, entry), { recursive: true });
     const git = (...args: string[]) => spawnSync("git", ["-C", root, "-c", "user.name=T", "-c", "user.email=t@example.test", "-c", "commit.gpgsign=false", ...args], { encoding: "utf8", timeout: 30_000 });
     fs.writeFileSync(path.join(root, MARKED), oldMarked);
-    for (const args of [["init", "-q"], ["add", MARKED], ["commit", "-q", "-m", "old"]]) {
+    fs.writeFileSync(path.join(root, PAGE), oldHtml);
+    for (const args of [["init", "-q"], ["add", MARKED, PAGE], ["commit", "-q", "-m", "old"]]) {
       const r = git(...args);
       assert.equal(r.status, 0, `git ${args[0]}: ${r.stderr}`);
     }
     fs.writeFileSync(path.join(root, MARKED), newMarked);
+    fs.writeFileSync(path.join(root, PAGE), newHtml);
     const env: NodeJS.ProcessEnv = { ...process.env };
     for (const key of Object.keys(env)) if (key.startsWith("BH_")) delete env[key];
-    const made = spawnSync(process.execPath, [path.join(root, "scripts/bh.mts"), "diff", MARKED], { cwd: root, env, encoding: "utf8", timeout: 60_000 });
-    assert.equal(made.status, 0, made.stdout + made.stderr);
-    const out = path.join(root, "dist/diff/marked.html");
-    const html = fs.readFileSync(out, "utf8");
-    assert.match(html, /<body\b[^>]*\sdata-bh-diff>/, "the page says it is a diff");
-    assert.match(html, /<bh-versions\b/, "the redrawn figure is a before/after pair");
+    // With marks of its own, and with none: there the diff's marked diagram is all that gives the page its switch.
+    for (const [page, own] of [[MARKED, OWN_PART], [PAGE, []]] as const) {
+      const made = spawnSync(process.execPath, [path.join(root, "scripts/bh.mts"), "diff", page], { cwd: root, env, encoding: "utf8", timeout: 60_000 });
+      assert.equal(made.status, 0, made.stdout + made.stderr);
+      const out = "dist/diff/" + path.basename(page);
+      const html = fs.readFileSync(path.join(root, out), "utf8");
+      assert.match(html, /<body\b[^>]*\sdata-bh-diff>/, "the page says it is a diff");
+      assert.match(html, /<bh-versions\b/, "the redrawn figure is a before/after pair");
 
-    const p = await tab();
-    await p.goto(base + "dist/diff/marked.html");
-    assert.deepEqual(await p.evaluate("window.__switch"), [], "the switch was never off");
-    assert.deepEqual(await highlights(p), { button: "true", buttons: 1, root: null, own: lit(OWN_PART), copies: lit(COPIES), trees: [null, null] });
-    // The switch still works there.
-    await p.evaluate("document.querySelector('.bh-topbar .bh-changes-btn').click()");
-    assert.deepEqual(await highlights(p), { button: "false", buttons: 1, root: "off", own: plain(OWN_PART), copies: plain(COPIES), trees: ["off", "off"] });
-    await noErrors(p);
+      const p = await tab();
+      await p.goto(base + out);
+      assert.deepEqual(await p.evaluate("window.__switch"), [], `${page}: the switch was never off`);
+      assert.deepEqual(await highlights(p), { button: "true", buttons: 1, root: null, own: lit([...own]), copies: lit(COPIES), trees: [null, null] }, page);
+      // The switch still works there.
+      await p.evaluate("document.querySelector('.bh-topbar .bh-changes-btn').click()");
+      assert.deepEqual(await highlights(p), { button: "false", buttons: 1, root: "off", own: plain([...own]), copies: plain(COPIES), trees: ["off", "off"] }, page);
+      await noErrors(p);
+    }
   });
 
   await t.test("at phone width nothing overflows with every change expanded", async () => {
@@ -396,6 +421,9 @@ test("the diff module marks a live page with what changed since a commit", { ski
     assert.deepEqual(await p.evaluate("[innerWidth, document.documentElement.scrollWidth <= 390]"), [390, true], "a wider layout viewport means something overflowed");
     const bar = await p.evaluate("(() => { const r = document.querySelector('.bh-diff-bar').getBoundingClientRect(); return [r.left >= 0, r.right <= 390]; })()");
     assert.deepEqual(bar, [true, true], "the bar fits the screen");
+    // This page marks nothing itself, so the top bar's switch was built when ?diff= placed the changed diagram.
+    const button = await p.evaluate("(() => { const b = document.querySelector('.bh-topbar .bh-changes-btn'); if (!b) return null; const r = b.getBoundingClientRect(); return [b.getAttribute('aria-pressed'), r.width > 0 && r.left >= 0 && r.right <= 390]; })()");
+    assert.deepEqual(button, ["true", true], "the page's switch is there, on, and inside the screen");
     await noErrors(p);
   });
 });
