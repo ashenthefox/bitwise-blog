@@ -36,8 +36,19 @@ with their `url(#…)` and `href="#…"` references), links turned into plain sp
 handlers, controls disabled, headings turned into styled paragraphs, and custom elements turned into
 `<div data-was="…">` so their scripts never run on the copy (`<bh-sequence>` is kept: it only draws itself).
 
-**A copy loses page CSS that is scoped by id.** A figure styled by `#my-figure …` in the page's
-`<style>` renders unstyled as a copy. For those, open the old page itself (`git show <commit>:docs/<slug>.html`).
+**A copy styled by id gets a shadow tree.** Page CSS is scoped by id (`#my-figure .part`), and a copy
+without ids would lose it. So where a version's page CSS names an id inside a block (`styledById`), the
+mark carries a second copy with its ids kept, in a `<template>` inside `.bh-diff-shadow`, and
+`bh.diff.upgrade` (`theme/modules/diff.js`) moves it into a shadow tree holding the theme, that version's
+page CSS (the old version's travels in the data file as `oldStyle`, and on the diff page as a JSON script)
+and the arrow markers. Ids in a shadow tree collide with nothing, and the old CSS styles nothing else. The
+plain copy stays as the fallback until then, and without script. Two limits:
+
+- A figure that the page's *script* draws (a canvas, SVG built at load) is still not drawn in a copy:
+  nothing runs there.
+- The theme reaches a shadow tree through one shared constructed stylesheet. Where its rules cannot be read
+  (a page opened from `file://`), each tree gets its own copy of the theme's `<link>` or `<style>` instead.
+  `bundle` marks the inlined theme `<style data-bh-theme>` so the page's own CSS can be told from it.
 
 The word diff replaces a block *in place* only on the standalone diff page, and only when no custom
 element is inside it: a component's script reads its content (a chart's table, a code walk's lines), and

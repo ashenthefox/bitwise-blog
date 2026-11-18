@@ -9,7 +9,7 @@ import { execFileSync } from "node:child_process";
 import { test, type TestContext } from "node:test";
 import {
   tokenize, topLevel, splitPage, diffSeq, diffPages, statsLine, inlineDiff, changeMarks, renderMark, renderDiffPage,
-  diffData, diffScript, summaryMarkdown, COMMIT_RE, type Entry, type PageDiff, type DiffData,
+  diffData, diffScript, summaryMarkdown, styledById, COMMIT_RE, type Entry, type PageDiff, type DiffData,
 } from "../scripts/page-diff.mts";
 import { pageAt, resolveCommit, changedPages, reviewCommits, reviewDiffScript, writeReviewDiffs, diffFile } from "../scripts/page-history.mts";
 
@@ -326,6 +326,44 @@ test("a copy of the old version is inert: no ids, links, scripts or live compone
   assert.match(all, /<bh-versions class="bh-diff-versions">\s*<figure class="diagram" data-label="Before">[\s\S]*<figure class="diagram" data-label="After">[\s\S]*data-id="a" data-change="changed"/);
   assert.match(marks[0], /^<details class="bh-diff-mark" data-diff="removed" id="bh-change-1">/);
   assert.doesNotMatch(marks[0], /\sopen>/, "data marks start collapsed");
+});
+
+test("a block its page styles by id carries a second copy with its ids kept, for a shadow tree; others do not", () => {
+  const fig = (id: string, w: number) => `<figure class="diagram" id="${id}"><svg viewBox="0 0 9 9" role="img" aria-label="x"><defs><clipPath id="${id}-clip"><rect width="9" height="9"/></clipPath></defs><g class="node c1" data-id="a" clip-path="url(#${id}-clip)"><rect width="${w}"/><text>A</text></g></svg><figcaption>Caption.</figcaption></figure>`;
+  const styled = (css: string, article: string) => page(article).replace("</head>", `<style>${css}</style><!-- <style>#plain{}</style> --></head>`);
+  const d = diffPages(
+    styled(`#machine .node rect { stroke-width: 7px } /* </style in a comment is not the end */ #machinery { color: red }`, `${fig("machine", 2)}${fig("plain", 2)}<p id="gone">Removed, and styled.</p>`),
+    styled(`#machine .node rect { stroke-width: 3px }\n#gone { color: red }`, `${fig("machine", 4)}${fig("plain", 4)}`));
+  assert.ok(d);
+  assert.equal(d.oldStyle.includes("stroke-width: 7px") && !d.oldStyle.includes("#plain"), true, "a version's CSS is its head's <style>; a commented-out one does not count");
+  const [machine, plain, gone] = d.entries.filter((e) => e.status !== "same").map((e) => renderMark(e, { open: true, copy: true, oldStyle: d.oldStyle, newStyle: d.newStyle }));
+  // Styled by id in both versions: each side of the pair is a host with the plain copy and the kept-ids copy.
+  assert.match(machine, /<bh-versions class="bh-diff-versions">\s*<figure class="bh-diff-side" data-label="Before"><div class="bh-diff-shadow" data-style="old"><figure class="diagram"><svg/);
+  const templates = [...machine.matchAll(/<template>([\s\S]*?)<\/template>/g)].map((m) => m[1]);
+  assert.equal(templates.length, 2);
+  assert.match(templates[0], /^<figure class="diagram" id="machine"><svg[^>]*><defs><clipPath id="machine-clip">[\s\S]*clip-path="url\(#machine-clip\)"[^>]*><rect width="2"\/>/, "ids and the references to them are as the page wrote them");
+  assert.match(templates[1], /id="machine"[\s\S]*data-id="a"[^>]*data-change="changed"[^>]*><rect width="4"\/>/, "the new side, with its changed part marked");
+  assert.match(machine, /<figure class="bh-diff-side" data-label="After"><div class="bh-diff-shadow" data-style="new">/);
+  assert.doesNotMatch(machine.replace(/<template>[\s\S]*?<\/template>/g, ""), /\sid="machine/, "outside the templates no page id appears");
+  // "#machinery" in the CSS is not "#machine"; "#plain" is in no CSS at all.
+  assert.doesNotMatch(plain, /bh-diff-shadow|<template>/);
+  assert.match(plain, /<figure class="diagram" data-label="Before">/);
+  // A removed block that the OLD page did not style by id needs nothing, whatever the new CSS says.
+  assert.doesNotMatch(gone, /bh-diff-shadow/);
+  assert.equal(styledById(d.entries.find((e) => e.old?.id === "machine")!.old!, "#machine-clip{x:y}"), true, "an id inside the block counts");
+  assert.equal(styledById(d.entries.find((e) => e.old?.id === "machine")!.old!, ""), false);
+
+  // The old CSS travels with the data only when a copy uses it, and on the diff page as JSON that cannot end its script.
+  const data = diffData(d, "0123456789abcdef0123456789abcdef01234567");
+  assert.equal(data.oldStyle, d.oldStyle);
+  const html = renderDiffPage(d, { base: "a", head: "b" });
+  const json = html.match(/<\/article>\s*<script type="application\/json" id="bh-diff-old-style">([\s\S]*?)<\/script>/);
+  assert.ok(json, "after the article, so it is not one of its blocks");
+  assert.doesNotMatch(json[1], /</);
+  assert.equal(JSON.parse(json[1]), d.oldStyle);
+  const none = diffPages(styled("#other{}", fig("plain", 2)), styled("#other{}", fig("plain", 4)))!;
+  assert.equal("oldStyle" in diffData(none, "0123456"), false);
+  assert.doesNotMatch(renderDiffPage(none, { base: "a", head: "b" }), /bh-diff-old-style/);
 });
 
 test("a <bh-sequence> stays a live component in a copy, since it only draws itself", () => {

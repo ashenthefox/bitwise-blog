@@ -1627,7 +1627,8 @@ function bundleHtml(html: string, file: string, reviews = true): string {
     if (/^https?:/.test(href)) return m;
     const remote = new Set<string>();
     const css = inlineCss(path.resolve(dir, href), remote);
-    return `<style>\n${[...remote].join("\n")}\n${css}\n</style>`;
+    // Marked, so a script can tell the theme from the page's own <style> (theme/modules/diff.js does).
+    return `<style data-bh-theme>\n${[...remote].join("\n")}\n${css}\n</style>`;
   });
 
   html = html.replace(/<script\s+src="([^"]+)"[^>]*><\/script>/g, (m, src) => {

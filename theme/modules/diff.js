@@ -15,6 +15,13 @@
 
      bh.diff.show(commit, { section, quote, expand })  → Promise<{ base, total, here } | null>
      bh.diff.hide()
+     bh.diff.upgrade(scope, oldStyle)   draw the copies that need their own version's page CSS
+
+   A copy has no ids, so page CSS scoped by id (`#my-figure .part`) cannot reach it. Where a
+   version's CSS styles a block that way, the mark carries a second copy with its ids kept, in a
+   <template> inside `.bh-diff-shadow`. `upgrade` moves that copy into a shadow tree with the theme
+   and that version's page CSS: ids there collide with nothing, and the old CSS styles nothing else.
+   The standalone diff page (`npm run diff`) loads this module only for that.
    ========================================================================== */
 (function () {
   "use strict";
@@ -118,6 +125,58 @@
     ]);
   }
 
+  // ---- Copies drawn with their own version's CSS ---------------------------------------------
+
+  // What the theme's layout would do to a copy's wrapper, undone; and no "Figure N": the number
+  // would count the copies in this one tree.
+  const SHADOW_CSS = ":host{display:block}.bh-article{display:block;min-height:0;margin:0;padding:0;background:none;counter-reset:none}"
+    + ".bh-article figure>figcaption::before{content:none}.bh-article>figure{margin:0}";
+  const themeNodes = () => [...doc.querySelectorAll('link[rel="stylesheet"][href*="theme/bh.css"], style[data-bh-theme]')];
+  /** This page's own CSS: every <style> in the head that is not the theme (a bundle inlines the theme as one). */
+  const pageStyle = () => [...doc.head.querySelectorAll("style:not([data-bh-theme])")].map((s) => s.textContent).join("\n");
+
+  /** A stylesheet's rules as text with its @imports written out, since a constructed sheet may not import. */
+  function flatten(sheet) {
+    let out = "";
+    for (const rule of sheet.cssRules) {
+      if (rule instanceof CSSImportRule) {
+        const inner = rule.styleSheet ? flatten(rule.styleSheet) : "";
+        out += rule.layerName == null ? inner : `@layer ${rule.layerName}{${inner}}`;
+      } else if (!(rule instanceof CSSFontFaceRule)) out += rule.cssText; // fonts belong to the document
+    }
+    return out;
+  }
+
+  let themeSheet; // one CSSStyleSheet shared by every shadow tree; false when it cannot be built
+  function adoptTheme(root) {
+    if (themeSheet === undefined) {
+      try {
+        themeSheet = new CSSStyleSheet();
+        themeSheet.replaceSync(themeNodes().map((n) => flatten(n.sheet)).join("\n"));
+      } catch (_) { themeSheet = false; } // rules unreadable (a page opened from file://)
+    }
+    if (themeSheet) root.adoptedStyleSheets = [themeSheet];
+    else for (const n of themeNodes()) root.append(n.cloneNode(true));
+  }
+
+  /** Move each `.bh-diff-shadow` copy in `scope` into a shadow tree styled by its version's page CSS. */
+  function upgrade(scope, oldStyle) {
+    const hosts = [...scope.querySelectorAll(".bh-diff-shadow")].filter((h) => !h.shadowRoot && h.querySelector(":scope > template"));
+    if (!hosts.length) return;
+    bh.ensureMarkers();
+    const markers = doc.getElementById("bh-arrow") && doc.getElementById("bh-arrow").closest("svg");
+    for (const host of hosts) {
+      const root = host.attachShadow({ mode: "open" });
+      adoptTheme(root);
+      root.append(el("style", { text: (host.dataset.style === "old" ? oldStyle || "" : pageStyle()) + "\n" + SHADOW_CSS }));
+      // url(#bh-arrow) in the theme resolves inside the tree it is used in.
+      if (markers) root.append(markers.cloneNode(true));
+      const body = el("div", { class: "bh-article" });
+      body.append(host.querySelector(":scope > template").content.cloneNode(true));
+      root.append(body);
+    }
+  }
+
   function hide() {
     if (!shown) return;
     for (const p of shown.placed) { p.mark.remove(); if (p.block) p.block.removeAttribute("data-diff"); }
@@ -154,6 +213,7 @@
         placed.push({ change, mark, block: removed ? null : block });
       }
       // Inert copies of pictures are drawn by the same components as the page's own.
+      upgrade(article, data.oldStyle);
       if (article.querySelector(".bh-diff-ui svg")) bh.ensureMarkers();
       if (article.querySelector(".bh-diff-ui bh-versions")) bh.settle(bh.loadModule("versions.js"));
       if (article.querySelector(".bh-diff-ui bh-sequence")) bh.settle(bh.loadModule("sequence.js"));
@@ -181,6 +241,6 @@
     });
   }
 
-  bh.diff = { show, hide, get base() { return shown ? shown.base : null; }, get placed() { return shown ? shown.placed : []; }, announce };
+  bh.diff = { show, hide, upgrade, get base() { return shown ? shown.base : null; }, get placed() { return shown ? shown.placed : []; }, announce };
   window.bhModules = Object.assign(window.bhModules || {}, { "diff.js": true });
 })();

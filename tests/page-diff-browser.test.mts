@@ -53,12 +53,16 @@ const NEW = `
     <p>A burst is allowed while the bucket still holds enough tokens to cover it.</p>
     <p>A brand new closing paragraph.</p>`;
 
-function pageOf(content: string): string {
+// Page CSS scoped by the figure's id, different in each version: a copy needs its own version's.
+const CSS = (width: number) => `#flow .node.c1 rect { stroke-width: ${width}px; }`;
+
+function pageOf(content: string, css: string): string {
   const template = fs.readFileSync(path.join(ROOT, "templates/explainer.html"), "utf8")
     .replaceAll("{{title}}", "A page under review").replaceAll("{{description}}", "A fixture for the diff module.")
     .replaceAll("{{date}}", "2026-11-18").replaceAll("{{author}}", "Tester");
   const hero = template.match(/<header class="bh-hero">[\s\S]*?<\/header>/)![0];
-  return template.replace(/(<article class="bh-article">)[\s\S]*(<\/article>)/, (_m, open, close) => `${open}\n    ${hero}\n${content}\n  ${close}`);
+  return template.replace("</head>", `  <style>${css}</style>\n</head>`)
+    .replace(/(<article class="bh-article">)[\s\S]*(<\/article>)/, (_m, open, close) => `${open}\n    ${hero}\n${content}\n  ${close}`);
 }
 
 function portOf(server: http.Server): number {
@@ -112,7 +116,7 @@ test("the diff module marks a live page with what changed since a commit", { ski
   fs.rmSync(path.join(root, "theme/build.js"), { force: true }); // a build stamp `serve` may have left; the route below is the one
   fs.mkdirSync(path.join(root, "docs"));
   fs.writeFileSync(path.join(root, "index.html"), "<!doctype html><title>Home</title>");
-  const oldHtml = pageOf(OLD), newHtml = pageOf(NEW);
+  const oldHtml = pageOf(OLD, CSS(7)), newHtml = pageOf(NEW, CSS(3));
   fs.writeFileSync(path.join(root, PAGE), newHtml);
   const diff = diffPages(oldHtml, newHtml);
   assert.ok(diff);
@@ -157,8 +161,16 @@ test("the diff module marks a live page with what changed since a commit", { ski
     // The redrawn figure is a before/after pair, drawn by the same component as the page's own, with the moved part marked.
     assert.equal(await p.evaluate("document.querySelector('.bh-diff-ui bh-versions').classList.contains('is-ready')"), true);
     assert.deepEqual(await p.evaluate("[...document.querySelectorAll('.bh-diff-ui bh-versions [role=tab]')].map((b) => b.textContent)"), ["Before", "After"]);
-    assert.deepEqual(await p.evaluate("[...document.querySelectorAll('.bh-diff-ui bh-versions [data-change]')].map((n) => n.dataset.id + ':' + n.dataset.change)"), ["service:changed", "call:changed"]);
+    assert.deepEqual(await p.evaluate("[...document.querySelectorAll('.bh-diff-ui bh-versions .bh-diff-side')[1].querySelectorAll('[data-change]')].map((n) => n.dataset.id + ':' + n.dataset.change)"), ["service:changed", "call:changed"]);
     assert.equal(await p.evaluate("document.querySelectorAll('#flow').length"), 1, "a copy never repeats the live figure's id");
+    // The figure is styled by id, so each side is drawn in a shadow tree with its own version's page CSS.
+    const side = (n: number, what: string) => `(() => { const root = document.querySelectorAll(".bh-diff-ui bh-versions .bh-diff-side > .bh-diff-shadow")[${n}].shadowRoot; return ${what}; })()`;
+    const stroke = `getComputedStyle(root.querySelector("#flow .node.c1 rect")).strokeWidth`;
+    assert.deepEqual([await p.evaluate(side(0, stroke)), await p.evaluate(side(1, stroke)), await p.evaluate(`getComputedStyle(document.querySelector("#flow .node.c1 rect")).strokeWidth`)], ["7px", "3px", "3px"], "old CSS on the old copy, the page's on the new copy and on the page");
+    assert.equal(await p.evaluate(side(0, `getComputedStyle(root.querySelector(".node.c3 rect")).fill !== "rgb(0, 0, 0)"`)), true, "the theme reaches the copy too");
+    assert.equal(await p.evaluate(side(0, `!!root.querySelector("#bh-arrow") && getComputedStyle(root.querySelector(".edge")).markerEnd.includes("bh-arrow")`)), true, "arrowheads resolve inside the tree");
+    assert.equal(await p.evaluate(side(0, `root.querySelector("figcaption").textContent`)), "The client calls the service.");
+    assert.equal(await p.evaluate(`getComputedStyle(document.querySelector(".bh-diff-ui bh-versions .bh-versions-caption")).display`), "none", "the pair's shared caption would repeat it");
     // Expand all, and step through the changes.
     await p.evaluate("document.querySelector('.bh-diff-bar [data-expand]').click()");
     assert.equal(await p.evaluate("document.querySelectorAll('details.bh-diff-mark:not([open])').length"), 0);

@@ -1632,6 +1632,13 @@
       if (diffBase && /^[0-9a-f]{7,40}$/.test(diffBase)) {
         settle(loadModule("diff.js").then(() => window.bh.diff && window.bh.diff.show(diffBase)).then((res) => { if (!res) toast("No record of the changes since that version"); }));
       }
+      // A standalone diff page (`npm run diff`): its styled copies are drawn by the same module.
+      if (doc.body.hasAttribute("data-bh-diff") && doc.querySelector(".bh-diff-shadow")) {
+        settle(loadModule("diff.js").then(() => {
+          const css = doc.getElementById("bh-diff-old-style");
+          if (window.bh.diff) window.bh.diff.upgrade(doc, css ? JSON.parse(css.textContent) : "");
+        }));
+      }
       // ?present opens straight into slides (at the slide holding #id, if any).
       if (new URLSearchParams(location.search).has("present") && doc.querySelector(".bh-article > h2")) {
         return loadModule("present.js").then(() => { setupDeepLinks(); setupScrollRegions(); window.bh.present && window.bh.present.enter(); });
