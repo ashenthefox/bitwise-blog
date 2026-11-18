@@ -739,4 +739,147 @@ test("the diff module marks a live page with what changed since a commit", { ski
     assert.deepEqual(await examples.evaluate(SEEN), { switches: ["off", "on"], page: [false, true], copy: [false, true], text });
     await noErrors(examples);
   });
+
+  // A page for one of the tests below: written to the served folder with the diff data for it, as `serve` would compute it.
+  const fixture = (file: string, before: string, after: string, css = "") => {
+    const oldHtml = pageOf(before, css), newHtml = pageOf(after, css);
+    const made = diffPages(oldHtml, newHtml);
+    assert.ok(made);
+    fs.writeFileSync(path.join(root, file), newHtml);
+    fs.mkdirSync(path.join(root, "theme/diffs"), { recursive: true });
+    fs.writeFileSync(path.join(root, `theme/diffs/${path.basename(file, ".html")}.${BASE}.js`), diffScript(file, diffData(made, BASE)));
+    return { oldHtml, newHtml, data: diffData(made, BASE) };
+  };
+
+  await t.test("a block the page's script moved into another block is marked on the block that holds it, and one that left the article is named", async () => {
+    const MOVED = "docs/moved.html";
+    const content = (caption: string) => `
+    <h2 id="alpha">Alpha</h2>
+    <p>A sentence that stays exactly as it was in both versions.</p>
+    <div class="callout" id="pane"><p>A pane that the page's script fills.</p></div>
+    <figure id="output">
+      <p>The output so far.</p>
+      <figcaption>${caption}</figcaption>
+    </figure>
+    <p>Another sentence that stays exactly as it was.</p>`;
+    const { data } = fixture(MOVED, content("Eleven bytes are out."), content("Twelve bytes are out."));
+    assert.deepEqual(data.changes.map((c) => [c.status, c.tag, c.id]), [["changed", "figure", "output"]], "the fixture's one difference");
+    const bar = `document.querySelector(".bh-diff-bar-text").textContent`;
+
+    // As the page wrote it, the figure is the article's child, and the mark sits before it.
+    const p = await tab();
+    await p.goto(base + MOVED);
+    await p.evaluate(SHOW("{}"));
+    assert.deepEqual(await p.evaluate(MARKS), [["changed", "figure#output", "changed"]]);
+    // The page's script puts the figure inside another block, as how-deflate-compresses puts one inside its code walk.
+    await p.evaluate(`bh.diff.hide(); document.querySelector("#pane").append(document.querySelector("#output"))`);
+    assert.equal(await p.evaluate(`document.querySelector("#output").parentElement.id`), "pane", "the figure was moved");
+    assert.deepEqual(await p.evaluate(SHOW("{}")), { base: BASE, total: 1, here: 0 });
+    assert.deepEqual(await p.evaluate(MARKS), [["changed", "div#pane", "changed"]], "the mark and the change bar are on the block that holds the figure now");
+    assert.equal(await p.evaluate(`document.querySelectorAll(".bh-diff-mark").length`), 1, "and nowhere inside it");
+    assert.equal(await p.evaluate(bar), "Changes since bbbbbbb: 1 changed", "one counted, one marked");
+    assert.match(await p.evaluate(`document.querySelector("details.bh-diff-mark .bh-diff-copy").innerHTML`), /<del>Eleven<\/del><ins>Twelve<\/ins>/);
+    await p.evaluate("bh.diff.hide()");
+    assert.equal(await p.evaluate("document.querySelectorAll('.bh-diff-ui, [data-diff]').length"), 0, "hide takes the bar off the holder too");
+    // Taken out of the article altogether, it has no place for a mark: the bar says which change that is.
+    await p.evaluate(`document.body.append(document.querySelector("#output"))`);
+    assert.equal(await p.evaluate(`!!document.querySelector("#output") && !document.querySelector(".bh-article").contains(document.querySelector("#output"))`), true, "the figure left the article");
+    assert.deepEqual(await p.evaluate(SHOW("{}")), { base: BASE, total: 0, here: 0 });
+    assert.equal(await p.evaluate(`document.querySelectorAll(".bh-diff-mark").length`), 0);
+    assert.equal(await p.evaluate(bar), `Changes since bbbbbbb: 1 changed (1 not marked here: “${data.changes[0]!.label}”)`);
+    assert.ok(data.changes[0]!.label.length > 0, "the change has a name to give");
+    await noErrors(p);
+  });
+
+  await t.test("a mark whose copy holds a sidenote does not renumber the page's sidenotes, open or closed", async () => {
+    // Five notes. The second is in a paragraph that changed (its copy is in the page); the fourth in one its page
+    // styles by id (its copy is drawn in a shadow tree).
+    const NOTES = "docs/notes.html";
+    const note = (n: string) => `<span class="sidenote">Note ${n}.</span>`;
+    const content = (a: string, b: string, gone = "") => `
+    <h2 id="alpha">Alpha</h2>
+    <p>The first claim.${note("one")}</p>
+    <p>The second claim, ${a}.${note("two")}</p>
+    <p>The third claim.${note("three")}</p>${gone}
+    <p id="claim">The fourth claim, ${b}.${note("four")}</p>
+    <p>The fifth claim.${note("five")}</p>`;
+    const css = "#claim { padding-inline-start: 4px; }";
+    const { oldHtml, newHtml } = fixture(NOTES, content("as first written", "as first written", `\n    <p>A claim that was taken out.${note("gone")}</p>`), content("now reworded", "now reworded"), css);
+
+    // The page's own sidenotes as a reader meets them: each ref's label and its note's number (bh.js numbers those),
+    // and the number the last one is drawn with (a CSS counter, which a script cannot read: a probe after the last
+    // ref draws the counter as that many letters and is measured). \`counting\` is what a mark adds to that counter.
+    const NUMBERS = `(() => {
+      const article = document.querySelector(".bh-article");
+      const trees = [...document.querySelectorAll(".bh-diff-shadow")].map((h) => h.shadowRoot).filter(Boolean);
+      const inMark = [...document.querySelectorAll(".bh-diff-mark *"), ...trees.flatMap((r) => [...r.querySelectorAll("*")])];
+      const style = document.createElement("style");
+      style.textContent = "@counter-style bh-tally { system: symbolic; symbols: 'x'; suffix: ''; } .bh-probe { display: inline-block; font: 10px/1 monospace; white-space: nowrap; } .bh-probe.count::before { content: counter(sidenote, bh-tally); } .bh-probe.unit::before { content: 'x'; }";
+      const count = document.createElement("span"), unit = document.createElement("span");
+      count.className = "bh-probe count"; unit.className = "bh-probe unit";
+      const line = document.createElement("p"); // the article lays its children out as a grid, which would stretch a probe
+      line.append(count, unit);
+      document.head.append(style); article.append(line);
+      const drawn = Math.round(count.getBoundingClientRect().width / unit.getBoundingClientRect().width);
+      style.remove(); line.remove();
+      const refs = [...article.querySelectorAll(".sidenote-ref")].filter((r) => !r.closest(".bh-diff-mark"));
+      return {
+        labels: refs.map((r) => r.getAttribute("aria-label")),
+        notes: refs.map((r) => document.getElementById(r.dataset.note).dataset.n + ":" + document.getElementById(r.dataset.note).textContent),
+        last: drawn,
+        open: document.querySelectorAll("details.bh-diff-mark[open]").length,
+        copies: inMark.filter((n) => n.matches(".sidenote")).length,
+        counting: inMark.filter((n) => /sidenote/.test(getComputedStyle(n).counterIncrement)).length,
+        // A copy's note has no ref to open it, so it must be drawn (the plain copy under a shadow tree is not drawn at all, and has no style).
+        hidden: inMark.filter((n) => n.matches(".sidenote") && getComputedStyle(n).display === "none").length,
+        ids: inMark.filter((n) => n.matches(".sidenote, .sidenote-ref") && (n.id || n.dataset.n)).length,
+      };
+    })()`;
+    const numbered = (open: number, copies: number) => ({
+      labels: ["Note 1", "Note 2", "Note 3", "Note 4", "Note 5"],
+      notes: ["1:Note one.", "2:Note two.", "3:Note three.", "4:Note four.", "5:Note five."],
+      last: 5, open, copies, counting: 0, hidden: 0, ids: 0,
+    });
+
+    // On the live page: without a diff, with its marks closed, and with them open.
+    const p = await tab();
+    await p.goto(base + NOTES);
+    assert.deepEqual(await p.evaluate(NUMBERS), numbered(0, 0), "the page's own numbering, and the probe reads it");
+    await p.goto(`${base}${NOTES}?diff=${BASE}`);
+    const copies = (await p.evaluate(NUMBERS)).copies;
+    assert.ok(copies >= 3, "the copy of each changed paragraph, and of the one taken out, holds its sidenote");
+    assert.equal(await p.evaluate(`[...document.querySelectorAll(".bh-diff-shadow")].filter((h) => h.shadowRoot && h.shadowRoot.querySelector(".sidenote")).length`), 1, "one of them in a shadow tree");
+    assert.deepEqual(await p.evaluate(NUMBERS), numbered(0, copies), "marks closed");
+    await p.evaluate("document.querySelector('.bh-diff-bar [data-expand]').click()");
+    // A mark that has just opened draws its content a frame later, and until then nothing in it can count. So first
+    // show that the reading can fail: a ref put into an open copy counts, and the page's last note is drawn as 6.
+    await p.evaluate(`(() => { const b = document.createElement("button"); b.className = "sidenote-ref"; b.id = "injected"; document.querySelector("details.bh-diff-mark[open] .sidenote").before(b); })()`);
+    let seen = await p.evaluate(NUMBERS);
+    for (let i = 0; i < 50 && seen.last !== 6; i++) { await sleep(100); seen = await p.evaluate(NUMBERS); }
+    assert.deepEqual(seen, { ...numbered(3, copies), last: 6, counting: 1, ids: 1 }, "an injected ref renumbers, and the reading shows it");
+    await p.evaluate(`document.getElementById("injected").remove()`);
+    assert.deepEqual(await p.evaluate(NUMBERS), numbered(3, copies), "marks open, and drawn");
+    await noErrors(p);
+
+    // On a diff page (the real command, in the repository an earlier test set up), where the marks are in the page when bh.js numbers the notes.
+    const git = (...args: string[]) => spawnSync("git", ["-C", root, "-c", "user.name=T", "-c", "user.email=t@example.test", "-c", "commit.gpgsign=false", ...args], { encoding: "utf8", timeout: 30_000 });
+    fs.writeFileSync(path.join(root, NOTES), oldHtml);
+    for (const args of [["add", NOTES], ["commit", "-q", "-m", "notes"]]) {
+      const r = git(...args);
+      assert.equal(r.status, 0, `git ${args[0]}: ${r.stderr}`);
+    }
+    fs.writeFileSync(path.join(root, NOTES), newHtml);
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    for (const key of Object.keys(env)) if (key.startsWith("BH_")) delete env[key];
+    const made = spawnSync(process.execPath, [path.join(root, "scripts/bh.mts"), "diff", NOTES], { cwd: root, env, encoding: "utf8", timeout: 60_000 });
+    assert.equal(made.status, 0, made.stdout + made.stderr);
+    const q = await tab();
+    await q.goto(base + "dist/diff/" + path.basename(NOTES));
+    // What was taken out is a copy in an open mark there (a changed paragraph is marked in place, with no copy).
+    assert.deepEqual(await q.evaluate(NUMBERS), numbered(1, 1), "the diff page numbers its own five notes, not the copy's");
+    assert.equal(await q.evaluate(`document.querySelector("details.bh-diff-mark .bh-diff-old .sidenote").textContent`), "Note gone.");
+    await q.evaluate(`document.querySelector("details.bh-diff-mark").open = false`);
+    assert.deepEqual(await q.evaluate(NUMBERS), numbered(0, 1), "nor with the mark closed");
+    await noErrors(q);
+  });
 });

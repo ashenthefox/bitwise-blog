@@ -697,7 +697,9 @@
   //  (setupPopup), with the same hover, pin and Esc behaviour as a glossary term.
 
   function buildSidenotes() {
-    doc.querySelectorAll(".sidenote").forEach((note, i) => {
+    // A note in a page diff's copy (a diff page has its marks when this runs) is not one of the page's: numbered,
+    // it would renumber every note after it. It is shown where it stands instead (diff.css).
+    [...doc.querySelectorAll(".sidenote")].filter((note) => !note.closest(".bh-diff-mark")).forEach((note, i) => {
       const n = i + 1;
       note.id = note.id || `sn-${n}`;
       note.dataset.n = n;

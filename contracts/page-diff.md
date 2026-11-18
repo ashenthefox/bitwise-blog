@@ -81,6 +81,15 @@ on a wide table and on a diagram at phone width, focuses the copy, scrolls it wi
 mark (`theme/diff.css`) and in a shadow tree (`SHADOW_CSS` in `diff.js`: a counter crosses into a shadow tree).
 Otherwise an open mark renumbers every figure after it.
 
+**Nor is a copy's sidenote one of the page's notes.** A copy is made from the page's source, so its
+`<span class="sidenote">` has no ref. On the live page the marks arrive after `bh.js` has numbered the notes; on
+a diff page they are there first, so `buildSidenotes` leaves out a note inside `.bh-diff-mark`: numbered, it took
+an id and a number, and every note after it moved up one (#322). A copy's note has no ref to open it, so
+`theme/diff.css` shows it where it stands (in a shadow tree it is shown already: `.js .sidenote` does not match there).
+The theme numbers nothing else across blocks: `.bh-article` resets a `table` counter that no rule increments.
+`tests/page-diff-browser.test.mts` reads the number the page's last note is drawn with, with the marks closed and
+open, on the live page and on a diff page.
+
 The word diff replaces a block *in place* only on the standalone diff page, and only when no custom
 element is inside it: a component's script reads its content (a chart's table, a code walk's lines), and
 an `<ins>` there would change what it computes. Such a block is left alone and its word diff is an inert
@@ -105,8 +114,12 @@ erase the marks.
    old text holds the quote.
    The live block is found by id, else by its position among the article's children (`find`). `bh.js` wraps a
    code block, so there the article's child is `div.code-block` and the block is the `<pre>` inside it: the
-   mark and the change bar go on the wrapper. A block that the *page's script* moves out of the article's
-   children (a figure put inside a code walk) is not found: it gets no mark, though the bar still counts it.
+   mark and the change bar go on the wrapper. A block that the *page's script* moved into another block (in
+   `how-deflate-compresses`, a figure put inside the code walk) is found by its id, and its mark and change bar
+   go on the article's child that holds it now, never inside that block: a component's layout has no room for a
+   mark. The bar's counts are the data's. A change whose block is nowhere in the article (the script took it
+   out, or the page is not the build the data was made for) has no mark, so the bar names it:
+   "1 changed (1 not marked here: “…”)". The browser test covers both cases.
 
 ## Where the data comes from
 
