@@ -498,7 +498,9 @@ function inertTag(t: Tok, emit: Emit, extra: Attr[] = []): string {
       continue;
     }
     if (t.name === "a" && !t.svg && (key === "href" || key === "target" || key === "rel" || key === "download")) continue;
-    if (key === "class") { cls.unshift(...(v ?? "").split(/\s+/).filter((c) => c && !/^(?:wide|full)$/.test(c))); continue; }
+    // No width class (a copy sits in its mark), and no language: a highlighter would match the copy, run on it and
+    // erase its <ins>/<del> (on a diff page the copies are there when bh.js loads Prism; #335).
+    if (key === "class") { cls.unshift(...(v ?? "").split(/\s+/).filter((c) => c && !/^(?:wide|full|lang(?:uage)?-.*)$/.test(c))); continue; }
     if (t.svg && v && !emit.keepIds) {
       v = v.replace(/url\(\s*#/g, `url(#${emit.prefix}`);
       if ((key === "href" || key === "xlink:href") && v.startsWith("#")) v = `#${emit.prefix}${v.slice(1)}`;

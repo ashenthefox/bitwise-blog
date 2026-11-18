@@ -59,6 +59,11 @@
 
   // ---- Helpers -----------------------------------------------------------
 
+  // What a page diff puts in the article: a mark holding inert copies of the old version, and on a diff page
+  // (`npm run diff`) the list of changes. They are there when this script runs on a diff page, so a pass that
+  // walks the article leaves them out: they are not the page's words, figures, terms or code (#322, #335).
+  const DIFF_COPY = ".bh-diff-mark, .bh-diff-summary";
+
   function whenReady(fn) {
     if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", fn, { once: true });
     else fn();
@@ -405,7 +410,10 @@
     const dl = doc.querySelector("dl.bh-meta[data-auto]");
     if (!dl) return;
     const article = doc.querySelector(".bh-article");
-    const words = article ? article.textContent.trim().split(/\s+/).length : 0;
+    // A page diff's copies and its list of changes (a diff page has them when this runs) are not the page's words.
+    const count = (n) => n.textContent.trim().split(/\s+/).filter(Boolean).length;
+    // Outermost matches only, so words in one inside another are taken off once.
+    const words = article ? count(article) - [...article.querySelectorAll(DIFF_COPY)].filter((n) => !n.parentElement.closest(DIFF_COPY)).reduce((sum, n) => sum + count(n), 0) : 0;
     const rows = [
       ["Status", meta("bh:status") && el("span", { class: `badge ${meta("bh:status").toLowerCase()}`, text: meta("bh:status") })],
       ["Updated", meta("bh:date") && el("time", { datetime: meta("bh:date"), text: meta("bh:date") })],
@@ -460,7 +468,8 @@
       return `Step ${target.dataset.n} of ${target.dataset.total}${fig ? ` (${linkLabel(fig)})` : ""}`;
     }
     if (target.tagName === "FIGURE" && target.querySelector(":scope > figcaption")) {
-      const figs = [...doc.querySelectorAll(".bh-article figure")].filter((f) => f.querySelector(":scope > figcaption"));
+      // A copy in a page diff's mark is not one of the page's figures (diff.css gives it no number either).
+      const figs = [...doc.querySelectorAll(".bh-article figure")].filter((f) => f.querySelector(":scope > figcaption") && !f.closest(".bh-diff-mark"));
       return `Figure ${figs.indexOf(target) + 1}`;
     }
     const clone = target.cloneNode(true);
@@ -719,7 +728,8 @@
   // ---- Code blocks: header, copy button; lazy Prism -------------------------------------
 
   function buildCodeBlocks() {
-    const blocks = [...doc.querySelectorAll("pre > code")].filter((c) => !c.closest(".code-block, .mermaid, .no-chrome"));
+    // A copy in a page diff's mark is inert: no copy button, and no highlighter (page-diff.mts drops its language).
+    const blocks = [...doc.querySelectorAll("pre > code")].filter((c) => !c.closest(".code-block, .mermaid, .no-chrome, .bh-diff-mark"));
     for (const code of blocks) {
       const pre = code.parentElement;
       const lang = (code.className.match(/language-(\w+)/) || [])[1];
@@ -1199,7 +1209,7 @@
     "input", "select", "textarea", "label", "summary", "script", "style", "[data-term]",
     ".term", ".no-glossary", ".bh-hero", ".bh-footer", ".bh-toc", ".bh-tablist",
     ".code-block", ".mermaid", ".badge", ".eyebrow", "dl.glossary > dt", "[data-ref]",
-    ".sidenote",
+    ".sidenote", DIFF_COPY,
   ].join(",");
 
   const splitList = (s) => (s || "").split(",").map((x) => x.trim()).filter(Boolean);
@@ -1494,6 +1504,7 @@
       for (const e of global) byId.set(e.id, { ...e, aliases: e.aliases || [], local: false });
       for (const e of localGlossary()) byId.set(e.id, e);
       doc.querySelectorAll("[data-term]").forEach((n) => {
+        if (n.closest(".bh-diff-mark")) return; // a copy's term is not a control (see GLOSSARY_SKIP)
         if (byId.has(n.dataset.term)) decorateTerm(n, n.dataset.term);
         else console.warn(`[bh] unknown glossary term "${n.dataset.term}"`, n);
       });
