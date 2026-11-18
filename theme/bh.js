@@ -632,6 +632,8 @@
     }
   }
 
+  // Fewer than three headings means no table of contents, and one column. layout.css reaches the same
+  // answer from the markup with :has(), so the article does not move when this runs: keep them in step.
   function buildToc(heads) {
     const page = doc.querySelector(".bh-page");
     if (!page || heads.length < 3 || page.classList.contains("no-toc")) {

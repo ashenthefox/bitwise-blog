@@ -113,7 +113,17 @@
   @keyframes bh-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 }
 
-/* ---- Page: optional TOC column + content column ------------------------------- */
+/* ---- Page: optional TOC column + content column -------------------------------
+   bh.js builds the table of contents, and it is deferred. So the columns must not depend on it:
+   while the script loads, and without JavaScript, the article is already where it will stay.
+   - The article is placed in the last column by name, never by auto-placement. Auto-placed, it
+     took the first column (the 14rem meant for the table of contents) until the script put the
+     table of contents in front of it.
+   - bh.js builds no table of contents for a page with fewer than three headings (h2 or h3,
+     directly in the article, not .no-toc) and marks the page .no-toc. The :has() rule below
+     counts the same headings, so such a page has one column before the script runs too. Keep
+     the two in step (buildHeadings and buildToc in bh.js). A browser without :has() drops the
+     rule and reserves the column until the script runs. */
 
 .bh-page {
   display: grid;
@@ -129,7 +139,11 @@
     margin-inline: auto;
     padding-inline: var(--space-5);
   }
+  .bh-page > .bh-article { grid-column: -2 / -1; }
   .bh-page.no-toc { grid-template-columns: minmax(0, 1fr); }
+  .bh-page:not(:has(.bh-article > :is(h2, h3):not(.no-toc) ~ :is(h2, h3):not(.no-toc) ~ :is(h2, h3):not(.no-toc))) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* ---- Table of contents ------------------------------------------------------- */
