@@ -96,6 +96,7 @@ M counts met and not met. Unknown is reported, never counted either way.
 | `predict-folds` | at least one `details.predict` | none |
 | `promise-phrases` | (information) every promise phrase with its section | never: the `promises-paid` judge decides payment |
 | `voice-iqr` | each voice rate is inside the 3Blue1Brown interquartile range | never: outside is a **warning**, because the rates are direction, not law |
+| `reader-voice` | a page under 1,500 words, or one where at least two places voice the reader's question (Ducky's callouts, "you might object", a sentence-initial "Wait", "does that mean…?") | never: fewer is a **warning**, because the phrase list is a heuristic and the `companion-voice` judge decides whether the reader is voiced at all |
 
 They are listed beside the criteria and are not counted in met out of judged.
 
@@ -207,12 +208,14 @@ Keywords: caption says what to notice; interactive says what to do and look for;
 
 ### `reader-checks`: the page has checks for the reader
 
-Keywords: commit to an answer; aimed at the key step; tells models apart; reveal gives reasons.
+Keywords: commit to an answer; aimed at the key step; tells models apart; reveal gives reasons; recall without looking back counts.
 
 - **Met:** before the end, at least one question asks the reader to commit to a concrete answer
   about the key step (not a side detail), the nearest plausible wrong model would answer it
-  differently, and the reveal gives the reasoning, not only the answer. The `predict-folds`
-  check says whether any `details.predict` exists. Example: how-deflate-sends-its-code
+  differently, and the reveal gives the reasoning, not only the answer. A task that asks the
+  reader to rebuild the key step from memory without scrolling back, or to run a short
+  experiment on a real system with the result to expect, also counts when the page then gives
+  what to compare against. The `predict-folds` check says whether any `details.predict` exists. Example: how-deflate-sends-its-code
   `#dynamic-header` asks "Will DEFLATE's final list of lengths beat the tree on the example, on
   the paragraph, on both or on neither?", and the reveal says why "both" is the natural guess.
 - **Not met:** no such question, or every question is about a side detail or reveals only the
@@ -242,8 +245,9 @@ Keywords: you / we / let's at need, key step and payoff; voices the reader's obj
 
 - **Met:** both hold: the page speaks to the reader directly (you, we, let's) in at least two of
   the opening, the key step and the ending; and the main text, not only a fold, voices at least
-  one objection or question the reader would have before answering it. Low pronoun rates alone
-  do not fail it: `voice-iqr` is a warning. Example: how-deflate-sends-its-code `#canonical`,
+  one objection or question the reader would have before answering it. A "Ducky asks" callout
+  is the reader's voice. Low pronoun rates alone do not fail it: `voice-iqr` is a warning, and
+  so is `reader-voice`, which asks a long page to voice the reader at several cracks. Example: how-deflate-sends-its-code `#canonical`,
   "You might object that we have swapped 11 symbol names for something worse".
 - **Not met:** the page addresses the reader in at most one of those places, or never voices
   the reader's objection; or it talks about the document ("this section explains") or calls

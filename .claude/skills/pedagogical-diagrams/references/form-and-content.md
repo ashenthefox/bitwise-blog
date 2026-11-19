@@ -11,6 +11,7 @@ position, and several pictures of one idea. Sources and their strength are in
 - Hierarchy: what dominates
 - Position carries meaning
 - Several pictures of one idea
+- Show good and bad before the reader judges
 
 ## Choose the form from the structure of the idea
 
@@ -153,3 +154,19 @@ the reader **construct** an understanding that neither gives alone. She offers h
   2008 chapter says such a picture "is not necessary if the learner has understood the second
   representation".
 - **Never two pictures that say the same thing** with no stated difference.
+
+## Show good and bad before the reader judges
+
+When the reader will use a figure to judge something (is this hash function uniform, is this
+filter too full, is this queue healthy), first show one clearly good and one clearly bad
+instance, side by side or one after the other, and say what visibly tells them apart. Then
+bring in the harder inputs, each chosen to expose a different weakness. A reader who has not
+seen both ends cannot tell whether a middling picture is fine.
+- Sam Rose, *Hashing* (observed, paraphrased): a good hash's grid looks like TV static, a bad
+  one shows a light and dark band; the same two functions then meet random strings, the numbers
+  1 to 10,000 as strings, and common English words, and only the bad one changes.
+- Page: two 32-bit filters side by side, one with 4 words (few bits set, a lookup for an absent
+  word fails) and one with 20 (most bits set, almost every lookup says maybe), with the caption
+  naming the fraction of bits set as the thing to read.
+- The rule is the skill's synthesis from that pattern; no study read here tests it. It is the
+  figure's side of `pedagogical-writing`'s "diagnostic view".

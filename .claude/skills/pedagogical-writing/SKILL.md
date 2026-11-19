@@ -147,12 +147,13 @@ Draft progress:
 - [ ] 2. Where existing explanations make too big a step, and what the reader likely believes wrongly
 - [ ] 3. Running example: clean, representative, keeps the hard part hard
 - [ ] 4. Ladder of steps, each with need → naive → crack → fix
-- [ ] 5. Name table: one name per thing, across prose, code, figures and glossary
-- [ ] 6. Promise list: every simplification, deferral and plant, with its payoff
-- [ ] 7. The checks: one or two predictions aimed at the key steps, each with its wrong options
-- [ ] 8. Draft the prose; then add each figure or interactive against a named failure of the prose
-- [ ] 9. Opening and TL;DR last
-- [ ] 10. Review it with references/review.md, including the cold read, and fix what it finds
+- [ ] 5. Stall list: every place the reader would object, doubt a number or think a demo is broken; each gets a Ducky line, answered
+- [ ] 6. Name table: one name per thing, across prose, code, figures and glossary
+- [ ] 7. Promise list: every simplification, deferral and plant, with its payoff
+- [ ] 8. The checks: one or two predictions aimed at the key steps, each with its wrong options, and one closed-book rebuild near the end
+- [ ] 9. Draft the prose; then add each figure or interactive against a named failure of the prose
+- [ ] 10. Opening and TL;DR last
+- [ ] 11. Review it with references/review.md, including the cold read, and fix what it finds
 ```
 
 Step 2 comes from reading two or three standard explanations of the topic and
@@ -391,7 +392,13 @@ stays here is how the page uses a figure:
   without JavaScript.
 - **Say what to do and what to look for**, in the sentence before it.
   Introduce each control, with its meaning, before asking the reader to move
-  it. Unlock one control at a time.
+  it. Unlock one control at a time. For a demo the reader drives, give a goal
+  with an end state they can see ("add words until one you never added says
+  maybe"), then explain what they just caused.
+- **Say what will vary, and what is not a bug.** Before a random or simplified
+  demo, name the states it can show that look broken (a word that sets 2 bits,
+  not 3) and why. Let Ducky ask it ("some of my words set only 2 bits. Is it
+  broken?"): the reader's voice belongs where the reader would doubt the demo.
 - **The reader is the mechanism first**: they turn the knob by hand against a
   target, then the page shows the system doing it. An **ablation switch**
   (turn one part off and see what breaks) and a **diagnostic view** (the defect
@@ -422,6 +429,10 @@ stays here is how the page uses a figure:
   it).
 - **Give at least one checkable question before the end.** Smooth reading is
   no evidence of learning.
+- **Rebuild it from memory.** Near the end, ask the reader to reconstruct one
+  piece of the mechanism without scrolling back, then compare with the page.
+  Recalling beats rereading. Where the misconception is about a real system,
+  give a short experiment to run on it, with the result to expect.
 - **Gut-check results in the open**: on a case the reader already knows, a
   limiting case, a bound, or a simulation whose number the formula then hits.
 - **Mark optional exercises as optional**; the main line never depends on them.
@@ -440,7 +451,12 @@ stays here is how the page uses a figure:
 ## Voice
 
 - **Write to one person, as a companion**: "you and I", "let's". Be present.
-- **Voice the reader's objection** before they raise it.
+- **Give the reader a voice, at every crack.** Their questions, in their words
+  ("wait, I never added that, so why maybe?"), marked apart from the author's,
+  wherever they would stall or doubt a number or a figure: several per page, not
+  one. In this repo the voice is Ducky (see moves.md, Voice).
+- **Bound the cost before a hard block**: how much there is, what can be
+  skipped, whether the rest depends on it. Then keep that promise.
 - **Admit difficulty and uncertainty**, specifically: name the hard step and
   why it is hard. Keep the hedges that state a scope or a magnitude ("about 90%
   right"); cut reflexive softeners and apologies for the topic. Call a hard

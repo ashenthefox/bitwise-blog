@@ -618,6 +618,26 @@ next clause, the input that makes it fail.
 - HtDP's "Stop!" prompts, about one per 2,000 words: "Stop! Make a general example for which
   the answer must be #false."
 
+### Rebuild it from memory
+Near the end, ask the reader to reconstruct one piece of the mechanism closed-book: without
+scrolling back, then open the page and compare. It is the closed-book form of "Produce the next
+piece", and it suits the ending, where the reader has the whole mechanism to recall.
+- Retrieval practice: restudying won on a test 5 minutes later, but recalling won on tests 2
+  days and 1 week later, and restudying raised confidence more than it raised recall (Roediger
+  & Karpicke, 2006; see sources.md for how far it was read). Rereading feels like learning.
+- Sam Rose, *Turing Machines* (paraphrase): set a small goal, such as adding two numbers,
+  without going back to look at how the post did it, in an editor linked from the page.
+- Page: "Without scrolling up, work out which three bits `cat` sets and what a lookup for `cat`
+  must check. Then add it to the filter above and compare."
+
+### A check against a real system
+Where the misconception is about a real system, give the reader a short experiment that
+refutes it, with the result to expect, so the check is the system's answer and not the page's.
+- Sam Rose, *Prompt Caching* (paraphrase): send the same prompt a dozen times; the replies
+  differ, so the reply cannot be what the provider caches.
+- Page: "Compress a megabyte of zeros and a megabyte from `/dev/urandom` with `gzip -9`. Expect
+  about 1 KB for the first and slightly more than 1 MB for the second."
+
 ### Place recall checks by idea density
 Put a check where the new ideas would overflow working memory: about ten new items without a
 check is too many.
@@ -675,3 +695,48 @@ returning the reader to the definition.
 Keep a qualification that states a scope or a magnitude ("about 90% right", "for blocks up to
 2^16 bits"). Cut reflexive softeners. More in [sentences.md](sentences.md).
 - Pinker: good writers hedge, but "their hedging is a choice, not a tic".
+
+### Give the reader a voice, at every crack
+Put the reader's questions on the page in the reader's words, marked apart from the author's,
+wherever the reader would stall: at each crack, at each number they would doubt, and at each
+thing a figure shows that looks wrong. The author answers each one, and concedes when the
+reader is right. One voiced objection per page is the floor the grader checks; a teaching
+page of 3,000 words wants several.
+- What the voice asks (Sam Rose's, paraphrased): the naive fix (why not a longer queue?),
+  disbelief at a number, whether the demo is broken, the move the system forbids (couldn't the
+  allocator move blocks around?), and sometimes the point the author got wrong.
+- Sam Rose (observed, not stated): Haskie, a cartoon husky in a panel headed "Haskie says…",
+  asks these in 6 of the 7 posts on samwho.dev, 9 times in *Memory Allocation*, drawn confused,
+  concerned or triumphant. The text extract of those pages hides the panel, so check a page like
+  this rendered.
+- Evidence: learners who watched instruction with deep-reasoning questions ("why", "what if",
+  "how does this differ") embedded in it learned more than learners given the same content
+  without them, and the effect held in monologue as well as dialogue (Craig et al., 2006, the
+  deep-level-reasoning-question effect; read via secondary descriptions, see sources.md). So it
+  is the questions that teach, not the character.
+- Not the author's rhetorical question. "Why does this happen?" in the author's voice is a
+  signpost; the reader's voice says what the reader would say, including the wrong idea.
+- A drawing is optional. The questions do the teaching; a mascot that only decorates is a
+  seductive detail.
+- **In this repo the reader's voice is Ducky**, the rubber duck you explain things to, who
+  here asks back. Until the theme has a component for it, use a callout and answer in the
+  next paragraph:
+
+  ```html
+  <aside class="callout"><p class="callout-title">Ducky asks</p>
+    <p>Wait, I never added "fox". Why does the filter say maybe?</p></aside>
+  <p>Because the three bits "fox" hashes to were all set by other words…</p>
+  ```
+
+  Ducky's lines are short and in a reader's register. Ducky asks; Ducky never explains.
+
+### Bound the cost before a hard block
+Before an unfamiliar or heavy block, say how much of it there is, what can be skipped, and
+whether what follows depends on it. This is a promise like any other: flag it and keep it.
+- Sam Rose (paraphrase): *Memory Allocation* promises its one C program is the only C in the
+  post; *Turing Machines* warns that its long program need not be understood in full to read
+  on; *Queueing* says the interactive block takes a minute or two.
+- The promise rule catches a broken bound: *Reservoir Sampling* promises no maths notation,
+  then writes `k/n`.
+- Page: "One block of bit arithmetic follows. Skim it if you like: the next section needs only
+  its last line."

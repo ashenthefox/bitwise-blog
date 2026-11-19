@@ -68,6 +68,7 @@ the rest of that text was not.
 | Nicky Case, [*Explorable Explanations*](https://blog.ncase.me/explorable-explanations/) (2014) | Full post. | "Do & Show & Tell": "Don't try to explain _everything_ with something interactive."; "Start small, build big": mechanics "you should teach in isolation first before combining them". About interactives, not static diagrams. |
 | Edward Tufte, [notebook: design of causal diagrams](https://www.edwardtufte.com/notebook/design-of-causal-diagrams-barr-art-chart-lombardi-diagrams-evolutionary-trees-feynman-diagrams-timelines/) (2003; a draft of *Beautiful Evidence*) | Full page. | "Lines and arrows are, in effect, verbs showing how one noun is related to another." Also the caution that "it is easy to draw a linking line or an arrow of implied causality, but very hard to make credible causal inferences." |
 | The existing figure rules in `pedagogical-writing` (Patel, Wittens, Holmér, Ciechanowski, Alammar, Mayer on contiguity) | Moved here with their quotes from `pedagogical-writing/references/figures-and-interactives.md`. | Their verification status is in [that skill's sources](../../pedagogical-writing/references/sources.md); the book-level Tufte quotes there are secondhand. |
+| Sam Rose, [*Hashing*](https://samwho.dev/hashing) and six other posts on [samwho.dev](https://samwho.dev) (read 2026-11-19; three also driven in a headless browser) | Full posts; observed, not stated advice. | Showing a good and a bad instance before the reader judges (rule 11). His posts also put the figure's marks inline in the prose, which this repo's `data-ref` swatch already does, so no rule was added for it (#357). |
 
 ## Author's synthesis
 
@@ -88,6 +89,8 @@ These are judgments built on the sources, not findings of any one of them:
   signalling the mapping when one explains the other.
 - Later figures of a series can be compact (rule 10). Mayer & Gallini show what novices need,
   not what suits readers who know the topic.
+- Show good and bad before the reader judges (rule 11): a pattern observed in Sam Rose's
+  *Hashing*, generalised by the skill; no study read here tests it.
 - Mapping the process principles onto `<bh-stepper>`, `<bh-versions>` and `<bh-sequence>`.
 - The review checklist.
 
