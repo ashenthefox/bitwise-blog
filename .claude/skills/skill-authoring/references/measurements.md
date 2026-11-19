@@ -38,6 +38,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-18: why the `pedagogical-diagrams` output scores fell with no change, and the judge (#237)
 - 2026-11-18: every output suite with the Sonnet judge, both arms, and what it costs (#248)
 - 2026-11-18: `fix-confusing-figure` graded on what the skill adds, and the two dropped conditions (#249)
+- 2026-11-19: teaching moves from Sam Rose's posts in `pedagogical-writing` and `pedagogical-diagrams` (#357)
 - 2026-11-18: why `needs-a-script` scored lower with the skill on two graders (#300)
 - 2026-11-18: `needs-a-script`'s graders named for what they check, and which are guards (#318)
 - 2026-11-18: six `pedagogical-writing` graders that rejected correct answers or passed in no arm (#299)
@@ -2579,3 +2580,55 @@ rewrite kept the claims. The Settings line has nothing to do with that check, so
 - **The no-skill arm was not run.** It was not changed, and nine saved answers of it were read in #317.
 - **No grader checks the reason**, for the reason #317 gave: it would pass the skill's own wording. The case's
   score did not depend on the line before or after.
+
+## 2026-11-19: teaching moves from Sam Rose's posts in `pedagogical-writing` and `pedagogical-diagrams` (#357)
+
+Nine of Sam Rose's posts were read for moves the two skills lacked; three were also driven in a headless
+browser, because a text extract hides the reader character (Haskie) entirely. Claude Code 2.1.318, agent and
+judge `claude-sonnet-5-5`, three runs per arm.
+
+**Measured before writing.** Two new cases, written from the gaps and run against `origin/main`'s skills, both
+arms: `draft-bloom-interactive-section` (with 0.25, without 0.33) and `design-bloom-bit-array` (0.33 and 0.33).
+Per grader, with the skill: the reader's voice twice 0/3, a confusing demo state named 2/3, a goal with an end
+state 1/3, retrieval or a real-system check 0/3; the figure's marks in the prose 0/3, the figure's artefacts named
+3/3, good and bad shown before judging 0/3.
+
+- **One grader was wrong, not the skill.** `01-prose-uses-figure-marks` said hover links do not count, but this
+  repo's `data-ref` draws the part's colour swatch inline before the phrase, permanently. The with-skill answers
+  used it. Re-judged with the corrected rubric (`rejudge.mjs --rubrics`, US$0.42): with 3/3, without 0/3. So no
+  rule was added for inline marks; the case keeps the grader as a guard.
+- **The figure's artefacts were already named** (3/3 with the skill), so no diagrams rule was added for them.
+
+**After the edits, with the skill only.**
+
+| Case | Before | After |
+| --- | --- | --- |
+| `draft-bloom-interactive-section` | 0.25 | 1.00 (4 of 4 graders, 3 of 3 runs) |
+| `design-bloom-bit-array` | 0.33 | 0.75 (main's skill on the same day: 0.58) |
+
+- **The reader's voice took two rounds.** With the rule in SKILL.md and moves.md alone, answers voiced Ducky once.
+  A drafting-checklist step (a stall list, each item a Ducky line) raised that to 2 or 3 per answer, but the judge
+  still failed them: the demo's odd states were explained in the author's voice, not asked by Ducky (the reasons,
+  from `rejudge.mjs --out`, say so in all three). One sentence tying "what is not a bug" to Ducky made it 3/3.
+- **`good-and-bad-first` passed 1 of 3** with rule 11; the other two answers show only a healthy state before the
+  reader judges.
+
+**The other cases.** Both full suites, with the skill only, US$12.75 and US$3.38. `pedagogical-writing`'s old
+cases scored at or above the 2026-11-18 baseline except `design-rank-interactive` (0.95 to 0.92) and
+`review-deflate-page` (1.00 to 0.94); that baseline predates #299's grader fixes, so the gains are not this change's.
+`pedagogical-diagrams` was compared on the same day with `origin/main`'s skill in a snapshot: `design-lz77-figure`
++0.04, `fix-confusing-figure` 0.00, `review-deflate-figures` −0.06, `review-stepper-boundary` −0.11, mixed signs
+and each under the 0.2 noise rule, at equal cost.
+
+**Grader calibration** after rewording `reader-checks` and `companion-voice`: 186 of 198 verdicts agree (94%),
+42 of 45 on the reference's misses (93%), the same verdict every run on 62 of 66 (94%), and every broken copy fails
+exactly its broken criteria. US$5.45. The new `reader-voice` script check warns on all four teaching pages it was
+tried on (0 or 1 places voice the reader), which is the gap the rule names; it is a warning, not counted.
+
+**What this does not show.**
+
+- **The without arm after the edits** was run only for the two new cases, at the first round of edits (writing
+  0.33, as before; diagrams 0.22 with the corrected grader), so the suites' Δ was not re-measured.
+- **The full writing suite was not re-run after the last one-sentence edit**; only the new case was.
+- **Readers.** These are drafts judged by a model, not pages read by people. Whether Ducky's questions help a
+  reader is what the deep-question research suggests (sources.md), not what was measured here.
