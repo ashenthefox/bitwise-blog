@@ -69,6 +69,10 @@ detail.
     significant difference to high-knowledge readers' problem solving (Mayer & Gallini 1990).
     Making later figures compact is the skill's own inference: no study read here tests it.
     → [text-and-labels.md](references/text-and-labels.md)
+11. **Before the reader judges with a figure, show a clearly good and a clearly bad instance**
+    and say what visibly tells them apart; then the harder inputs, each exposing a different
+    weakness. Observed in Sam Rose's *Hashing*; the rule is the skill's synthesis.
+    → [form-and-content.md](references/form-and-content.md)
 
 ## In this repo
 

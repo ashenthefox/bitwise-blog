@@ -111,6 +111,26 @@ test("page-stats --json decides the script checks", () => {
   assert.match(t.stdout, /#the-need: …/);
 });
 
+test("page-stats: reader-voice counts the reader's questions, and warns only on a long page that has fewer than two", () => {
+  const by = (cs: any[], id: string) => cs.find(c => c.id === id);
+  const voiced = `<p>You might object that this costs bits. Wait, why not just send the tree?</p>
+<aside class="callout"><p class="callout-title">Ducky asks</p><p>Does that mean the decoder guesses?</p></aside>`;
+  const quiet = `<p>After the two-day wait, the client knows how long to wait, so it retries. Why does this work?</p>`;
+  const long = (body: string) => page().replace("</article>", `<h2 id="more">More</h2>${body}<p>${"word ".repeat(1600)}</p></article>`);
+  // The injection must happen, or the test checks nothing.
+  assert.ok(long(voiced).includes("Ducky asks") && long(quiet).includes("two-day wait"));
+
+  const v = pageStats(long(voiced));
+  assert.deepEqual(v.readerVoice.map((m: any) => m.phrase),
+    ["You might object", "Wait", "why not just send the tree?", "Ducky asks", "Does that mean the decoder guesses?"]);
+  assert.equal(by(scriptChecks(v), "reader-voice").status, "pass");
+
+  const q = pageStats(long(quiet));
+  assert.deepEqual(q.readerVoice, [], "'wait' mid-sentence and the author's own question are not the reader's voice");
+  assert.equal(by(scriptChecks(q), "reader-voice").status, "warn");
+  assert.equal(by(scriptChecks(pageStats(page())), "reader-voice").status, "pass", "a short page is not asked for more");
+});
+
 test("the extract keeps prose, ids and accessible names, and drops scripts and SVG internals", () => {
   const ex = extract(page());
   assert.match(ex.text, /^## What a limiter must allow \{#the-need\}$/m);

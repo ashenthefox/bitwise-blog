@@ -134,6 +134,54 @@ it to the extreme, where a hidden flaw becomes obvious.
 - Holmér, on arc length: "pushing it to the extreme the differences in point spacing will
   become very apparent".
 
+### A goal the reader can see they reached
+For a demo the reader drives, the instruction names one or two goals with a visible end state,
+not only what the controls do: "add words until one you never added comes back as maybe", "fill
+half the bits". After the demo, explain what the reader has just caused, in the past tense ("the
+three bits `fox` needed were already set by `cat` and `dog`"). The goal makes the reader act, and
+the end state tells them they have seen what the next paragraph explains.
+- Sam Rose, *Queueing* (observed): each demo opens with a "Goals" checklist (fill the queue's five
+  slots, see a request dropped), each item gets a tick and a strike-through when the reader does it, and the
+  prose that follows explains what their clicks did.
+- The checklist is the observed part. The feedback literature is mixed (Shute, 2008, reviews
+  many conflicting findings), so the rule rests on the goal making the reader act and look, not
+  on a measured effect of ticks.
+- In this repo `<bh-playground>` has no goal checklist yet: write the goals as a short list in the
+  sentence before the demo. A playground that can tell the goal is met is a theme change.
+
+### Say what will vary, and what is not a bug
+A demo driven by random input, real hash functions or a simplified model will show states the
+reader can take for a bug. List them while designing the demo, and explain each in the prose
+where the reader will meet it: before the demo for one that is likely, beside it for one that
+is rare. For a random demo, also say how much varies between runs and how long it takes to
+settle.
+- Sam Rose (observed): *Bloom Filters* warns that a word may set only 1 or 2 bits when hashes
+  coincide; *Memory Allocation* answers whether a gap in the grid is a bug in the visualisation;
+  *Reservoir Sampling* tells the reader the counts start uneven and even out if they keep going;
+  *Big O* says a timing may differ by a few tens of milliseconds.
+- What the figure *leaves out* is the caption's job (`pedagogical-diagrams`); this is what the
+  demo will *do* that the reader must not read as the system's behaviour.
+
+### The reader's actions as the data
+When the reader's clicks generate the data a later section analyses, say so, and say the result
+depends on what they did. Their own run is the most persuasive example the page has, and the
+caveat keeps an unusual run from teaching the wrong lesson.
+- Sam Rose, *Queueing* (observed): the closing comparison charts are drawn from the requests the
+  reader sent in the earlier demos, with a note that the winner can differ with how they clicked.
+
+### Pace: start paused, minimal, with a speed control
+A continuous simulation starts paused, in the smallest state that already shows its vocabulary
+(one balancer, one server), and offers a speed control. The paused first frame satisfies "the
+first frame already teaches"; the speed control lets each reader slow the motion to what they
+can follow.
+- Sam Rose (observed): every simulation in *Load Balancing* starts paused with a tortoise-to-hare
+  speed slider; *Queueing* offers a speed toggle where the animations first get fast.
+- Mayer's segmenting principle: a narrated animation cut into segments the learner starts one
+  at a time beat the continuous version in 10 of 10 studies (median d = 0.79, Mayer & Pilegard,
+  2014, via secondary summaries), most for complex, fast material and novices. That supports
+  pause and step controls; a speed slider is the repo's extension of it, not what was tested.
+  A stepper already segments a process; give a simulation play, pause and a single step too.
+
 ## Centrepieces that teach
 
 ### The reader is the mechanism, then the page automates it
@@ -276,7 +324,7 @@ values to try, including ones that break things.
 
 | Component | Rules that apply |
 | --- | --- |
-| `<bh-playground>` | default state teaches; controls introduced and labelled first; one control unlocked at a time; by hand, then automated; ablation switches; the final open one goes last |
+| `<bh-playground>` | default state teaches; controls introduced and labelled first; one control unlocked at a time; a goal with a visible end state; what will vary and what is not a bug; by hand, then automated; ablation switches; the final open one goes last |
 | `<bh-stepper>` | one persistent figure; one change per step; step text presents meaning and reason; the frames and the trace of earlier states are `pedagogical-diagrams` |
 | `<bh-versions>` | naive version labelled as such; side-by-side comparison in a fixed frame is `pedagogical-diagrams` |
 | `<bh-codewalk>` | Knuth's rules; values beside lines; shape before code |

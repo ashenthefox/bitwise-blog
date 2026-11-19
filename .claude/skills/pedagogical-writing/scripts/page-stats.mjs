@@ -78,6 +78,18 @@ const DOC_TALK = new RegExp("\\b(" + [
 // Only -tion/-sion/-ment nouns: -ance/-ence caught "makes the distance 7" and "make a difference".
 const EMPTY_VERB = /\b(perform(s|ed|ing)?|conduct(s|ed|ing)?|carr(y|ies|ied|ying) out|do(es)?|did|mak(e|es|ing)|made|giv(e|es|ing)|gave) (a|an|the) (\w+ )?\w+(tion|sion|ment)s?\b/gi;
 
+// The reader's voice: Ducky's callouts, and phrases that put the reader's question or objection
+// on the page before the author answers it. A heuristic for a warning only: the companion-voice
+// judge decides whether the page voices the reader at all.
+const READER = new RegExp("(" + [
+  "\\bDucky asks", "\\byou might (object|ask|wonder|protest|say|think|expect)\\b", "\\byou may be wondering\\b",
+  "(?<=^|[.?!\"“] )(wait|hold on|hang on)\\b", "\\bdoes (that|this) mean\\b[^.?!]{0,80}\\?",
+  "\\bwhy not (just )?\\w+[^.?!]{0,60}\\?", "\\b(isn't|doesn't|couldn't|wouldn't|won't|can't) (that|this|it|we|they)\\b[^.?!]{0,60}\\?",
+  "\\bbut (why|how|what about)\\b[^.?!]{0,60}\\?",
+].join("|") + ")", "gi");
+// Below this many words the page is too short to want the reader's voice more than once.
+export const READER_VOICE_WORDS = 1500;
+
 // Every match of `re` with its section and some context.
 function matches(secs, re) {
   const found = [];
@@ -109,7 +121,7 @@ export function pageStats(src) {
   return {
     isHtml: html, words, voice, predicts, tldrBullets: html ? tldrBullets(src) : null,
     sections: secs.map(s => ({ id: s.id, title: s.title, words: s.text.split(/\s+/).filter(Boolean).length, predicts: s.predicts })),
-    promises: matches(secs, PROMISE), obvious: matches(secs, OBVIOUS), docTalk: matches(secs, DOC_TALK), emptyVerbs: matches(secs, EMPTY_VERB),
+    promises: matches(secs, PROMISE), readerVoice: matches(secs, READER), obvious: matches(secs, OBVIOUS), docTalk: matches(secs, DOC_TALK), emptyVerbs: matches(secs, EMPTY_VERB),
   };
 }
 
@@ -127,6 +139,11 @@ export function scriptChecks(st) {
   }
   checks.push({ id: "promise-phrases", status: "info", detail: `${st.promises.length} promise phrases listed; the judge decides whether each is paid off`,
     items: st.promises.map(p => ({ section: p.section, phrase: p.phrase })) });
+  // Voicing the reader once in a long page passes the companion-voice judge; this asks for more.
+  const rv = st.readerVoice.length;
+  checks.push({ id: "reader-voice", status: st.words >= READER_VOICE_WORDS && rv < 2 ? "warn" : "pass",
+    detail: `${rv} ${rv === 1 ? "place voices" : "places voice"} the reader's question or objection${st.words >= READER_VOICE_WORDS && rv < 2 ? ` (a page of ${st.words} words wants several: at each crack)` : ""}`,
+    items: st.readerVoice.map(p => ({ section: p.section, phrase: p.phrase })) });
   // Naming fewer terms than 3Blue1Brown is not a fault, so "called / known as" warns only when high.
   const out = Object.entries(IQR).filter(([k, [lo, hi]]) => (k !== "name" && st.voice[k] < lo) || st.voice[k] > hi)
     .map(([k, [lo, hi]]) => `${VOICE_LABEL[k]} ${st.voice[k].toFixed(1)} (IQR ${lo}–${hi})`);
@@ -158,6 +175,8 @@ function printText(file, st) {
   };
   list("Promise phrases (match each to its payoff)", st.promises,
     "(none found: either the page makes no promises, or it makes them silently)");
+  list("The reader's voice (questions and objections the page puts in the reader's mouth)", st.readerVoice,
+    "(none found: does the reader ever get to ask?)");
   list("\"Obviously\" and kin (show it, or say where it stands)", st.obvious, "(none found)");
   list("Signposts about the document (ask about the subject instead)", st.docTalk, "(none found)");
   list("Empty verbs hiding an action (use the verb)", st.emptyVerbs, "(none found)");
