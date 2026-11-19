@@ -501,6 +501,17 @@
   opacity: 0;
   transition: opacity var(--dur-1), color var(--dur-1), border-color var(--dur-1);
 }
+/* The icon keeps its size whatever the figure's rules say about svg. A page's <style> is unlayered and so
+   beats this layer: `#fig svg { min-width: 960px }` once made the icon huge. !important declared in a
+   layer beats an unlayered normal one, so this is the one place theme chrome needs it. */
+.bh-link-btn > svg {
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
 :is(figure, [data-linkable]):hover > .bh-link-btn,
 :is(figure, [data-linkable]):focus-within > .bh-link-btn,
 :is(ul, ol)[data-linkable]:is(:hover, :focus-within) > li:first-child > .bh-link-btn,

@@ -58,6 +58,10 @@ Run `npm run cards` after changing a page's title, kind, date, or its first diag
 A re-render with the same pixels keeps the PNG and only updates its line in `social-cards.txt`. So after
 a rebase onto a theme change, and to resolve a conflict in that file (take either side), run `npm run cards`.
 
+When several agents work on pages at once, give each file one writer, and run `npm run index` and
+`npm run cards` once, at the end, from one of them. Both rewrite files that every page shares, so two
+runs at once collide. Until then, `check` errors about stale generated files are expected.
+
 ## Feature contracts
 
 Each feature's full contract is a file in `contracts/` (outside `docs/`, so it is never published).
@@ -299,9 +303,15 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
   used as text on a new background.
 - **`!important` reverses inside cascade layers:** an important declaration in an *earlier*
   layer beats one in a later layer. Prefer specificity or layer order; use `!important`
-  only to beat the generic article spacing rules.
+  only to beat the generic article spacing rules, or to keep theme chrome's size from page CSS.
 - **CSS counters skip `display: none` elements.** Anything numbered while hidden (stepper
-  steps, tabs) must take its number from a `data-*` attribute that JS sets.
+  steps, tabs, and so the figures inside a tab panel) must take its number from a `data-*` attribute
+  that JS sets. `attr()` in a `::before` reads the element that owns the pseudo-element, so the
+  attribute goes on that element: a figure's number is on its `figcaption`.
+- **A figure's `svg` rules reach the theme's chrome inside it.** `.diagram svg { width: 100% }` once
+  sized the link button's icon to the figure (30px, not 16), and a page's `#fig svg { min-width: 960px }`
+  made it huge. The theme's rule now skips `button svg`, and the icon pins its size. In a page's
+  `<style>`, write `#fig > svg`, not `#fig svg`.
 - **Generic article rules leak into components.** `.bh-article li + li` and the flow
   margins apply to every list and child. A component built from lists or grid items must
   reset `margin` on its own items. A missing reset knocked cards out of line.
@@ -421,6 +431,10 @@ Theme files (`theme/*`) are shared by every page. These rules come from bugs alr
   scrolling may not advance at all, and scroll-reveal fades may never finish. To check
   logic, use `behavior: "instant"` and clear `.reveal-pending`. Confirm the real motion
   by eye in a foreground tab.
+- **A demo for a person uses the window's own size.** A fixed viewport override draws the page in a
+  box inside the window, with blank margins and a scrollbar in the wrong place. Scroll the figure into
+  view instead, keep fixed viewports for verification screenshots in a separate tab, and don't enter
+  presentation mode during a demo.
 - **Look at the social cards** (`docs/assets/og/*.png`) after `npm run cards`: the title is
   not clipped, the visual is the one you expect and is legible at about 500px wide (how a
   chat app shows it). When testing `check` with injected faults, restore the file and assert

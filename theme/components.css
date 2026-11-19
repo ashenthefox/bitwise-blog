@@ -357,23 +357,33 @@ details.disclosure, details.predict {
   border-radius: var(--radius);
   background: var(--surface);
 }
+/* The summary is a block, not a flex row: in a flex row each run of text and each inline element is an
+   item of its own, so a <code> in the sentence became a column that could not wrap and widened a phone
+   page to about 690px. The badge before it and predict's "Reveal" after it are positioned in its padding. */
 details.disclosure > summary, details.predict > summary {
+  --badge: 1.4rem;
+  position: relative;
+  display: block;
   cursor: pointer;
-  padding: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--space-5) var(--space-3) calc(var(--space-5) + var(--badge) + var(--space-3));
   font-weight: 600;
   list-style: none;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
 }
 details.disclosure > summary::-webkit-details-marker, details.predict > summary::-webkit-details-marker { display: none; }
+/* Centred down the summary, as the flex row centred them. `translate`, not `transform`, which the
+   disclosure's badge uses to turn its + into a ×. */
+details.disclosure > summary::before, details.predict > summary::before, details.predict > summary::after {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+}
+details.disclosure > summary::before, details.predict > summary::before { left: var(--space-5); }
 details.disclosure > summary::before {
   content: "+";
   display: grid;
   place-items: center;
-  width: 1.4rem;
-  height: 1.4rem;
-  flex: none;
+  width: var(--badge);
+  height: var(--badge);
   border-radius: 50%;
   background: var(--surface-2);
   color: var(--text-muted);
@@ -387,15 +397,17 @@ details.predict > summary::before {
   content: "?";
   display: grid;
   place-items: center;
-  width: 1.4rem;
-  height: 1.4rem;
-  flex: none;
+  width: var(--badge);
+  height: var(--badge);
   border-radius: 50%;
   background: var(--accent);
   color: var(--accent-contrast);
   font-weight: 700;
 }
-details.predict > summary::after { content: "Reveal"; margin-left: auto; font-size: var(--step--2); color: var(--accent); }
+/* Room on the right for "Reveal", the wider label: 3.125 times its font size in IBM Plex Sans 600, with a
+   little over for a fallback font. Fixed room, so the sentence no longer reflows when the label turns to "Hide". */
+details.predict > summary { padding-right: calc(var(--space-5) + var(--space-3) + var(--step--2) * 3.3); }
+details.predict > summary::after { content: "Reveal"; right: var(--space-5); font-size: var(--step--2); color: var(--accent); }
 details.predict[open] > summary::after { content: "Hide"; }
 
 @supports (interpolate-size: allow-keywords) {
@@ -429,6 +441,9 @@ figcaption {
   font-weight: 600;
   color: var(--text);
 }
+/* Counters skip display:none elements, so once bh.js has numbered the figures the number comes from
+   data-fig-n: a figure in a hidden tab panel keeps its number, and so does every figure after it. */
+.bh-article figure > figcaption[data-fig-n]::before { content: "Figure " attr(data-fig-n) " — "; }
 
 /* ---- Code blocks ------------------------------------------------------------------------------------ */
 

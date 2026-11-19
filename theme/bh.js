@@ -469,6 +469,22 @@
   const LOGO_SVG = '<svg viewBox="0 0 32 32" fill="currentColor" focusable="false" aria-hidden="true"><path d="M9 3H18A5.75 5.75 0 0 1 18 14.5H9A2 2 0 0 1 7 12.5V5A2 2 0 0 1 9 3Z"/><path fill-rule="evenodd" d="M9 16.5H19A6.25 6.25 0 0 1 19 29H9A2 2 0 0 1 7 27V18.5A2 2 0 0 1 9 16.5ZM11.5 19.75V25.75H19A3 3 0 0 0 19 19.75Z"/></svg>';
   const LINK_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
 
+  /** Number the captioned figures in document order, as data-fig-n, which their captions show (components.css).
+      The CSS counter that numbers them without JavaScript skips display:none elements, so once tabs hide a panel
+      the figures in it, and every figure after them, would take other numbers. This counts what the counter counts
+      while nothing is hidden: every figure in the article with a caption, except a copy in a page diff's mark,
+      which is not one of the page's figures (diff.css gives it no number either). The caption holds it too,
+      because attr() in its ::before reads the caption's own attributes. */
+  function numberFigures() {
+    let n = 0;
+    for (const f of doc.querySelectorAll(".bh-article figure")) {
+      if (!f.querySelector("figcaption") || f.closest(".bh-diff-mark")) continue;
+      f.dataset.figN = ++n;
+      const cap = f.querySelector(":scope > figcaption");
+      if (cap) cap.dataset.figN = n;
+    }
+  }
+
   function linkLabel(target) {
     if (target.tagName === "BH-STEP" && target.dataset.n) {
       const stepper = target.closest("bh-stepper");
@@ -476,9 +492,8 @@
       return `Step ${target.dataset.n} of ${target.dataset.total}${fig ? ` (${linkLabel(fig)})` : ""}`;
     }
     if (target.tagName === "FIGURE" && target.querySelector(":scope > figcaption")) {
-      // A copy in a page diff's mark is not one of the page's figures (diff.css gives it no number either).
-      const figs = [...doc.querySelectorAll(".bh-article figure")].filter((f) => f.querySelector(":scope > figcaption") && !f.closest(".bh-diff-mark"));
-      return `Figure ${figs.indexOf(target) + 1}`;
+      if (!target.dataset.figN) numberFigures(); // a figure a page's script added after load
+      if (target.dataset.figN) return `Figure ${target.dataset.figN}`;
     }
     const clone = target.cloneNode(true);
     clone.querySelectorAll(".heading-anchor, .bh-link-btn, figcaption").forEach((x) => x.remove());
@@ -1770,6 +1785,7 @@
     // [data-bh-logo] elements (decorative marks in a page) get the same inline mark as the top bar.
     for (const n of doc.querySelectorAll("[data-bh-logo]")) n.innerHTML = LOGO_SVG;
     buildMeta();
+    numberFigures();
     buildToc(buildHeadings());
     buildSidenotes();
     buildCodeBlocks();
