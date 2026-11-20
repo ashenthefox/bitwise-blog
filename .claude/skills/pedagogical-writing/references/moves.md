@@ -566,13 +566,16 @@ A guess only counts if the page hasn't given the answer yet. Read everything abo
 `summary`, the TL;DR first: its common-mistake bullet is usually the misconception the
 prediction is built to catch, so it tends to state the answer. When it does, keep the TL;DR's
 claim and ask for what the claim leaves out (the size, the extreme case, what it would take),
-or state the mistake without the number the question asks for.
+or state the mistake without the number the question asks for. Look below the fold as well:
+whatever follows a closed `details.predict` is on screen while the reader guesses, so a figure
+or timeline that shows the answer goes inside the reveal.
 - The prequestion benefit comes from guessing (g = 0.65) rather than reading (g = 0.22)
   (St. Hilaire, Chan & Ahn, 2024); a question answered in advance is the reading case.
 - Page, before: token-bucket-rate-limiting's TL;DR said fixed windows let "twice the limit
   through at the seam", and its first prediction asked for the most requests a client can get
   in one second at a limit of 10 (20). After: the TL;DR says "a burst past the limit", and the
-  number is left to the guess.
+  number is left to the guess. The timeline that ended "20 requests in 0.1 seconds" sat just
+  below the closed fold; it now opens with the answer.
 - Page, before: announcing-patchcov's bullet just above its prediction described the same
   4,000-line, six-line case and said the total "looks the same". After: the bullet states the
   cause only, and the question also asks for the all-untested case (−0.14 pp), which the TL;DR's

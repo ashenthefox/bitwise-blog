@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Copies the page under review into the empty eval workspace, with its TL;DR as it was
-# before #368: the common-mistake bullet ("twice the limit through at the seam") answers
+# Copies the page under review into the empty eval workspace, with its TL;DR bullet put back
+# as it was before #368 (the rest of the page is today's): the common-mistake bullet ("twice the limit through at the seam") answers
 # the first prediction (the most a client gets in one second: 20).
 set -euo pipefail
 repo="$(cd "$(dirname "$0")/../../../../.." && pwd)"

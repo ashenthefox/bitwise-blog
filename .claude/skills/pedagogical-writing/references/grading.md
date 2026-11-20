@@ -212,7 +212,7 @@ Keywords: commit to an answer; aimed at the key step; not answered above it; tel
 
 - **Met:** before the end, at least one question asks the reader to commit to a concrete answer
   about the key step (not a side detail), the page has not already given that answer above the
-  question (in the TL;DR or the prose before it), the nearest plausible wrong model would answer it
+  question (in the TL;DR or the prose before it) or just below its closed fold, the nearest plausible wrong model would answer it
   differently, and the reveal gives the reasoning, not only the answer. A task that asks the
   reader to rebuild the key step from memory without scrolling back, or to run a short
   experiment on a real system with the result to expect, also counts when the page then gives

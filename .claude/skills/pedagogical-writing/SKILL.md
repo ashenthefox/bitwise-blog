@@ -419,8 +419,9 @@ stays here is how the page uses a figure:
   benefit of a question only read. The benefit stays with what was asked
   about, so aim it at the key step.
 - **Don't answer it before you ask it.** A question whose answer is already on
-  the page above it, in the TL;DR, a list or a nearby sentence, turns guessing
-  back into reading. The TL;DR's common-mistake bullet and the prediction usually
+  the page above it (in the TL;DR, a list or a nearby sentence), or in view just
+  below the closed fold (a figure or timeline that shows it), turns guessing
+  back into reading. A figure that shows the answer goes inside the reveal. The TL;DR's common-mistake bullet and the prediction usually
   aim at the same misconception, so check that pair first. When the TL;DR must
   state the result, ask for what it leaves out: how big, which case, what it
   would take.
