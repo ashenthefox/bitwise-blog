@@ -38,8 +38,9 @@ Read the reference file the task needs:
   reference grades). Read it before grading or scoring a page, or comparing pages or versions.
 - [references/drafting-with-models.md](references/drafting-with-models.md): the
   prompt and checks for having another model (GPT-6.1 Sol, GPT-6 Astra, Claude
-  Opus 5.5 or Sonnet 5.5) draft or revise teaching prose, and what each gets wrong.
-  Read it before writing such a prompt or diagnosing a model's drafts.
+  Opus 5.5 or Sonnet 5.5) draft or revise teaching prose, and what each gets wrong,
+  with `scripts/structure.mjs` for a draft's shape. Read it before writing such a
+  prompt or diagnosing a model's drafts.
 - [references/sources.md](references/sources.md): where each rule comes from, how
   strong the evidence is, and how conflicts between sources are resolved.
 

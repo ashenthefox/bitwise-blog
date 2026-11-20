@@ -1,0 +1,23 @@
+{
+  "token-bucket-rate-limiting": {
+    "title": "Token bucket rate limiting",
+    "description": "How a token bucket admits bursts but enforces an average rate \u2014 with a live simulation, implementations, and the mistakes that bite in production.",
+    "reader": "a backend engineer who has never built a rate limiter",
+    "words": 1943,
+    "prompt": "Write a technical blog post titled \"Token bucket rate limiting\" for a backend engineer who has never built a rate limiter. What it covers: How a token bucket admits bursts but enforces an average rate \u2014 with a live simulation, implementations, and the mistakes that bite in production. Aim for about 1943 words. Write it in Markdown, with no front matter, and reply with only the post."
+  },
+  "how-deflate-works": {
+    "title": "How DEFLATE works",
+    "description": "DEFLATE, the format inside gzip, zlib, PNG and ZIP, is two ideas stacked: LZ77 removes repetition, then Huffman coding removes skew. Here is each, step by step.",
+    "reader": "a programmer new to compression",
+    "words": 9122,
+    "prompt": "Write a technical blog post titled \"How DEFLATE works\" for a programmer new to compression. What it covers: DEFLATE, the format inside gzip, zlib, PNG and ZIP, is two ideas stacked: LZ77 removes repetition, then Huffman coding removes skew. Here is each, step by step. Aim for about 9122 words. Write it in Markdown, with no front matter, and reply with only the post."
+  },
+  "announcing-patchcov": {
+    "title": "Announcing patchcov",
+    "description": "Patch coverage for git diffs, as a command and a GitHub Action: a precise, gateable answer to what a change left untested, with no service in the loop.",
+    "reader": "a software engineer who maintains a project with CI and code coverage",
+    "words": 1984,
+    "prompt": "Write a technical blog post titled \"Announcing patchcov\" for a software engineer who maintains a project with CI and code coverage. What it covers: Patch coverage for git diffs, as a command and a GitHub Action: a precise, gateable answer to what a change left untested, with no service in the loop. Aim for about 1984 words. Write it in Markdown, with no front matter, and reply with only the post."
+  }
+}
