@@ -72,7 +72,8 @@ const idOf = attrs => (/(?<![\w-])id="([^"]+)"/.exec(attrs) || [])[1];
 // names of figures, the names of interactive components, and fold summaries and bodies.
 // SVG internals, scripts and styles are dropped; long code and tables are cut short.
 // Returns { text, sections: [{ id, start, end }], ids: Map(id -> h2 section id) }.
-export function extract(src) {
+// `full` keeps every code line and table row; the grader's judges get the truncated default.
+export function extract(src, { full = false } = {}) {
   let h = articleHtml(src);
   h = h.replace(/<(script|style|template)\b[\s\S]*?<\/\1>/gi, " ").replace(/<!--[\s\S]*?-->/g, " ");
   const plain = s => esc(decodeOnce(s.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim());
@@ -82,12 +83,12 @@ export function extract(src) {
   });
   h = h.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, (_, body) => {
     const lines = decodeOnce(body.replace(/<[^>]+>/g, "")).replace(/\n+$/, "").split("\n");
-    const kept = lines.slice(0, 20).map(l => "    " + esc(l)).join("\n");
+    const kept = lines.slice(0, full ? lines.length : 20).map(l => "    " + esc(l)).join("\n");
     return `\n[code]\n${kept}${lines.length > 20 ? `\n    … (${lines.length - 20} more lines)` : ""}\n[/code]\n`;
   });
   h = h.replace(/<table\b[\s\S]*?<\/table>/gi, t => {
     const rows = [...t.matchAll(/<tr\b[\s\S]*?<\/tr>/gi)].map(r => [...r[0].matchAll(/<t[hd]\b[^>]*>([\s\S]*?)<\/t[hd]>/gi)].map(c => plain(c[1])).join(" | "));
-    return `\n[table]\n${rows.slice(0, 12).join("\n")}${rows.length > 12 ? `\n… (${rows.length - 12} more rows)` : ""}\n[/table]\n`;
+    return `\n[table]\n${rows.slice(0, full ? rows.length : 12).join("\n")}${!full && rows.length > 12 ? `\n… (${rows.length - 12} more rows)` : ""}\n[/table]\n`;
   });
   h = h.replace(/<(h[2-4])\b([^>]*)>([\s\S]*?)<\/\1>/gi, (_, tag, a, body) => {
     const id = idOf(a);
