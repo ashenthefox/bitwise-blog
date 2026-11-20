@@ -42,6 +42,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-19: the #357 moves tried on one real page, `how-deflate-sends-its-code` (#361)
 - 2026-11-20: a prediction must not be answered before it is asked (#368)
 - 2026-11-20: this blog's pages on SlopShape's core structural features (#369)
+- 2026-11-20: model drafts by structure, with and without the base prompt (#370)
 - 2026-11-18: why `needs-a-script` scored lower with the skill on two graders (#300)
 - 2026-11-18: `needs-a-script`'s graders named for what they check, and which are guards (#318)
 - 2026-11-18: six `pedagogical-writing` graders that rejected correct answers or passed in no arm (#299)
@@ -2761,3 +2762,45 @@ here measures understanding.
 **What this does not show.** Nine pages, three drafts, one judge family, and features paraphrased from a
 table rather than the paper's own questions, so this is direction, not a detector. The judge is a Claude
 model scoring Claude drafts. Whether the shape costs a reader anything is #371's question.
+
+## 2026-11-20: model drafts by structure, with and without the base prompt (#370)
+
+`drafting-with-models.md` described each model's failures by style measures only; SlopShape found structure
+the stronger signal. So the same three briefs as #369 (token bucket, DEFLATE, patchcov: a page's title,
+description, reader and length) went to Claude Opus 5.5 and Sonnet 5.5, each with no prompt and with the
+skill's base prompt (Opus with its per-model lines too). `evals/structure/generate.mjs` writes each draft
+from `briefs.json` with one `claude -p` call: a one-line system prompt in place of Claude Code's, no setting
+sources (so no CLAUDE.md, settings or hooks), no tools, from an empty directory, with the prompt text taken
+from `drafting-with-models.md`. `structure.mjs` scored all twelve twice (`claude-sonnet-5-5` judge, three
+runs each, majority per feature); the passes agreed on 11 of 12 counts, and the table gives their mean.
+Drafting US$3.14, scoring US$4.40. GPT-6.1 Sol and GPT-6 Astra were not run: `pi` on this machine has no
+OpenAI provider.
+
+| Arm | Token bucket | DEFLATE | patchcov | Mean |
+| --- | --- | --- | --- | --- |
+| Opus, no prompt | 6.5 | 6 | 7 | 6.5 |
+| Opus, base prompt | 7 | 6 | 4 | 5.7 |
+| Sonnet, no prompt | 6 | 4 | 5 | 5.0 |
+| Sonnet, base prompt | 7 | 5 | 4 | 5.3 |
+
+- **The base prompt does not move the shape.** The means move by under a point, Opus down and Sonnet up, and
+  per brief the changes go both ways (token bucket up a point for both models, patchcov down).
+- **One change on the same brief for both models:** on patchcov both dropped the legacy-versus-modern foil
+  with the prompt; Opus also dropped its restated ending and summary there. Two Sonnet drafts lost their way
+  for the reader to take part, which fits the prompt's "leave out what this reader does not need" but is two
+  texts.
+- **Some features never vary.** All twelve state their thesis first, use no "modern" framing, and rest on
+  demonstration.
+- **No model rule.** Opus averaged 6.1 and Sonnet 5.2 over both arms. A point over six drafts, each a single
+  sample, is not enough to add a structural line to "What each model gets wrong".
+- **A first run was discarded.** Drafted through `claude -p` with Claude Code's default system prompt and the
+  user's CLAUDE.md, and with #369's Sonnet drafts as one arm, it suggested the prompt removed the restated
+  ending and summary on the token bucket for both models. The clean run above does not show that, so it was
+  noise or the confound. The review of #380 found the confound.
+
+**What changed:** `drafting-with-models.md`'s "A draft's shape" says not to count on the base prompt to change
+a draft's ending, foil or framing, and to ask for a structural change by name, unmeasured.
+
+**What this does not show.** Three briefs, one draft per arm and brief, one judge family scoring its own
+family's drafts, and no GPT models. A one-brief effect could be that brief. Nothing here measures whether a
+reader learns more from either arm (#371).

@@ -1,0 +1,398 @@
+[
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/announcing-patchcov.opus-5-5-base.md",
+    "words": 2386,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "no",
+      "mechanism-stage": "yes",
+      "participation": "present",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "please open an issue with a small example, because those mismatches are the most likely source of wrong results.",
+      "summary-stage": "",
+      "mechanism-stage": "patchcov counts a line only if two conditions both hold: the diff marks it as added or modified",
+      "participation": "please open an issue with a small example",
+      "freshness": "",
+      "credibility": "Overall coverage is now 8,020 divided by 10,050, which is about 79.80%.",
+      "legacy-contrast": "",
+      "thesis-first": "patchcov answers it directly. It is a command-line tool and a GitHub Action.",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.131585,
+    "aiShape": {
+      "n": 4,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/announcing-patchcov.opus-5-5-plain.md",
+    "words": 2205,
+    "features": {
+      "conclusion": "restates",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "present",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "yes",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "patchcov does that computation locally, from your diff and your reports",
+      "summary-stage": "The question code review needs answered is \"what did this change leave untested?\"",
+      "mechanism-stage": "The diff is against the merge base, not the tip of the base branch.",
+      "participation": "please open an issue with the diff and report",
+      "freshness": "",
+      "credibility": "Patch coverage: 24/30 lines (80.0%)",
+      "legacy-contrast": "Total project coverage is a fine health metric to watch over months. It works badly as a per-change gate",
+      "thesis-first": "of the lines this change adds, which ones did the tests never execute?",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.146175,
+    "aiShape": {
+      "n": 7,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/announcing-patchcov.sonnet-5-5-base.md",
+    "words": 2388,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "no",
+      "mechanism-stage": "yes",
+      "participation": "present",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "Open an issue on the repository with the coverage file's format, the diff, and the output you expected.",
+      "summary-stage": "",
+      "mechanism-stage": "It asks git for the lines that exist in the head and were added or modified relative to the merge base.",
+      "participation": "We would like to hear where the numbers surprise you",
+      "freshness": "",
+      "credibility": "14 divided by 17 is 0.8235, so patch coverage is 82.35%.",
+      "legacy-contrast": "",
+      "thesis-first": "which of the lines this change added or modified did your tests never run?",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.13130899999999998,
+    "aiShape": {
+      "n": 4,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/announcing-patchcov.sonnet-5-5-plain.md",
+    "words": 2438,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "no",
+      "mechanism-stage": "yes",
+      "participation": "present",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "yes",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "I'd like to hear about the disagreements you find.",
+      "summary-stage": "",
+      "mechanism-stage": "Parse a unified diff to get, for each file, the set of line numbers",
+      "participation": "Bug reports with a diff and a coverage file attached are the most useful kind",
+      "freshness": "",
+      "credibility": "patchcov: 34 of 41 changed executable lines covered (82.9%)",
+      "legacy-contrast": "Total coverage is a ratio over the entire codebase. That makes it a poor instrument",
+      "thesis-first": "of the lines this change added or modified, which ones did no test execute?",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.14808159999999998,
+    "aiShape": {
+      "n": 5,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/how-deflate-works.opus-5-5-base.md",
+    "words": 11496,
+    "features": {
+      "conclusion": "restates",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "yes"
+    },
+    "evidence": {
+      "conclusion": "you have the whole idea.",
+      "summary-stage": "## Summary",
+      "mechanism-stage": "The decoder repeats the following for each block:",
+      "participation": "",
+      "freshness": "",
+      "credibility": "Here is a worked example. Take the 18-byte input",
+      "legacy-contrast": "",
+      "thesis-first": "DEFLATE runs two separate ideas one after the other.",
+      "historical-dates": "written up as RFC 1951 by Peter Deutsch in 1996"
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.3482039,
+    "aiShape": {
+      "n": 6,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/how-deflate-works.opus-5-5-plain.md",
+    "words": 12043,
+    "features": {
+      "conclusion": "restates",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "yes"
+    },
+    "evidence": {
+      "conclusion": "they're still finding repeats and coding the leftovers efficiently, which is the same pair of ideas DEFLATE uses.",
+      "summary-stage": "DEFLATE is two ideas stacked up, plus some careful packaging.",
+      "mechanism-stage": "Each block is stored, fixed-Huffman, or dynamic-Huffman.",
+      "participation": "",
+      "freshness": "",
+      "credibility": "Twelve bytes became six: `4B 4C 4A 86 23 00`.",
+      "legacy-contrast": "",
+      "thesis-first": "DEFLATE is also a very good first compression format to learn, because it is two clean ideas",
+      "historical-dates": "In 1977, Abraham Lempel and Jacob Ziv published a paper"
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.41172339999999996,
+    "aiShape": {
+      "n": 6,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/how-deflate-works.sonnet-5-5-base.md",
+    "words": 10164,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "yes"
+    },
+    "evidence": {
+      "conclusion": "A good exercise is to write a small decoder for it",
+      "summary-stage": "Here is the summary again as a chain of cause and effect",
+      "mechanism-stage": "The decoder steps back 13 bytes from the end of its output",
+      "participation": "",
+      "freshness": "",
+      "credibility": "worked examples, numbers or runs the reader can check",
+      "legacy-contrast": "",
+      "thesis-first": "DEFLATE answers with two ideas applied one after the other.",
+      "historical-dates": "RFC 1951, published in 1996, describes it"
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.1323508,
+    "aiShape": {
+      "n": 5,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/how-deflate-works.sonnet-5-5-plain.md",
+    "words": 8455,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "present",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "yes"
+    },
+    "evidence": {
+      "conclusion": "The best next step is the one from the exercises: write the decoder.",
+      "summary-stage": "A compact summary of the format",
+      "mechanism-stage": "DEFLATE is made of two simple ideas stacked on top of each other",
+      "participation": "Finish the inflater. Assemble the snippets above into one file, test it",
+      "freshness": "",
+      "credibility": "assert lz77_decode(toks) == data",
+      "legacy-contrast": "",
+      "thesis-first": "it is made of two simple ideas stacked on top of each other",
+      "historical-dates": "formalized in RFC 1951 in 1996"
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.3280809,
+    "aiShape": {
+      "n": 4,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/token-bucket-rate-limiting.opus-5-5-base.md",
+    "words": 2331,
+    "features": {
+      "conclusion": "restates",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "over short periods it can exceed that rate by at most one full bucket.",
+      "summary-stage": "## Summary",
+      "mechanism-stage": "That is the whole mechanism.",
+      "participation": "",
+      "freshness": "",
+      "credibility": "With capacity 10 and refill rate 2, the most a client can get in 60 seconds is 10 + 2 × 60 = 130",
+      "legacy-contrast": "",
+      "thesis-first": "The token bucket is a standard answer.",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.1336123,
+    "aiShape": {
+      "n": 7,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/token-bucket-rate-limiting.opus-5-5-plain.md",
+    "words": 2567,
+    "features": {
+      "conclusion": "restates",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "Use lazy refill with a monotonic clock, keep shared state atomic, expire idle buckets",
+      "summary-stage": "A token bucket stores two numbers per caller, does a little arithmetic per request",
+      "mechanism-stage": "Tokens drip into the bucket at rate `r`. When the bucket is full, extra tokens are discarded.",
+      "participation": "",
+      "freshness": "",
+      "credibility": "Take `r = 2` tokens/second and `b = 5`. The bucket starts full.",
+      "legacy-contrast": "",
+      "thesis-first": "The token bucket is the most common answer, and for good reason.",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.1576981,
+    "aiShape": {
+      "n": 7,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/token-bucket-rate-limiting.sonnet-5-5-base.md",
+    "words": 2292,
+    "features": {
+      "conclusion": "restates",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "To build one correctly, refill lazily when a request arrives, keep fractional tokens, make the check atomic",
+      "summary-stage": "## Summary",
+      "mechanism-stage": "Tokens are added continuously at the refill rate, but the bucket never holds more than its capacity",
+      "participation": "",
+      "freshness": "",
+      "credibility": "At time 0 seconds the bucket holds 10 tokens. The client sends 10 requests at once.",
+      "legacy-contrast": "",
+      "thesis-first": "The answer is the token bucket, and by the end you will be able to explain why it works",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.13255630000000002,
+    "aiShape": {
+      "n": 7,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/token-bucket-rate-limiting.sonnet-5-5-plain.md",
+    "words": 2567,
+    "features": {
+      "conclusion": "restates",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "present",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "The algorithm fits in about fifteen lines. The production work is all in the edges",
+      "summary-stage": "## Takeaways",
+      "mechanism-stage": "Picture a bucket that holds tokens. Each request must take one token to proceed.",
+      "participation": "here is a simulation you can run yourself",
+      "freshness": "",
+      "credibility": "Run it with `python3 simulate.py` and you'll see this shape:",
+      "legacy-contrast": "",
+      "thesis-first": "The token bucket is the one you will see most often, because it matches how real traffic behaves",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.15080120000000002,
+    "aiShape": {
+      "n": 6,
+      "of": 10
+    }
+  }
+]

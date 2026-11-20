@@ -186,6 +186,14 @@ framing or the foil, check each earns its place. The count moves by one between 
 unchanged text, so only a difference of two or more means anything. Measured on this blog's
 pages and three plain drafts in `skill-authoring`'s measurements (#369).
 
+The base prompt above does not remove the shape. Over twelve drafts from three briefs, Opus 5.5 and
+Sonnet 5.5 each with and without it, drafted with Claude Code's own system prompt and settings
+switched off, the mean count moved by under a point and in opposite directions (Opus 6.5 to 5.7,
+Sonnet 5.0 to 5.3). The one change both models made on the same brief was dropping a legacy-versus-
+modern foil (patchcov); every draft still stated its thesis first. So do not count on the base
+prompt to change a draft's ending, foil or framing: check with the script and ask for the change by
+name, a request that has not been measured (#370).
+
 ## Sources
 
 Read in full unless marked. Reviews are single outlets with their own prompt sets.
