@@ -1,0 +1,398 @@
+[
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/announcing-patchcov.opus-base.md",
+    "words": 2326,
+    "features": {
+      "conclusion": "restates",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "yes",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "patchcov gives every pull request a precise list of what it left untested, from inside your own CI job.",
+      "summary-stage": "## Summary",
+      "mechanism-stage": "patchcov makes three passes over its two inputs, and each step exists to keep the number precise.",
+      "participation": "",
+      "freshness": "",
+      "credibility": "Suppose the project has 10,000 coverable lines and 8,000 of them are covered",
+      "legacy-contrast": "Total coverage tells you how much of the whole project the tests run, but it barely moves",
+      "thesis-first": "answers one question about a pull request: of the lines this change added or modified, which ones did the tests never run?",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.1284227,
+    "aiShape": {
+      "n": 8,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/announcing-patchcov.opus-plain.md",
+    "words": 2253,
+    "features": {
+      "conclusion": "restates",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "yes",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "patchcov answers that question on the runner where the report is generated, with no service in between",
+      "summary-stage": "The percentage is a summary. The line list is the actual result.",
+      "mechanism-stage": "It takes a git diff and a coverage report, intersects them, and tells you exactly which added or modified lines",
+      "participation": "",
+      "freshness": "",
+      "credibility": "patchcov: 3 files, 47 executable changed lines, 41 covered, 6 uncovered (87.2%)",
+      "legacy-contrast": "The usual answer is a project-wide percentage.",
+      "thesis-first": "patchcov answers the narrower question directly.",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.1063945,
+    "aiShape": {
+      "n": 8,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/announcing-patchcov.sonnet-base.md",
+    "words": 2119,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "no",
+      "mechanism-stage": "yes",
+      "participation": "present",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "yes",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "Pick a recent merged pull request, generate its coverage report, and run patchcov against its base.",
+      "summary-stage": "",
+      "mechanism-stage": "Here is how patchcov arrives at its number:",
+      "participation": "Pick a recent merged pull request, generate its coverage report, and run patchcov against its base.",
+      "freshness": "",
+      "credibility": "Thirty covered lines out of 40 executable lines is 75 percent",
+      "legacy-contrast": "Many coverage tools work by uploading your report to a hosted service",
+      "thesis-first": "a tool that answers one question about a pull request: of the lines this change added or modified, how many did your tests actually run?",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.12565289999999998,
+    "aiShape": {
+      "n": 5,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/announcing-patchcov.sonnet-plain.md",
+    "words": 2241,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "no",
+      "mechanism-stage": "yes",
+      "participation": "present",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "give it a try and see what your last few pull requests actually left untested.",
+      "summary-stage": "",
+      "mechanism-stage": "## How it works",
+      "participation": "patchcov is open source, and issues and pull requests are welcome.",
+      "freshness": "",
+      "credibility": "demonstration",
+      "legacy-contrast": "",
+      "thesis-first": "**patchcov** computes it from a git diff and a coverage report, and it works as a command line tool",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.141605,
+    "aiShape": {
+      "n": 4,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/how-deflate-works.opus-base.md",
+    "words": 11871,
+    "features": {
+      "conclusion": "restates",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "yes"
+    },
+    "evidence": {
+      "conclusion": "Wrap the stream in a few header bytes and a checksum, and you have a gzip file",
+      "summary-stage": "DEFLATE makes data smaller in two stages.",
+      "mechanism-stage": "The decoder rebuilds the data by appending literals and copying matches one byte at a time",
+      "participation": "",
+      "freshness": "",
+      "credibility": "By the end you should be able to take a short input, compress it into DEFLATE by hand",
+      "legacy-contrast": "",
+      "thesis-first": "It makes data smaller by applying two ideas, one after the other.",
+      "historical-dates": "The format is specified in RFC 1951, written by L. Peter Deutsch in 1996."
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.3605808,
+    "aiShape": {
+      "n": 6,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/how-deflate-works.opus-plain.md",
+    "words": 11604,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "yes"
+    },
+    "evidence": {
+      "conclusion": "Take the decoder above, compress a few files with Python's zlib, and decode them.",
+      "summary-stage": "DEFLATE is two ideas stacked, plus some careful glue:",
+      "mechanism-stage": "Decoding is a simple copy loop, and letting the copy overlap its own output gives run-length encoding",
+      "participation": "",
+      "freshness": "",
+      "credibility": "Let's decode a real DEFLATE stream bit by bit. Here are five bytes:",
+      "legacy-contrast": "",
+      "thesis-first": "DEFLATE is two ideas stacked on top of each other:",
+      "historical-dates": "L. Peter Deutsch wrote it up as RFC 1951 in 1996."
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.3965212,
+    "aiShape": {
+      "n": 5,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/how-deflate-works.sonnet-base.md",
+    "words": 8222,
+    "features": {
+      "conclusion": "restates",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "yes"
+    },
+    "evidence": {
+      "conclusion": "DEFLATE makes data smaller by combining two ideas in a fixed order.",
+      "summary-stage": "## Summary",
+      "mechanism-stage": "LZ77 runs first, and Huffman coding then shrinks what LZ77 produced.",
+      "participation": "",
+      "freshness": "",
+      "credibility": "gives them to a raw DEFLATE decoder",
+      "legacy-contrast": "",
+      "thesis-first": "The short answer is that DEFLATE stacks two ideas.",
+      "historical-dates": "who published the idea in 1977"
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.27722120000000006,
+    "aiShape": {
+      "n": 6,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/how-deflate-works.sonnet-plain.md",
+    "words": 11063,
+    "features": {
+      "conclusion": "restates",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "yes"
+    },
+    "evidence": {
+      "conclusion": "Two clear ideas, a handful of tables and a few dozen lines of decoder code are enough",
+      "summary-stage": "Here is the whole story again, now that every piece has been opened.",
+      "mechanism-stage": "LZ77 removes *repetition*. If a stretch of data has appeared before, say so instead",
+      "participation": "",
+      "freshness": "",
+      "credibility": "with worked examples small enough to do by hand",
+      "legacy-contrast": "",
+      "thesis-first": "DEFLATE is also easy to understand. It is two ideas stacked on top of each other",
+      "historical-dates": "It was written up as RFC 1951 in 1996"
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.39014400000000005,
+    "aiShape": {
+      "n": 6,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/token-bucket-rate-limiting.opus-base.md",
+    "words": 2260,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "no",
+      "mechanism-stage": "yes",
+      "participation": "present",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "If 1,000 clients each burst 10 requests at the same second, that is 10,000 requests arriving together.",
+      "summary-stage": "",
+      "mechanism-stage": "every time a request arrives, it calculates how many tokens the bucket would have earned since the last request",
+      "participation": "You can run this simulation yourself and change the numbers.",
+      "freshness": "",
+      "credibility": "The output is:",
+      "legacy-contrast": "",
+      "thesis-first": "A token bucket does both.",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.1461055,
+    "aiShape": {
+      "n": 4,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/token-bucket-rate-limiting.opus-plain.md",
+    "words": 2353,
+    "features": {
+      "conclusion": "restates",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "The algorithm is the easy part. The production work is in the details",
+      "summary-stage": "## Summary",
+      "mechanism-stage": "store two values per bucket: `tokens` and `last_refill_time`",
+      "participation": "",
+      "freshness": "",
+      "credibility": "That is exactly `b + r·T = 5 + 2·3`, so the bound is tight.",
+      "legacy-contrast": "",
+      "thesis-first": "The token bucket is the algorithm most production systems use.",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.1480053,
+    "aiShape": {
+      "n": 7,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/token-bucket-rate-limiting.sonnet-base.md",
+    "words": 2207,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "no",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "The one condition to check is that the largest cost never exceeds the capacity.",
+      "summary-stage": "",
+      "mechanism-stage": "This design has no timer that adds tokens.",
+      "participation": "",
+      "freshness": "",
+      "credibility": "It should print:",
+      "legacy-contrast": "",
+      "thesis-first": "A token bucket answers that question precisely.",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.10385029999999999,
+    "aiShape": {
+      "n": 5,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/token-bucket-rate-limiting.sonnet-plain.md",
+    "words": 2230,
+    "features": {
+      "conclusion": "restates",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "yes",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "every behaviour in this post, including the cap, the refill, the burst and the clock skew",
+      "summary-stage": "## Takeaways",
+      "mechanism-stage": "refill **lazily**. Store two numbers per bucket: the token count and the timestamp",
+      "participation": "",
+      "freshness": "",
+      "credibility": "a simulation with a trace you can reproduce",
+      "legacy-contrast": "The first rate limiter most engineers write is a counter",
+      "thesis-first": "The token bucket fixes this by modelling what you actually want.",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.14191769999999998,
+    "aiShape": {
+      "n": 8,
+      "of": 10
+    }
+  }
+]

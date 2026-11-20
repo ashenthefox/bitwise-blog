@@ -42,6 +42,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-19: the #357 moves tried on one real page, `how-deflate-sends-its-code` (#361)
 - 2026-11-20: a prediction must not be answered before it is asked (#368)
 - 2026-11-20: this blog's pages on SlopShape's core structural features (#369)
+- 2026-11-20: model drafts by structure, with and without the base prompt (#370)
 - 2026-11-18: why `needs-a-script` scored lower with the skill on two graders (#300)
 - 2026-11-18: `needs-a-script`'s graders named for what they check, and which are guards (#318)
 - 2026-11-18: six `pedagogical-writing` graders that rejected correct answers or passed in no arm (#299)
@@ -2761,3 +2762,39 @@ here measures understanding.
 **What this does not show.** Nine pages, three drafts, one judge family, and features paraphrased from a
 table rather than the paper's own questions, so this is direction, not a detector. The judge is a Claude
 model scoring Claude drafts. Whether the shape costs a reader anything is #371's question.
+
+## 2026-11-20: model drafts by structure, with and without the base prompt (#370)
+
+`drafting-with-models.md` described each model's failures by style measures only; SlopShape found structure
+the stronger signal. So the same three briefs as #369 (token bucket, DEFLATE, patchcov: a page's title,
+description, reader and length) went to Claude Opus 5.5 and Sonnet 5.5, each with no prompt and with the
+skill's base prompt (Opus with its per-model lines too), and `structure.mjs` scored all twelve
+(`claude-sonnet-5-5` judge, three runs, majority per feature). `evals/structure/generate.mjs` writes the
+drafts from `briefs.json`, taking the prompt text from `drafting-with-models.md`. Drafting US$10.65,
+scoring US$2.47. GPT-6.1 Sol and GPT-6 Astra were not run: `pi` on this machine has no OpenAI provider.
+
+| Arm | Token bucket | DEFLATE | patchcov | Mean |
+| --- | --- | --- | --- | --- |
+| Opus, no prompt | 7 | 5 | 8 | 6.7 |
+| Opus, base prompt | 4 | 6 | 8 | 6.0 |
+| Sonnet, no prompt | 8 | 6 | 4 | 6.0 |
+| Sonnet, base prompt | 5 | 6 | 5 | 5.3 |
+
+- **The base prompt barely moves the shape.** The means fall by under a point, inside #369's noise (an
+  unchanged text moves by one between runs; the three Sonnet no-prompt drafts, scored a third time here,
+  gave 8, 6 and 4 against 7, 6 and 5).
+- **Where it moved, it moved one brief.** On the token bucket, both models lost the restated ending and the
+  summary stage with the prompt (Opus 7 to 4, Sonnet 8 to 5). On DEFLATE and patchcov nothing changed beyond
+  noise; Opus kept a restated ending, a legacy foil and no way to take part on patchcov in both arms.
+- **Some features never vary.** All twelve state their thesis first; nine of twelve give the reader no way to
+  take part (the blog's pages get one from the template); none uses "modern" framing.
+- **No model difference.** Opus averaged 6.3 and Sonnet 5.7 over both arms, within the noise, so no
+  structural line is added to "What each model gets wrong".
+
+**What changed:** `drafting-with-models.md`'s "A draft's shape" says the base prompt shapes sentences, not
+structure, and to ask for a structural change by name, unmeasured.
+
+**What this does not show.** Three briefs, one draft per arm and brief, one judge family scoring its own
+family's drafts, and no GPT models. A one-brief effect could be that brief. Nothing here measures whether a
+reader learns more from either arm (#371).
+
