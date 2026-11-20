@@ -65,7 +65,7 @@ chapter abstract's median effect size 0.86).
   into a figure". Why each liberty is taken belongs with it
   ([text-and-labels.md](text-and-labels.md)).
 - **Seductive detail has a price.** A pretty extra costs working memory that the point needed
-  (the meta-analysis behind this is listed in `pedagogical-writing`'s sources, read via a summary).
+  (the meta-analysis behind this is listed in `pedagogical-writing`'s sources: its abstract read, the size unverified).
   Keep it out of the figure; put it in a `.sidenote` or a fold.
 
 ## Hierarchy: what dominates

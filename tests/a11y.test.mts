@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { test } from "node:test";
-import { findChrome, launchChrome, serveStatic } from "../scripts/chrome.mts";
+import { findChrome, launchChrome, serveStatic, sleep } from "../scripts/chrome.mts";
 import { REVIEW_FIXTURE_PAGE, reviewFixtureRoutes } from "../scripts/a11y-review-fixture.mts";
 import { DIFF_LIVE_PAGE, DIFF_LIVE_QUERY, DIFF_STANDALONE_PAGE, diffFixtureRoutes } from "../scripts/a11y-diff-fixture.mts";
 import { applyAllowlist, FIXTURE_QUERIES, fixtureRoutes as allFixtureRoutes, loadAllowlist, normalizeTarget, publicPages, scan, SCHEMES, STATES, VIEWPORTS, type A11yResult, type A11yViolation, type State, type StateResult } from "../scripts/a11y.mts";
@@ -340,16 +340,25 @@ test("the diff fixture pages have the diff UI to check: marks of every kind, the
     const s = (m: string, p?: object) => chrome.send(m, p, sessionId);
     try {
       await s("Page.enable");
+      // In front, as `scan` opens a page: a tab behind another may never get a frame, and a wait on one never ends (#347).
+      await s("Page.bringToFront");
       await s("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: 1, mobile: viewport.mobile });
       await s("Page.navigate", { url: diffUrl(base, page) });
-      const r = await s("Runtime.evaluate", { returnByValue: true, awaitPromise: true, expression: `new Promise((done) => { const t = Date.now(); (async function wait() {
-        if (document.documentElement.hasAttribute("data-bh-ready") && (${ready})) {
-          await new Promise((r) => setTimeout(r, 300));
-          const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-          try { done(JSON.stringify(await (async () => { ${expression} })())); } catch (e) { done(JSON.stringify("error: " + e.message)); }
-          return;
-        }
-        if (Date.now() - t > 15000) return done(JSON.stringify("timeout")); setTimeout(wait, 100); })(); })` });
+      // Polled from here, not awaited in the page: an evaluation begun in the document the navigation replaces is lost,
+      // and with it any timeout it holds. One that fails mid-navigation only means "not yet".
+      const deadline = Date.now() + 20000;
+      for (;;) {
+        const r = await s("Runtime.evaluate", { returnByValue: true, expression: `location.href !== "about:blank" && document.readyState === "complete" && document.documentElement.hasAttribute("data-bh-ready") && !!(${ready})` }).catch(() => null);
+        if (r?.result?.value === true) break;
+        if (Date.now() > deadline) throw new Error(`${page} at ${viewport.name} never became ready (data-bh-ready and its diff UI)`);
+        await sleep(100);
+      }
+      // `frames` settles after two frames, or after half a second if none comes.
+      const r = await s("Runtime.evaluate", { returnByValue: true, awaitPromise: true, expression: `(async () => {
+        const frames = () => new Promise((r) => { const t = setTimeout(r, 500); requestAnimationFrame(() => requestAnimationFrame(() => { clearTimeout(t); r(); })); });
+        await new Promise((r) => setTimeout(r, 300));
+        try { return JSON.stringify(await (async () => { ${expression} })()); } catch (e) { return JSON.stringify("error: " + e.message); }
+      })()` });
       return JSON.parse(r.result.value);
     } finally { await chrome.send("Target.closeTarget", { targetId }); }
   };
