@@ -423,8 +423,10 @@ stays here is how the page uses a figure:
   below the closed fold (a figure or timeline that shows it), turns guessing
   back into reading. A figure that shows the answer goes inside the reveal. The TL;DR's common-mistake bullet and the prediction usually
   aim at the same misconception, so check that pair first. When the TL;DR must
-  state the result, ask for what it leaves out: how big, which case, what it
-  would take.
+  state the result, ask for what it leaves out: a case it doesn't cover, or what
+  it would take. A size counts as left out only if the TL;DR gives no hint of it
+  ("barely", "twice" are the answer). On a reference page whose TL;DR states the
+  fact on purpose, write that point as prose and predict something else.
 - **Make the question tell models apart.** It teaches only if the nearest
   plausible wrong model gives a different answer. Build each wrong option from
   one named misconception, and follow a likely miss with a near-twin question.

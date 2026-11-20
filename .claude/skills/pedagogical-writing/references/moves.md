@@ -576,10 +576,19 @@ or timeline that shows the answer goes inside the reveal.
   in one second at a limit of 10 (20). After: the TL;DR says "a burst past the limit", and the
   number is left to the guess. The timeline that ended "20 requests in 0.1 seconds" sat just
   below the closed fold; it now opens with the answer.
-- Page, before: announcing-patchcov's bullet just above its prediction described the same
-  4,000-line, six-line case and said the total "looks the same". After: the bullet states the
-  cause only, and the question also asks for the all-untested case (−0.14 pp), which the TL;DR's
-  "barely move the total" does not give.
+- Page, before: announcing-patchcov's TL;DR said a change can "barely move the total", and its
+  prediction asked how far the total moves. Asking for the size did not help: a judge still
+  failed it 3 of 3, because "barely" is the answer. After: the TL;DR says what the total
+  measures ("how well the whole project is tested, not what this change left untested"), and the
+  prediction comes before the motivation list instead of after it.
+- Page, before: how-deflate-sends-its-code asked whether the list beats the tree on each block,
+  after `#canonical` had said "For this example you would be right, and you will stay right".
+  After: it asks what share of the example's 159 header bits only says "unused" (95, more than
+  half), which nothing above it gives.
+- Page, before: visibility-threat-model's TL;DR states that anyone can list unlisted pages and that
+  an old key opens every committed version, as a threat model must, and both predictions asked
+  exactly that. After: the first is prose; the second asks whether a history rewrite stops the
+  key (no: clones and forks made before it keep the ciphertexts).
 
 ### Questions that tell models apart
 A worked example or prediction teaches a rule only if the nearest plausible wrong model gives a
