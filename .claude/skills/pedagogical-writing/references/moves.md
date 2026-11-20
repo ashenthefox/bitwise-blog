@@ -561,6 +561,23 @@ step, because the benefit stays with the content asked about.
 - Page: `<summary>Seconds, minutes or hours: how long does the scan take on 2^32 bits? Decide
   before you open this.</summary>`
 
+### Don't answer it before you ask it
+A guess only counts if the page hasn't given the answer yet. Read everything above the
+`summary`, the TL;DR first: its common-mistake bullet is usually the misconception the
+prediction is built to catch, so it tends to state the answer. When it does, keep the TL;DR's
+claim and ask for what the claim leaves out (the size, the extreme case, what it would take),
+or state the mistake without the number the question asks for.
+- The prequestion benefit comes from guessing (g = 0.65) rather than reading (g = 0.22)
+  (St. Hilaire, Chan & Ahn, 2024); a question answered in advance is the reading case.
+- Page, before: token-bucket-rate-limiting's TL;DR said fixed windows let "twice the limit
+  through at the seam", and its first prediction asked for the most requests a client can get
+  in one second at a limit of 10 (20). After: the TL;DR says "a burst past the limit", and the
+  number is left to the guess.
+- Page, before: announcing-patchcov's bullet just above its prediction described the same
+  4,000-line, six-line case and said the total "looks the same". After: the bullet states the
+  cause only, and the question also asks for the all-untested case (−0.14 pp), which the TL;DR's
+  "barely move the total" does not give.
+
 ### Questions that tell models apart
 A worked example or prediction teaches a rule only if the nearest plausible wrong model gives a
 different answer on it. Build each wrong option from one named misconception, and say in the

@@ -117,7 +117,10 @@ win. Apply the moves (catalogued after Caveats) through the theme's components:
 - **Predictions** use `details.predict`, once or twice per page, at real
   decision points. Its `summary` asks for a concrete answer ("seconds, minutes
   or hours? Decide before you open this"); the body gives the answer, the
-  reasoning and the misconception behind each wrong option. Graduated hints can
+  reasoning and the misconception behind each wrong option. The TL;DR may spoil
+  the what, but not a prediction's answer: when its common-mistake bullet gives
+  the number or the yes/no a prediction asks for, reword one of them (state the
+  mistake without the number, or ask for the size). Graduated hints can
   be nested `details.disclosure` folds inside it; no page does this yet, so check
   how it renders. Transfer checks and optional exercises are plain
   prose or a `details.disclosure` titled as optional.
@@ -415,6 +418,12 @@ stays here is how the page uses a figure:
   shape) and say a guess is enough. Committed guessing roughly triples the
   benefit of a question only read. The benefit stays with what was asked
   about, so aim it at the key step.
+- **Don't answer it before you ask it.** A question whose answer is already on
+  the page above it, in the TL;DR, a list or a nearby sentence, turns guessing
+  back into reading. The TL;DR's common-mistake bullet and the prediction usually
+  aim at the same misconception, so check that pair first. When the TL;DR must
+  state the result, ask for what it leaves out: how big, which case, what it
+  would take.
 - **Make the question tell models apart.** It teaches only if the nearest
   plausible wrong model gives a different answer. Build each wrong option from
   one named misconception, and follow a likely miss with a near-twin question.

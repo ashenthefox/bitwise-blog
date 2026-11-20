@@ -128,15 +128,16 @@
     <p class="lead">More and more code is written by agents in a loop: write, run the checks, read the result, fix, repeat. That loop is only as good as the signals it can read. Coverage tooling was built to give people a picture, and an agent needs an instruction.</p>
     <p>Three things kept getting in the way:</p>
     <ul>
-      <li><strong>The total hides the change.</strong> A 4,000-line project at 92% looks the same after a pull request that adds six lines and tests four. The new code's gap is real, but the total is too coarse to show it.</li>
+      <li><strong>The total hides the change.</strong> A pull request's lines are averaged in with every line the project already has. The new code's gap is real, but the total is too coarse to show it.</li>
       <li><strong>Dashboards need interpreting.</strong> Trend graphs and coloured file trees are made for a person to look at. A script or an agent needs a number, a list of lines, and an exit code.</li>
       <li><strong>A hosted service is a dependency of your merge button.</strong> If the coverage gate lives on someone else's server, an outage, an expired upload token or a rate limit blocks merges. Nothing can be checked before you push, either.</li>
     </ul>
     <p>patchcov is the smallest tool that fixes all three. It reads report files from disk, joins them to <code>git diff</code>, and prints a result that needs no human to interpret it.<span class="sidenote">The mission, from the README: help projects that use agentic workflows keep their new code properly tested, with minimal friction.</span></p>
 
     <details class="predict">
-      <summary>Predict: a project has 4,000 executable lines at 92.00%. A pull request adds 6 executable lines and tests 4 of them. How far does the project total move?</summary>
-      <p><strong>From 92.00% to 91.96%, a move of −0.04 percentage points.</strong> (3,680 + 4) ÷ (4,000 + 6) = 91.96%. That is under the 0.05 pp tolerance patchcov uses for its headline delta, so the total renders as neutral ⚪. The patch coverage for the same change is <strong>66.67%</strong>, with two lines named. Try it below.</p>
+      <summary>Predict: a project has 4,000 executable lines at 92.00%. A pull request adds 6 executable lines and tests 4 of them. How far does the project total move? And how far if none of the six were tested?</summary>
+      <p><strong>From 92.00% to 91.96%, a move of −0.04 percentage points.</strong> (3,680 + 4) ÷ (4,000 + 6) = 91.96%. That is under the 0.05 pp tolerance patchcov uses for its headline delta, so the total renders as neutral ⚪. The patch coverage for the same change is <strong>66.67%</strong>, with two lines named.</p>
+      <p><strong>With none tested, to 91.86%: −0.14 pp.</strong> 3,680 ÷ 4,006 = 91.86%. A pull request with no tests at all moves the total by about a seventh of a point, while its patch coverage is 0%. Try both below.</p>
     </details>
 
     <h2 id="patch-coverage">Patch coverage, hands on</h2>

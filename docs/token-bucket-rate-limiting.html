@@ -191,7 +191,7 @@
       <ul>
         <li>A token bucket lets a client that has been quiet send a burst, and still holds it to an average rate. It needs two numbers per client and no timer.</li>
         <li>Its two knobs mean something you can choose from your capacity: one sets the largest burst, the other the sustained rate.</li>
-        <li>The common mistake is counting requests in fixed windows. It lets twice the limit through at the seam between two windows, and no setting fixes that.</li>
+        <li>The common mistake is counting requests in fixed windows. It lets a burst past the limit at the seam between two windows, and no setting fixes that.</li>
       </ul>
     </div>
 
