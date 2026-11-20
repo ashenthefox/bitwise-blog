@@ -18,6 +18,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { after, test } from "node:test";
 import zlib from "node:zlib";
+import { articleWords, readingTime } from "../scripts/hero-meta.mts";
 
 const source = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FIXTURES = path.join(source, "tests/fixtures/checker-rules");
@@ -75,7 +76,14 @@ const edited = <T,>(rel: string, edit: (text: string) => string, fn: () => T): T
   fs.writeFileSync(file, after);
   try { return fn(); } finally { fs.writeFileSync(file, before); }
 };
-const inject = (fragment: string) => edited(HOST, (html) => html.replace("</article>", () => `${fragment}</article>`), check);
+// A fragment's words count towards the host's reading time, and the host can sit a few words short of
+// the next minute (announcing-patchcov was 12 short, #368), so the hero would go stale on that alone.
+// Keep the generated reading time in step with the injected page, as `index` would write it.
+const inject = (fragment: string) => edited(HOST, (html) => {
+  const out = html.replace("</article>", () => `${fragment}</article>`);
+  const reading = readingTime(articleWords(out));
+  return reading ? out.replace(/(<dt>Reading time<\/dt><dd>)[^<]*(<\/dd>)/, (_m, open: string, close: string) => `${open}${reading}${close}`) : out;
+}, check);
 
 test("the host page is clean before anything is injected", () => {
   const out = check();

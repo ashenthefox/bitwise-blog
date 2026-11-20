@@ -208,18 +208,22 @@ Keywords: caption says what to notice; interactive says what to do and look for;
 
 ### `reader-checks`: the page has checks for the reader
 
-Keywords: commit to an answer; aimed at the key step; tells models apart; reveal gives reasons; recall without looking back counts.
+Keywords: commit to an answer; aimed at the key step; not answered above it; tells models apart; reveal gives reasons; recall without looking back counts.
 
 - **Met:** before the end, at least one question asks the reader to commit to a concrete answer
-  about the key step (not a side detail), the nearest plausible wrong model would answer it
+  about the key step (not a side detail), the page has not already given that answer above the
+  question (in the TL;DR or the prose before it) or just below its closed fold, the nearest plausible wrong model would answer it
   differently, and the reveal gives the reasoning, not only the answer. A task that asks the
   reader to rebuild the key step from memory without scrolling back, or to run a short
   experiment on a real system with the result to expect, also counts when the page then gives
   what to compare against. The `predict-folds` check says whether any `details.predict` exists. Example: how-deflate-sends-its-code
-  `#dynamic-header` asks "Will DEFLATE's final list of lengths beat the tree on the example, on
-  the paragraph, on both or on neither?", and the reveal says why "both" is the natural guess.
-- **Not met:** no such question, or every question is about a side detail or reveals only the
-  answer. Example: edge-rate-limiting-design has no question at all (right for a design doc, a
+  `#dynamic-runs`, after step 4, asks how many of the example's 159 bits "only say which symbols
+  are unused: about a tenth, about a third, or more than half?", and the reveal says why "a tenth"
+  is the natural guess. Its earlier version asked whether the list beats the tree on each block,
+  which `#canonical` had already answered ("For this example you would be right, and you will
+  stay right"), so it would now fail.
+- **Not met:** no such question, or every question is about a side detail, is answered earlier on
+  the page, or reveals only the answer. Example: edge-rate-limiting-design has no question at all (right for a design doc, a
   miss for a lesson).
 - **Unknown:** the only check is in an interactive whose behaviour the extract does not show.
 - **Evidence:** the question.
