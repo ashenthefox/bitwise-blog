@@ -616,7 +616,7 @@ export function defineDeflateTests({ PAGE, series, file, pages = [{ file, html: 
     assert.match(prose, /1,122 bits for the example and 1,158 for the paragraph/);
     assert.match(prose, series ? /The header drops to 146 bits for the example \(step 3 in the figure below\) and 443 for the paragraph/ : /The header drops to 146 bits for the example \(step 3 in the figure\) and 443 for the paragraph/);
     assert.match(prose, series
-      ? /it costs 159 bits for the example \(step 4 in the figure below\) and 352 for the paragraph\. For the paragraph, coding the code-length symbols saved another 91 bits, 443 down to 352\. For the tiny example it cost 13 more: describing the small code took more than it saved on just 19 symbols/
+      ? /it costs 159 bits for the example \(step 4 in the figure below\) and 352 for the paragraph\. For the paragraph, coding the code-length symbols saved another 91 bits, 443 down to 352\.[\s\S]*?But the example went from 146 bits to 159\. The last step made it bigger\?[\s\S]*?Yes, by 13 bits: describing the small code took more than it saved on just 19 symbols/
       : /it costs 159 bits for the example \(step 4 in the figure\) and 352 for the paragraph\. For the paragraph, coding the run symbols saved another 91 bits\. For the tiny example it cost 13 more: describing the small code took more than it saved on just 19 run symbols/);
     // The figure's step sums: 278 lengths + 10 bits of counts; 19 symbols at 5 bits + 41 extra bits + the counts.
     assert.equal((ex.counts - 10) / 4, 278);
