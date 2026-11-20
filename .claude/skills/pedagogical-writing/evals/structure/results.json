@@ -1,0 +1,398 @@
+[
+  {
+    "file": "docs/how-deflate-works.html",
+    "words": 9068,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "present",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "yes"
+    },
+    "evidence": {
+      "conclusion": "zlib's algorithm.txt: how zlib's encoder chooses matches, which this page leaves out.",
+      "summary-stage": "Every part of a stream has now appeared, but scattered across the sections above",
+      "mechanism-stage": "Read the input left to right. Keep everything already read in a sliding window",
+      "participation": "Type anything, or pick an example.",
+      "freshness": "",
+      "credibility": "zlib wrote 119 bits; the parse in the window figure needs 103.",
+      "legacy-contrast": "",
+      "thesis-first": "two simple ideas stacked on top of each other. First remove the repetition, then remove the skew.",
+      "historical-dates": "Ziv and Lempel (1977), \"A Universal Algorithm for Sequential Data Compression\""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.4070837,
+    "aiShape": {
+      "n": 4,
+      "of": 10
+    }
+  },
+  {
+    "file": "docs/how-deflate-compresses.html",
+    "words": 5517,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "present",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "yes"
+    },
+    "evidence": {
+      "conclusion": "zlib's algorithm.txt: how zlib's encoder chooses matches, which this page leaves out.",
+      "summary-stage": "you can now account for every one of the 103 bits",
+      "mechanism-stage": "LZ77 turns the bytes into a shorter list of tokens",
+      "participation": "Type anything, or pick an example.",
+      "freshness": "",
+      "credibility": "Every count is the size of a real DEFLATE stream",
+      "legacy-contrast": "",
+      "thesis-first": "first remove the repetition, then remove the skew",
+      "historical-dates": "RFC 1951, which defines it, dates from 1996."
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.26106910000000005,
+    "aiShape": {
+      "n": 4,
+      "of": 10
+    }
+  },
+  {
+    "file": "docs/how-deflate-sends-its-code.html",
+    "words": 7095,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "yes"
+    },
+    "evidence": {
+      "conclusion": "Next in the series: the DEFLATE format reference, with every range, field and bit-order rule",
+      "summary-stage": "send the least that determines the model (lengths, not codes), in an order the receiver can predict",
+      "mechanism-stage": "the decoder turns the lengths into a lookup table, then decodes each symbol with a single lookup",
+      "participation": "",
+      "freshness": "",
+      "credibility": "zlib's fitted code saves 854 bits on the data and describing it costs 352",
+      "legacy-contrast": "",
+      "thesis-first": "To ship a code along with its data, send the least that determines it",
+      "historical-dates": "Huffman (1952), \"A Method for the Construction of Minimum-Redundancy Codes\""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.3075468,
+    "aiShape": {
+      "n": 5,
+      "of": 10
+    }
+  },
+  {
+    "file": "docs/token-bucket-rate-limiting.html",
+    "words": 1890,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "RFC 9110 §10.2.3, Retry-After: the header semantics.",
+      "summary-stage": "If the first is yes and the second no, you want a token bucket.",
+      "mechanism-stage": "Refill lazily. Add (now − last) × r tokens and cap the total at b.",
+      "participation": "",
+      "freshness": "",
+      "credibility": "In its first second, 35 of its 500 get through: the 25 in the full bucket",
+      "legacy-contrast": "",
+      "thesis-first": "A token bucket lets a client that has been quiet send a burst, and still holds it to an average rate.",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.1610757,
+    "aiShape": {
+      "n": 6,
+      "of": 10
+    }
+  },
+  {
+    "file": "docs/announcing-patchcov.html",
+    "words": 1992,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "yes",
+      "credibility": "demonstration",
+      "legacy-contrast": "yes",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "docs.rs/patchcov: the analysis as a Rust library.",
+      "summary-stage": "patchcov scores the lines a change added, lists the untested ones as file:line, and exits non-zero",
+      "mechanism-stage": "patchcov is a join between two things you already have",
+      "participation": "",
+      "freshness": "More and more code is written by agents in a loop",
+      "credibility": "(3,680 + 4) ÷ (4,000 + 6) = 91.96%",
+      "legacy-contrast": "Coverage tooling was built to give people a picture, and an agent needs an instruction.",
+      "thesis-first": "patchcov answers one question precisely: which lines did this change add that no test ran?",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.1518247,
+    "aiShape": {
+      "n": 8,
+      "of": 10
+    }
+  },
+  {
+    "file": "docs/pedagogical-writing.html",
+    "words": 7561,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "present",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "yes"
+    },
+    "evidence": {
+      "conclusion": "Wikipedia, “Dynamic array”: the paragraph examined here, and a table of the growth factors",
+      "summary-stage": "Here is the whole method in five lines, the four beats and the check:",
+      "mechanism-stage": "Copies now happen only at 1, 2, 4, 8, … items, and each one buys as many free appends",
+      "participation": "Optional exercise: rewrite a clear paragraph about B-trees",
+      "freshness": "",
+      "credibility": "A million appends copy 1 + 2 + 4 + … + 524,288 items: about a million",
+      "legacy-contrast": "",
+      "thesis-first": "Order an idea so the reader could have invented it: make them need it, try the obvious answer",
+      "historical-dates": "In the 2006 study every version raised students' confidence by 0.6 to 0.7 points"
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.19456020000000002,
+    "aiShape": {
+      "n": 4,
+      "of": 10
+    }
+  },
+  {
+    "file": "docs/voice-notes-on-trial.html",
+    "words": 3415,
+    "features": {
+      "conclusion": "restates",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "present",
+      "freshness": "no",
+      "credibility": "sources",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "yes"
+    },
+    "evidence": {
+      "conclusion": "Say what your culture is, name what it costs you, and agree on when to do which.",
+      "summary-stage": "Ask instead what each message means to each of them, and what arrangement would cost both of them least.",
+      "mechanism-stage": "Choosing zero is a move in an argument, usually made without saying so.",
+      "participation": "Draft one before opening this.",
+      "freshness": "",
+      "credibility": "Duncan Sabien, Single Answers Make You Stupid",
+      "legacy-contrast": "",
+      "thesis-first": "When two people disagree about how to talk to each other, asking which of them is guilty",
+      "historical-dates": "On 29 October 2026 the charge was voice notes."
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.177283,
+    "aiShape": {
+      "n": 5,
+      "of": 10
+    }
+  },
+  {
+    "file": "docs/visibility-threat-model.html",
+    "words": 2158,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "The trigger for reaching for this page is any change that writes a page's title",
+      "summary-stage": "Answer: each level hides a page from some people, never from everyone.",
+      "mechanism-stage": "npm run seal gzips it and encrypts it with AES-256-GCM under a random 256-bit key",
+      "participation": "",
+      "freshness": "",
+      "credibility": "Every guarantee below names the check or test that holds it",
+      "legacy-contrast": "",
+      "thesis-first": "Answer: each level hides a page from some people, never from everyone.",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.21072010000000002,
+    "aiShape": {
+      "n": 6,
+      "of": 10
+    }
+  },
+  {
+    "file": "docs/deflate-format-reference.html",
+    "words": 725,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "no",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "yes"
+    },
+    "evidence": {
+      "conclusion": "zlib's algorithm.txt: how zlib's encoder chooses matches, which this page leaves out.",
+      "summary-stage": "",
+      "mechanism-stage": "The decoder's inner loop runs the join backwards. Its two tables are the two alphabets:",
+      "participation": "",
+      "freshness": "",
+      "credibility": "worked examples, numbers or runs the reader can check",
+      "legacy-contrast": "",
+      "thesis-first": "Every range, field and bit-order rule in a DEFLATE stream, in one place",
+      "historical-dates": "Ziv and Lempel (1977), \"A Universal Algorithm for Sequential Data Compression\""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.1354744,
+    "aiShape": {
+      "n": 3,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/announcing-patchcov.sonnet-plain.md",
+    "words": 2241,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "no",
+      "mechanism-stage": "yes",
+      "participation": "present",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "yes",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "give it a try and see what your last few pull requests actually left untested",
+      "summary-stage": "",
+      "mechanism-stage": "Parse the diff. patchcov runs (or reads) a unified diff between a base and a head",
+      "participation": "patchcov is open source, and issues and pull requests are welcome.",
+      "freshness": "",
+      "credibility": "patchcov: 140 changed lines, 112 executable, 97 covered (86.6%)",
+      "legacy-contrast": "Project-level coverage is a fine trend line, but it's a poor review tool",
+      "thesis-first": "It gives a precise answer, lets you gate a build on it, and needs no external service.",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.14548699999999998,
+    "aiShape": {
+      "n": 5,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/how-deflate-works.sonnet-plain.md",
+    "words": 11063,
+    "features": {
+      "conclusion": "restates",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "no",
+      "thesis-first": "yes",
+      "historical-dates": "yes"
+    },
+    "evidence": {
+      "conclusion": "Two clear ideas, a handful of tables and a few dozen lines of decoder code",
+      "summary-stage": "Here is the whole story again, now that every piece has been opened.",
+      "mechanism-stage": "The core idea fits in one sentence: *as you read the input, keep a window of recently seen bytes",
+      "participation": "",
+      "freshness": "",
+      "credibility": "assert inflate(raw_deflate(payload)) == payload",
+      "legacy-contrast": "",
+      "thesis-first": "DEFLATE is also easy to understand. It is two ideas stacked on top of each other:",
+      "historical-dates": "It was written up as RFC 1951 in 1996, and it has barely changed since."
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.3873685,
+    "aiShape": {
+      "n": 6,
+      "of": 10
+    }
+  },
+  {
+    "file": ".claude/skills/pedagogical-writing/evals/structure/drafts/token-bucket-rate-limiting.sonnet-plain.md",
+    "words": 2230,
+    "features": {
+      "conclusion": "other",
+      "summary-stage": "yes",
+      "mechanism-stage": "yes",
+      "participation": "absent",
+      "freshness": "no",
+      "credibility": "demonstration",
+      "legacy-contrast": "yes",
+      "thesis-first": "yes",
+      "historical-dates": "no"
+    },
+    "evidence": {
+      "conclusion": "write the fake-clock test first",
+      "summary-stage": "## Takeaways",
+      "mechanism-stage": "Tokens drip into the bucket at a constant **rate** `r`",
+      "participation": "",
+      "freshness": "",
+      "credibility": "a simulation with a trace you can reproduce",
+      "legacy-contrast": "The first rate limiter most engineers write is a counter",
+      "thesis-first": "The token bucket fixes this by modelling what you actually want.",
+      "historical-dates": ""
+    },
+    "runs": 3,
+    "answered": 3,
+    "cost": 0.0702846,
+    "aiShape": {
+      "n": 7,
+      "of": 10
+    }
+  }
+]

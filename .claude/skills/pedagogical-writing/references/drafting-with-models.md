@@ -17,6 +17,7 @@ on the author's own passages.
 - What each model gets wrong
 - Settings
 - Reasoning versus explanation
+- A draft's shape
 - Sources
 
 ## The workflow
@@ -163,6 +164,27 @@ answer ("show your thinking step by step in the response") can be declined with 
 `reasoning_extraction` refusal category. A worked example for the reader is not that: ask for
 the example to be "worked for the reader", or for "an explanation of each step", never for the
 model's reasoning.
+
+## A draft's shape
+
+SlopShape (arXiv 2609.15369) found that model-written blog posts share a structure, the "tidy,
+self-announcing" post, and that structure separated them from human posts better than style did
+(97.0 against 88.1 macro-F1) and survived rewording. `scripts/structure.mjs` scores a page or a
+draft on the paper's core features, in this skill's own wording, and counts how many of ten lean
+the way model posts did:
+
+```bash
+node <skill-dir>/scripts/structure.mjs docs/<slug>.html drafts/<draft>.md [--runs 3]
+```
+
+It is a diagnostic, not a target: an explainer is meant to explain a mechanism, and this repo's
+TL;DR puts the answer first on every page. The script strips the template's "Discuss this post"
+callout and footer before judging. The features that vary between pages are how it ends (a
+restated thesis), a way for the reader to take part, "modern" or "next-generation" framing, a
+legacy-versus-modern foil, and specific dates. When a draft shows the restated ending, the modern
+framing or the foil, check each earns its place. The count moves by one between runs on an
+unchanged text, so only a difference of two or more means anything. Measured on this blog's
+pages and three plain drafts in `skill-authoring`'s measurements (#369).
 
 ## Sources
 
