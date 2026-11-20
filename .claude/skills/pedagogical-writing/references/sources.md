@@ -72,6 +72,8 @@ seem to disagree.
 | --- | --- | --- |
 | Mayer, multimedia learning | Spatial contiguity (independent g = 0.63), temporal contiguity, signalling, coherence, pre-training, generative activity | Many studies; per-principle sizes inflated (see above) |
 | Sweller, cognitive load | Worked examples (g = 0.48), completion problems and fading, expertise reversal, transient information, element interactivity | Many studies; effects shrink for experts and simple material |
+| Kalyuga, Ayres, Chandler & Sweller (2003), "The expertise reversal effect", *Educational Psychologist* 38(1) | Instruction that helps novices can lose its benefit, or lower scores and raise reported effort, for more expert learners; redundant information is hard to ignore; tailor and fade guidance | A narrative review, mostly of the authors' studies, no effect sizes; read in full (2026-11-20, #372). Several cases show the benefit vanishing rather than reversing |
+| McNamara, Kintsch, Songer & Kintsch (1996), "Are good texts always better?", *Cognition and Instruction* 14(1) | Low-knowledge readers gained from a coherent text, high-knowledge readers from a minimally coherent one, on inference, problem-solving and sorting measures, not recall | The abstract read; the paper is closed. Junior-high students, a biology text. "Because they filled the gaps" is the authors' interpretation |
 | Bjork; *Make It Stick* | Desirable difficulties; fluency is not learning | Bjork & Bjork (2011) read in full; the book itself not read |
 | St. Hilaire, Chan & Ahn (2024) | Prequestions: g = 0.54 on asked content, 0.04 elsewhere; guessing 0.65 vs reading 0.22 | Preregistered meta-analysis, read from the PDF |
 | Alfieri et al. (2011) | Unassisted discovery d = −0.38; enhanced discovery d = +0.30 | Meta-analysis, 580 and 360 comparisons |
@@ -151,7 +153,7 @@ synthesis, not something these sources say.
 | Companion voice and signposts vs classic style's ban on metadiscourse | Signpost the subject, not the document; keep hedges that state a scope or a magnitude. |
 | Point late (discovery) vs Williams's point early | Keep the discovery order, but each section's opening says where it is going. |
 | Diagnose misconceptions vs Ciechanowski's myths in Further Reading | Refute in the main line only what the target reader actually believes. |
-| Full scaffolding vs expertise reversal | A visible fast path for experts; scaffolding spent where several parts interact at once. |
+| Full scaffolding vs expertise reversal | Novice-only help folded out of the main line (experts find redundant material hard to ignore), scaffolding spent where parts interact for this reader, and a skip line after the TL;DR. The skip line is the skill's remedy, untested by the sources, so it is not a grading criterion. |
 | "Let care show" vs seductive details | Relevant enthusiasm stays; trivia and biography go to sidenotes or after the payoff. |
 | High-affect explanation (3Blue1Brown) vs detailed understanding | Grant Sanderson, as Matuschak and Nielsen report it, doubts that "more than a small fraction of viewers are taking away much detailed understanding". Pair the moves with checks. |
 | Yorgey's "analogy at the end" vs a running analogy that leads | Two kinds. A summary analogy (the author's compressed insight) goes after the payoff; a mapping analogy (a relation the argument computes with, per Gentner) arrives with the mechanism, returns by name, and says where it breaks. The earlier wording put every analogy last, and on an outline case the skill then scored below no skill (0.42 vs 0.67). |
