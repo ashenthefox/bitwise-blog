@@ -178,11 +178,13 @@ node <skill-dir>/scripts/structure.mjs docs/<slug>.html drafts/<draft>.md [--run
 ```
 
 It is a diagnostic, not a target: an explainer is meant to explain a mechanism, and this repo's
-template fixes two features on every page (the TL;DR states the answer first; "Discuss this post"
-invites participation). The features that vary between pages are how it ends (a restated thesis),
-"modern" or "next-generation" framing, a legacy-versus-modern foil, and specific dates. When a
-draft shows the first three, check each earns its place. Measured on this blog's pages and three
-plain drafts in `skill-authoring`'s measurements (#369).
+TL;DR puts the answer first on every page. The script strips the template's "Discuss this post"
+callout and footer before judging. The features that vary between pages are how it ends (a
+restated thesis), a way for the reader to take part, "modern" or "next-generation" framing, a
+legacy-versus-modern foil, and specific dates. When a draft shows the restated ending, the modern
+framing or the foil, check each earns its place. The count moves by one between runs on an
+unchanged text, so only a difference of two or more means anything. Measured on this blog's
+pages and three plain drafts in `skill-authoring`'s measurements (#369).
 
 ## Sources
 
