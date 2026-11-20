@@ -68,23 +68,31 @@ seem to disagree.
 
 ## Learning research
 
+Bisra, Sundararajan, Craig, Roediger, Mayer & Pilegard, Gentner, Lorch & Lorch and Meyer & Rice were
+re-read on 2026-11-20 (#373): a research agent fetched each paper's full text where a legal copy
+exists, and the headline numbers of two (Roediger & Karpicke's recall percentages and ratings,
+Bisra's g and effect count) were checked against the PDF pages; Bisra's moderator figures were not. The Strength column says
+what was read.
+
 | Source | Main finding used | Strength |
 | --- | --- | --- |
 | Mayer, multimedia learning | Spatial contiguity (independent g = 0.63), temporal contiguity, signalling, coherence, pre-training, generative activity | Many studies; per-principle sizes inflated (see above) |
+| Lorch & Lorch (1996), "Effects of organizational signals on free recall of expository text", *Journal of Educational Psychology* 88(1) | Headings, overviews and summaries changed which topics were recalled and how the recall was organised, but only for a text with a complex topic structure (none for a simple one), and often not how much was recalled. Signalling half the topics left the unsignalled half recalled worse than in a text with no signals | The abstract read; college students, free recall only. For a TL;DR: what it leaves out may be remembered less |
+| Meyer & Rice (1983), ERIC ED230902 (*Interaction of text variables and processing strategies for young, middle-aged, and older expert readers*) | Relation words that signal a text's top-level logic ("in contrast", "therefore") led adult readers to recall that structure and its links; without them many switched to their own structure, and signals pointing at details pulled readers off the author's | Read in full; 149 adults with high vocabulary, two 388-word passages, immediate recall. Signals are in-text relation words, not headings, and the conditions are confounded with added details |
 | Sweller, cognitive load | Worked examples (g = 0.48), completion problems and fading, expertise reversal, transient information, element interactivity | Many studies; effects shrink for experts and simple material |
 | Bjork; *Make It Stick* | Desirable difficulties; fluency is not learning | Bjork & Bjork (2011) read in full; the book itself not read |
 | St. Hilaire, Chan & Ahn (2024) | Prequestions: g = 0.54 on asked content, 0.04 elsewhere; guessing 0.65 vs reading 0.22 | Preregistered meta-analysis, read from the PDF |
 | Alfieri et al. (2011) | Unassisted discovery d = −0.38; enhanced discovery d = +0.30 | Meta-analysis, 580 and 360 comparisons |
 | Kulgemeyer & Wittwer (2022) | An unrefuted wrong model feels just as understood | One study, one topic |
-| Bisra et al. (2018) | Self-explanation prompts g = 0.55 | Meta-analysis, via the abstract |
-| Sundararajan & Adesope (2020) | Seductive details g = −0.33 | Meta-analysis, via a summary |
-| Craig, Sullins, Witherspoon & Gholson (2006), "The deep-level-reasoning-question effect", *Cognition and Instruction* 24(4) | Learners watching instruction with deep-reasoning questions embedded learn more than those given the same content without; the effect held in monologue as well as dialogue | Via secondary descriptions (LearnLab wiki, later papers); the paper itself not read |
-| Roediger & Karpicke (2006), "Test-enhanced learning", *Psychological Science* 17(3) | Restudy wins at 5 minutes; retrieval wins at 2 days and 1 week; restudy raises confidence more than recall | Via summaries of the paper; one set of experiments, prose passages, students |
+| Bisra, Liu, Nesbit, Salimi & Winne (2018), "Inducing self-explanation: a meta-analysis", *Educational Psychology Review* 30 | Self-explanation prompts g = 0.55 [0.45, 0.65], 69 effects from 64 reports; g = 0.67 against no explanation, 0.35 against an instructional explanation; multiple-choice and metacognitive prompts not reliable | Meta-analysis; read pp. 1–17 of the PDF (method, results tables, most of the discussion) |
+| Sundararajan & Adesope (2020), "Keep it coherent", *Educational Psychology Review* 32 | Seductive details hurt learning; g = −0.33 over 68 effects only from secondary summaries | Meta-analysis; the abstract read (it gives no size), the paper is closed and was not read |
+| Craig, Sullins, Witherspoon & Gholson (2006), "The deep-level-reasoning-question effect", *Cognition and Instruction* 24(4) | A deep-reasoning question before every sentence of a watched tutoring dialogue beat the plain dialogue, a monologue and interactive tutoring; questions before half the sentences did not | Two experiments, undergraduates; the abstract read, the paper is closed. "Held in monologue too" is from later descriptions, not checked |
+| Roediger & Karpicke (2006), "Test-enhanced learning", *Psychological Science* 17(3) | Restudy wins at 5 minutes (81% vs 75%); retrieval wins at 2 days (68% vs 54%) and 1 week (56% vs 42%); in Exp 2 restudy-only students predicted the best 1-week recall (4.8 of 7) and had the worst (40% vs 61%) | Read in full; two experiments, N = 120 and 180, two prose passages, undergraduates, free recall, no feedback |
 | Shute (2008), "Focus on formative feedback", *Review of Educational Research* 78(1) | Task-level feedback; the findings conflict, with no consistent pattern | Review; only its framing used, no effect size |
-| Mayer & Pilegard (2014), segmenting principle | Learner-paced segments beat continuous presentation in 10 of 10 studies, median d = 0.79; strongest for complex, fast material and novices | Via secondary summaries; Mayer-lab-heavy, so read as an upper bound |
+| Mayer & Pilegard (2014), segmenting principle | Learner-paced segments beat continuous presentation on transfer in 10 of 10 comparisons, median d = 0.79 | The chapter not read (no legal full text); the tally as reported in Mayer, Howarth, Kaplan & Hanna (2018), *ETR&D* 66, read pp. 563–566, which itself found d = 0.34. Mayer-lab-heavy, so read as an upper bound; the novice advantage is mixed |
 | George Pólya | Graduated hints; "let them learn guessing", "let them learn proving" | Stated advice; some wording from transcriptions |
 | Seymour Papert | Objects to think with; microworlds whose concepts are all defined inside | Stated (*Mindstorms*); his open exploration is the part the evidence above does not back |
-| Gentner (1983), "Structure-Mapping: A Theoretical Framework for Analogy" | Analogy maps relations, not attributes, and prefers connected systems of relations (systematicity) | Theory with later experimental support (Clement & Gentner, 1991); read from the abstract and project pages, not the full text |
+| Gentner (1983), "Structure-Mapping: A Theoretical Framework for Analogy" | Analogy maps relations, not attributes, and prefers connected systems of relations (systematicity) | Theory paper, read in full (scanned journal copy); its own evidence is one brief study of how people interpret analogies, with later experimental support (Clement & Gentner, 1991, not read) |
 | Glynn, Teaching-With-Analogies model (1991; Glynn, Duit & Thiele, 1995) | Six steps, one of which is to indicate where the analogy breaks down | Stated teaching method; wording from secondary summaries (CSUN science-teaching pages), the chapters not read |
 | Talanquer (2007), "Explanations and teleology in chemistry education" | Teleological explanations have heuristic value but may produce alternative conceptions; compare them with causal ones | Qualitative textbook analysis; read from the abstract and secondary summaries |
 
@@ -166,5 +174,8 @@ synthesis, not something these sources say.
 - The Distill reviewer worksheet: its limitations and reproducibility checks are covered by
   the claim-status rule.
 - Disfluent fonts (Muller mentions the effect): large replications failed.
+- Lorch (1989), "Text-signaling devices and their effects on reading and memory processes": a
+  review of headings, previews and summaries, but closed, with no abstract reachable, so nothing
+  here rests on it (checked 2026-11-20, #373).
 - Sam Rose's acceptance of JavaScript-only pages: the house rules require pages to read without
   JavaScript.
