@@ -226,8 +226,9 @@ their numbers. That is stronger than a recap, which only restates.
 Anecdotes, history as colour and fun facts cost the most for beginners. Move them to a
 `.sidenote` or after the payoff. History that explains why a design looks the way it does is
 part of the mechanism; history as colour is not.
-- Seductive details: g = −0.33 over 68 effects, worse for learners with no prior knowledge
-  (Sundararajan & Adesope, 2020, via a summary).
+- Seductive details hurt learning (Sundararajan & Adesope, 2020; the abstract says so but gives
+  no size; g = −0.33 over 68 effects, worse with no prior knowledge, is from secondary
+  summaries and was not checked against the paper).
 - Muller's study added "interesting information" to an exposition; it did not help.
 
 ### Order the applications by one stated principle
@@ -634,7 +635,10 @@ last step left as a prediction, the third done by the reader.
 
 ### Ask why after a worked step
 After a step the reader watched, ask why that step was taken, then show the author's answer.
-- Self-explanation prompts: g = 0.55 over 69 effects (Bisra et al., 2018, via the abstract).
+- Self-explanation prompts: g = 0.55 over 69 effects, but g = 0.35 when the comparison group
+  got an instructional explanation instead, and multiple-choice prompts and metacognitive
+  self-explanations were the only kinds with no detectable effect (Bisra et al., 2018, Table 1
+  and its moderator analysis).
 - Page: after the stepper's match step, "Why does the decoder emit a literal here rather than
   a match?" in a fold.
 
@@ -654,9 +658,11 @@ next clause, the input that makes it fail.
 Near the end, ask the reader to reconstruct one piece of the mechanism closed-book: without
 scrolling back, then open the page and compare. It is the closed-book form of "Produce the next
 piece", and it suits the ending, where the reader has the whole mechanism to recall.
-- Retrieval practice: restudying won on a test 5 minutes later, but recalling won on tests 2
-  days and 1 week later, and restudying raised confidence more than it raised recall (Roediger
-  & Karpicke, 2006; see sources.md for how far it was read). Rereading feels like learning.
+- Retrieval practice: restudying won on a test 5 minutes later (81% against 75% of idea units),
+  but recalling won 2 days later (68% against 54%) and a week later (56% against 42%). Students
+  who only restudied predicted the best 1-week recall and had the worst: 40%, against 61% for
+  those who recalled three times (Roediger & Karpicke, 2006, prose passages, students, no
+  feedback). Rereading feels like learning.
 - Sam Rose, *Turing Machines* (paraphrase): set a small goal, such as adding two numbers,
   without going back to look at how the post did it, in an editor linked from the page.
 - Page: "Without scrolling up, work out which three bits `cat` sets and what a lookup for `cat`
@@ -693,6 +699,10 @@ against the definition.
 - "maybe the most important level is being able to recognize when you need to use it" (w-CXIqIjfRI)
 
 ### Name the takeaway as the takeaway
+- Evidence for the mechanism: headings, overviews and summaries steer which topics readers
+  recall, and signalling only some topics left the rest recalled worse than with no signals at
+  all (Lorch & Lorch, 1996, complex texts, free recall; the abstract). So what the TL;DR leaves
+  out may be remembered less.
 - "the ultimate point that evidence should not determine beliefs, but update them, is worth tattooing in your brain." (HZGCoVF3YvM)
 - The headline sticks, so make it the lesson: "for a lot of people the one main takeaway was what is the best opener for the game wordle. And I get it, I walked into that because I put it in the thumbnail" (fRed0Xmc2Wg)
 
@@ -741,11 +751,15 @@ page of 3,000 words wants several.
   asks these in 6 of the 7 posts on samwho.dev, 9 times in *Memory Allocation*, drawn confused,
   concerned or triumphant. The text extract of those pages hides the panel, so check a page like
   this rendered.
-- Evidence: learners who watched instruction with deep-reasoning questions ("why", "what if",
-  "how does this differ") embedded in it learned more than learners given the same content
-  without them, and the effect held in monologue as well as dialogue (Craig et al., 2006, the
-  deep-level-reasoning-question effect; read via secondary descriptions, see sources.md). So it
-  is the questions that teach, not the character.
+- Evidence: learners who watched a tutoring dialogue with a deep-reasoning question ("why",
+  "what if", "how does this differ") before every sentence learned more than those who watched
+  the plain dialogue, a monologue, or even took part in the tutoring themselves; a question
+  before only half the sentences did not help (Craig et al., 2006, the
+  deep-level-reasoning-question effect; read from the abstract, see sources.md). So adding the
+  questions to the same dialogue is what helped. The dose was a question per sentence of a short
+  dialogue, which does not translate to a rate on a page; "several per 3,000 words" above is this
+  skill's heuristic. Whether the questions work without a second voice (no character) is
+  unchecked: later descriptions say so, the abstract does not.
 - Not the author's rhetorical question. "Why does this happen?" in the author's voice is a
   signpost; the reader's voice says what the reader would say, including the wrong idea.
 - A drawing is optional. The questions do the teaching; a mascot that only decorates is a

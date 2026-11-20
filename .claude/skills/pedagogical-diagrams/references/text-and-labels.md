@@ -131,7 +131,10 @@ need the illustrations, not that the illustrations hurt them.
   caution the other way about detail: "more experienced learners may require a greater
   amount of detail".
 - **Give experts a way past it**: a caption that says what to skip, and a first frame that
-  already shows the finished state.
+  already shows the finished state. The skip itself is a remedy the expertise-reversal studies
+  did not test, and experts find redundant help hard to ignore, so keep novice-only help out of
+  the figure (in a fold or a later frame) rather than relying on the caption alone
+  (`pedagogical-writing`'s long-pages-and-series.md, "Give experts a fast path").
 - **Do not rely on prior knowledge the target reader lacks** to read a diagram. Heiser & Tversky
   (2005) state in their introduction that "individuals low in prior knowledge or spatial ability
   often have more difficulty extracting relevant information and making inferences from

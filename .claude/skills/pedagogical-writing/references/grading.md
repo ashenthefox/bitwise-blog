@@ -315,6 +315,11 @@ grader also goes easy on Claude-drafted pages. A borderline criterion can still 
 rubric or an unrelated part of the page changes, so compare scorecards made with the same
 rubric: each scorecard prints this file's blob id as `rubric`.
 
+To check the references against a person, `scripts/author-sheet.mjs --write <dir>` gives the author
+the pages, shuffled and unnamed, with blank sheets and no reference verdicts, and `--compare <dir>`
+scores the filled sheets against the references. The protocol, and a reader test of one page before
+and after, are in `evals/reader-test/README.md`.
+
 ## Why it is built this way
 
 - **One isolated judge per criterion, with an Unknown option, calibrated against human
