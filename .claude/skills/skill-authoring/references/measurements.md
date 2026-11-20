@@ -39,6 +39,8 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-18: every output suite with the Sonnet judge, both arms, and what it costs (#248)
 - 2026-11-18: `fix-confusing-figure` graded on what the skill adds, and the two dropped conditions (#249)
 - 2026-11-19: teaching moves from Sam Rose's posts in `pedagogical-writing` and `pedagogical-diagrams` (#357)
+- 2026-11-19: the #357 moves tried on one real page, `how-deflate-sends-its-code` (#361)
+- 2026-11-20: a prediction must not be answered before it is asked (#368)
 - 2026-11-18: why `needs-a-script` scored lower with the skill on two graders (#300)
 - 2026-11-18: `needs-a-script`'s graders named for what they check, and which are guards (#318)
 - 2026-11-18: six `pedagogical-writing` graders that rejected correct answers or passed in no arm (#299)
@@ -48,8 +50,6 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-18: `prompt-opus-explainers` graded on what the skill adds (#317)
 - 2026-11-18: `pedagogical-writing`'s description names one part of a page and planning one (#319)
 - 2026-11-18: `pedagogical-writing`'s effort line reworded: the padding claim had no source (#332)
-- 2026-11-19: teaching moves from Sam Rose's posts in `pedagogical-writing` and `pedagogical-diagrams` (#357)
-- 2026-11-20: a prediction must not be answered before it is asked (#368)
 
 ### `skill-authoring` output evals (5 cases, three agent models)
 
@@ -2634,6 +2634,30 @@ tried on (0 or 1 places voice the reader), which is the gap the rule names; it i
 - **The full writing suite was not re-run after the last one-sentence edit**; only the new case was.
 - **Readers.** These are drafts judged by a model, not pages read by people. Whether Ducky's questions help a
   reader is what the deep-question research suggests (sources.md), not what was measured here.
+
+## 2026-11-19: the #357 moves tried on one real page, `how-deflate-sends-its-code` (#361)
+
+Step 7 of writing a skill, "try it on one real task", which #357 skipped: the Ducky voice and a closed-book
+rebuild applied by hand to `docs/how-deflate-sends-its-code.html` (6,619 words, one voiced objection), graded with
+`grade.mjs` before and after, 2 runs per criterion, Sonnet judge.
+
+**The change.** A stall list gave six places a reader would object, doubt a number or think a figure wrong; each
+became a "Ducky asks" callout answered in the next paragraph (one of them the page's existing "You might object"
+sentence). The sixth, why `zlib -9` loses to the page's own fixed block on the example, needed its answer checked
+first: decoding zlib's 15 bytes showed a fixed block from different tokens (10 literals, not 8; 119 bits, not 103).
+One rebuild near the end asks for the codes from four lengths given out of sorted order, a decode, and the three
+layers of the header, with the answer in a fold.
+
+**Scores.** `reader-voice` went from warn (1 place) to pass (8). The scorecard did not move: 9 of 11 met before;
+after, 9 met, 1 not met and 1 unknown. `companion-voice` and `reader-checks` were already met (one objection and a
+predict fold clear their bars), and after the change both judges quoted the Ducky lines and the rebuild as their
+evidence. `one-idea` failed on both, on a section left untouched. `need-before-name`, also untouched, went from
+not met in both runs to split, which is the judge's noise, not this change. US$1.57 and US$1.40.
+
+**What it shows.** The binary criteria have a floor, so on a page that already clears it they cannot see more of a
+move; the script check is the only measure that counts how often the reader is voiced. In the browser (both themes,
+375px, Present mode, `npm run a11y` clean) a "Ducky asks" box looks exactly like the author's Note callout, so nothing
+on the page says the reader is speaking: the case for a component of its own (#358).
 
 ## 2026-11-20: a prediction must not be answered before it is asked (#368)
 
