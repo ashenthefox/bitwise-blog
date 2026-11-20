@@ -33,7 +33,8 @@
     },
     "reader-checks": {
       "verdict": "met",
-      "note": "#fixed-window predict at the seam crack, with the reasoning and why 10 is the natural wrong answer"
+      "note": "the #simulation predict asks what happens to a 15-request burst then 1 per second, with the reasoning; the #fixed-window predict does not count, because the TL;DR's 'twice the limit through at the seam' answers it",
+      "revised": "still met; the note cited the #fixed-window predict until #368 made a question answered earlier on the page not count"
     },
     "sentences-carry": {
       "verdict": "met",

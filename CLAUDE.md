@@ -163,7 +163,9 @@ Some rules in those contracts guard what this public repo reveals, and no check 
 - Put asides in `.sidenote`, not in parentheses. A sidenote opens in the glossary popup from its
   number, so keep it to a sentence or two. Put depth for the curious in `details.disclosure`.
 - Use `details.predict` once or twice per page. Asking the reader to predict before
-  revealing the answer is the cheapest form of active learning.
+  revealing the answer is the cheapest form of active learning. It only works if the page
+  hasn't already given the answer: the TL;DR's common-mistake bullet often aims at the same
+  misconception, so make sure it doesn't state what the prediction asks for.
 
 ## Choose the form from the content
 
