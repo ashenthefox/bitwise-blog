@@ -604,8 +604,9 @@ last step left as a prediction, the third done by the reader.
 ### Ask why after a worked step
 After a step the reader watched, ask why that step was taken, then show the author's answer.
 - Self-explanation prompts: g = 0.55 over 69 effects, but g = 0.35 when the comparison group
-  got an instructional explanation instead, and no reliable effect from multiple-choice or
-  metacognitive prompts (Bisra et al., 2018). Ask an open "why", not a pick-one.
+  got an instructional explanation instead, and multiple-choice prompts and metacognitive
+  self-explanations were the only kinds with no detectable effect (Bisra et al., 2018, Table 1
+  and its moderator analysis).
 - Page: after the stepper's match step, "Why does the decoder emit a literal here rather than
   a match?" in a fold.
 
@@ -666,6 +667,10 @@ against the definition.
 - "maybe the most important level is being able to recognize when you need to use it" (w-CXIqIjfRI)
 
 ### Name the takeaway as the takeaway
+- Evidence for the mechanism: headings, overviews and summaries steer which topics readers
+  recall, and signalling only some topics left the rest recalled worse than with no signals at
+  all (Lorch & Lorch, 1996, complex texts, free recall; the abstract). So what the TL;DR leaves
+  out may be remembered less.
 - "the ultimate point that evidence should not determine beliefs, but update them, is worth tattooing in your brain." (HZGCoVF3YvM)
 - The headline sticks, so make it the lesson: "for a lot of people the one main takeaway was what is the best opener for the game wordle. And I get it, I walked into that because I put it in the thumbnail" (fRed0Xmc2Wg)
 
@@ -718,9 +723,11 @@ page of 3,000 words wants several.
   "what if", "how does this differ") before every sentence learned more than those who watched
   the plain dialogue, a monologue, or even took part in the tutoring themselves; a question
   before only half the sentences did not help (Craig et al., 2006, the
-  deep-level-reasoning-question effect; read from the abstract, see sources.md). So the
-  questions teach, and they need to be frequent; the character is optional. That the effect also
-  holds without dialogue is from later descriptions of the work, not checked here.
+  deep-level-reasoning-question effect; read from the abstract, see sources.md). So adding the
+  questions to the same dialogue is what helped. The dose was a question per sentence of a short
+  dialogue, which does not translate to a rate on a page; "several per 3,000 words" above is this
+  skill's heuristic. Whether the questions work without a second voice (no character) is
+  unchecked: later descriptions say so, the abstract does not.
 - Not the author's rhetorical question. "Why does this happen?" in the author's voice is a
   signpost; the reader's voice says what the reader would say, including the wrong idea.
 - A drawing is optional. The questions do the teaching; a mascot that only decorates is a

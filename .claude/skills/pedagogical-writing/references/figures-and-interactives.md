@@ -179,8 +179,8 @@ can follow.
 - Mayer's segmenting principle: a narrated animation cut into segments the learner starts one
   at a time beat the continuous version on transfer tests in 10 of 10 comparisons (median
   d = 0.79, Mayer & Pilegard, 2014, as tallied in Mayer et al., 2018; the chapter itself was not
-  read). Later studies are smaller (d = 0.34 in Mayer et al., 2018), and the evidence that
-  novices gain most is mixed. That supports
+  read). One later study found d = 0.34 (Mayer et al., 2018); whether novices gain most is
+  unchecked here (a later meta-analysis is reported to find mixed results, not read). That supports
   pause and step controls; a speed slider is the repo's extension of it, not what was tested.
   A stepper already segments a process; give a simulation play, pause and a single step too.
 
