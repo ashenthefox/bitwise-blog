@@ -79,20 +79,21 @@ skip. The minimum sentence goes in the main text before the fold, never inside i
 Guidance that helps a novice can stop helping a more expert reader, and in several studies
 lowered their test scores and raised the effort they reported (the expertise reversal
 effect, a review of mostly the authors' own studies: Kalyuga, Ayres, Chandler & Sweller,
-2003; they measured scores and effort, not reading time). Two consequences:
+2003; they measured scores and effort, not reading time). Two things follow:
 - **Separate it, don't interleave it.** The same review notes that redundant material is
   hard to ignore even once a reader decides to, so novice-only help woven into the main line
   costs the expert anyway. Fold it (a `details.disclosure` with its one-line upshot before the
-  fold) or put it in a `.sidenote`.
+  fold); only a sentence of help fits a `.sidenote`.
 - **Spend the scaffolding where parts interact**, and remember that "several interacting
   parts" depends on the reader: what overloads a novice is one chunk to an expert.
-- High-knowledge readers can even do better on inference questions with a less explicit text
-  (McNamara et al., 1996, school students and a biology text; recall did not show it). The
-  authors read this as readers filling the gaps; Kalyuga et al. read it as redundancy.
-- A reader-chosen skip link is this skill's remedy, not something these studies tested. Use
-  it, but do not count on it to remove the cost of help left in the main line.
+
+High-knowledge readers can even do better on inference questions with a less explicit text
+(McNamara et al., 1996, school students and a biology text; recall did not show it); the
+authors read this as readers filling the gaps, Kalyuga et al. as redundancy. A reader-chosen
+skip link is this skill's remedy, not something these studies tested: use it, but do not count
+on it to remove the cost of help left in the main line.
 - On a page: one line after the TL;DR ("If you know rank and select, skip to
-  [the directory](#directory)"), as pedagogical-writing does ("Already know the loop? The
+  [the directory](#directory)"), as the page docs/pedagogical-writing.html does ("Already know the loop? The
   method in five lines is in the last section"); a "skip the build-up" link at the start of a
   long derivation; the compressed version (below) linked from the TL;DR, so an expert finds it
   first.

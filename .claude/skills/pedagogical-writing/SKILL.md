@@ -262,8 +262,8 @@ has each with its verbatim example.
 - **Keep interesting extras out of the mechanism.** Anecdotes and history as
   colour hurt beginners most; put them in a `.sidenote` or after the payoff.
 - **Give experts a way past the scaffolding**: help that novices need can stop
-  helping experts, or hurt. Fold novice-only help (a `details.disclosure`, a
-  `.sidenote`) rather than weaving it in, since experts find it hard to ignore,
+  helping experts, or hurt. Fold novice-only help (a `details.disclosure`; a
+  `.sidenote` for a sentence) rather than weaving it in, since experts find it hard to ignore,
   and say after the TL;DR what to skip, and to where (see long-pages-and-series.md).
 - **Stage conventions at first use** with a tiny example, and justify each one
   by the failure it prevents.
