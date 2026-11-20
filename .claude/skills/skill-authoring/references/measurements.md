@@ -2768,33 +2768,39 @@ model scoring Claude drafts. Whether the shape costs a reader anything is #371's
 `drafting-with-models.md` described each model's failures by style measures only; SlopShape found structure
 the stronger signal. So the same three briefs as #369 (token bucket, DEFLATE, patchcov: a page's title,
 description, reader and length) went to Claude Opus 5.5 and Sonnet 5.5, each with no prompt and with the
-skill's base prompt (Opus with its per-model lines too), and `structure.mjs` scored all twelve
-(`claude-sonnet-5-5` judge, three runs, majority per feature). `evals/structure/generate.mjs` writes the
-drafts from `briefs.json`, taking the prompt text from `drafting-with-models.md`. Drafting US$10.65,
-scoring US$2.47. GPT-6.1 Sol and GPT-6 Astra were not run: `pi` on this machine has no OpenAI provider.
+skill's base prompt (Opus with its per-model lines too). `evals/structure/generate.mjs` writes each draft
+from `briefs.json` with one `claude -p` call: a one-line system prompt in place of Claude Code's, no setting
+sources (so no CLAUDE.md, settings or hooks), no tools, from an empty directory, with the prompt text taken
+from `drafting-with-models.md`. `structure.mjs` scored all twelve twice (`claude-sonnet-5-5` judge, three
+runs each, majority per feature); the passes agreed on 11 of 12 counts, and the table gives their mean.
+Drafting US$3.14, scoring US$4.40. GPT-6.1 Sol and GPT-6 Astra were not run: `pi` on this machine has no
+OpenAI provider.
 
 | Arm | Token bucket | DEFLATE | patchcov | Mean |
 | --- | --- | --- | --- | --- |
-| Opus, no prompt | 7 | 5 | 8 | 6.7 |
-| Opus, base prompt | 4 | 6 | 8 | 6.0 |
-| Sonnet, no prompt | 8 | 6 | 4 | 6.0 |
-| Sonnet, base prompt | 5 | 6 | 5 | 5.3 |
+| Opus, no prompt | 6.5 | 6 | 7 | 6.5 |
+| Opus, base prompt | 7 | 6 | 4 | 5.7 |
+| Sonnet, no prompt | 6 | 4 | 5 | 5.0 |
+| Sonnet, base prompt | 7 | 5 | 4 | 5.3 |
 
-- **The base prompt barely moves the shape.** The means fall by under a point, inside #369's noise (an
-  unchanged text moves by one between runs; the three Sonnet no-prompt drafts, scored a third time here,
-  gave 8, 6 and 4 against 7, 6 and 5).
-- **Where it moved, it moved one brief.** On the token bucket, both models lost the restated ending and the
-  summary stage with the prompt (Opus 7 to 4, Sonnet 8 to 5). On DEFLATE and patchcov nothing changed beyond
-  noise; Opus kept a restated ending, a legacy foil and no way to take part on patchcov in both arms.
-- **Some features never vary.** All twelve state their thesis first; nine of twelve give the reader no way to
-  take part (the blog's pages get one from the template); none uses "modern" framing.
-- **No model difference.** Opus averaged 6.3 and Sonnet 5.7 over both arms, within the noise, so no
-  structural line is added to "What each model gets wrong".
+- **The base prompt does not move the shape.** The means move by under a point, Opus down and Sonnet up, and
+  per brief the changes go both ways (token bucket up a point for both models, patchcov down).
+- **One change on the same brief for both models:** on patchcov both dropped the legacy-versus-modern foil
+  with the prompt; Opus also dropped its restated ending and summary there. Two Sonnet drafts lost their way
+  for the reader to take part, which fits the prompt's "leave out what this reader does not need" but is two
+  texts.
+- **Some features never vary.** All twelve state their thesis first, use no "modern" framing, and rest on
+  demonstration.
+- **No model rule.** Opus averaged 6.1 and Sonnet 5.2 over both arms. A point over six drafts, each a single
+  sample, is not enough to add a structural line to "What each model gets wrong".
+- **A first run was discarded.** Drafted through `claude -p` with Claude Code's default system prompt and the
+  user's CLAUDE.md, and with #369's Sonnet drafts as one arm, it suggested the prompt removed the restated
+  ending and summary on the token bucket for both models. The clean run above does not show that, so it was
+  noise or the confound. The review of #380 found the confound.
 
-**What changed:** `drafting-with-models.md`'s "A draft's shape" says the base prompt shapes sentences, not
-structure, and to ask for a structural change by name, unmeasured.
+**What changed:** `drafting-with-models.md`'s "A draft's shape" says not to count on the base prompt to change
+a draft's ending, foil or framing, and to ask for a structural change by name, unmeasured.
 
 **What this does not show.** Three briefs, one draft per arm and brief, one judge family scoring its own
 family's drafts, and no GPT models. A one-brief effect could be that brief. Nothing here measures whether a
 reader learns more from either arm (#371).
-
