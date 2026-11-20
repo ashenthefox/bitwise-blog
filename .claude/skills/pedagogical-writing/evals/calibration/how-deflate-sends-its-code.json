@@ -32,8 +32,9 @@
       "note": "every caption starts 'Notice that'; the steppers say what each step adds"
     },
     "reader-checks": {
-      "verdict": "met",
-      "note": "the #dynamic-header predict asks whether the list beats the tree, and on which block, with reasons for each guess"
+      "verdict": "not_met",
+      "note": "the #dynamic-header predict asks whether the list beats the tree, and on which block, but #canonical has already answered it ('For this example you would be right, and you will stay right'; the paragraph 'is such a block'), and the other predict, cutting the list's tail, is a side detail",
+      "revised": "met before #368; changed after three judge runs gave not_met under the reworded criterion, because the answer is given in #canonical and the TL;DR before the question"
     },
     "sentences-carry": {
       "verdict": "met",

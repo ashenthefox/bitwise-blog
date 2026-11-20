@@ -191,7 +191,7 @@
       <ul>
         <li>A token bucket lets a client that has been quiet send a burst, and still holds it to an average rate. It needs two numbers per client and no timer.</li>
         <li>Its two knobs mean something you can choose from your capacity: one sets the largest burst, the other the sustained rate.</li>
-        <li>The common mistake is counting requests in fixed windows. It lets twice the limit through at the seam between two windows, and no setting fixes that.</li>
+        <li>The common mistake is counting requests in fixed windows. It lets a burst past the limit at the seam between two windows, and no setting fixes that.</li>
       </ul>
     </div>
 
@@ -209,13 +209,12 @@
     <details class="predict">
       <summary>Limit: 10 per second, counted in fixed one-second windows. What is the most requests one client can get admitted within a single second? Decide before you open this.</summary>
       <p><strong>20.</strong> The limit only holds inside each window, so a client can spend all 10 at the end of one window and 10 more at the start of the next. Anyone who answered 10 assumed the limit holds for any second you pick. It holds only for the seconds the counter happens to start and stop on.</p>
-    </details>
-
     <ol class="timeline">
       <li><time>0.95 s</time><div class="event"><strong>10 requests arrive</strong><p>The counter for the window 0 to 1 s reaches 10. All are admitted.</p></div></li>
       <li class="warn"><time>1.00 s</time><div class="event"><strong>The counter resets</strong><p>A new window begins at 0.</p></div></li>
       <li class="danger"><time>1.05 s</time><div class="event"><strong>10 more arrive</strong><p>All are admitted. That is 20 requests in 0.1 seconds, against a limit of 10 per second.</p></div></li>
     </ol>
+    </details>
 
     <p>That is the first crack, and it comes from the reset. The counter forgets a burst at an arbitrary instant, so a burst that straddles the reset is invisible. The second crack is the dashboard. Its 25 calls arrive in one window, so 15 are refused, even though the client has used nothing in the last 30 seconds. Quiet earns nothing.</p>
     <p>Both come from judging a request by <em>which clock second it landed in</em>. A better rule would judge it by how much the client has used <em>lately</em>.</p>
