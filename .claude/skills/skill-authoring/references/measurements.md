@@ -41,6 +41,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-19: teaching moves from Sam Rose's posts in `pedagogical-writing` and `pedagogical-diagrams` (#357)
 - 2026-11-19: the #357 moves tried on one real page, `how-deflate-sends-its-code` (#361)
 - 2026-11-20: a prediction must not be answered before it is asked (#368)
+- 2026-11-20: this blog's pages on SlopShape's core structural features (#369)
 - 2026-11-18: why `needs-a-script` scored lower with the skill on two graders (#300)
 - 2026-11-18: `needs-a-script`'s graders named for what they check, and which are guards (#318)
 - 2026-11-18: six `pedagogical-writing` graders that rejected correct answers or passed in no arm (#299)
@@ -2707,4 +2708,51 @@ full calibration was not re-run.
 - **Drafting.** No case asks the skill to draft a TL;DR and a prediction together, which is where the spoilers came
   from. A drafting case is the next measurement.
 - **Readers.** As with every number here, these are model judges, not people (#371).
+
+## 2026-11-20: this blog's pages on SlopShape's core structural features (#369)
+
+SlopShape (arXiv 2609.15369) scored 203 features per post; its released instrument states no licence, so
+it was neither copied nor run. Instead `pedagogical-writing/scripts/structure.mjs` asks one judge
+(`claude-sonnet-5-5`, three runs, majority per feature) for the paper's **core set** in this repo's own
+wording: the 10 values on 9 features that separated human from model posts in all five models (Table 6;
+the core alone gave 90.1 macro-F1). Length is counted, not judged. The AI-shape count is how many of the
+10 lean the model way. Briefs, drafts and the raw results are in `pedagogical-writing/evals/structure/`.
+The nine listed, unsealed teaching pages, plus three Sonnet 5.5 drafts written with no skill from a brief
+built from a page (its title, description, a reader and its length). US$2.01; no feature split across runs.
+The pages were scored as they stood before #374, whose edits touched TL;DRs and predictions, not the four
+features that vary below.
+
+| Text | AI-shape | Model-leaning values it shows |
+| --- | --- | --- |
+| announcing-patchcov | 7/10 | summary, mechanism, modern framing, legacy foil, thesis first, no dates, long |
+| token-bucket-rate-limiting | 6/10 | restated ending, summary, mechanism, thesis first, no dates, long |
+| voice-notes-on-trial | 5/10 | restated ending, summary, mechanism, thesis first, long |
+| visibility-threat-model | 5/10 | summary, mechanism, thesis first, no dates, long |
+| how-deflate-works, -compresses, -sends-its-code, pedagogical-writing | 4/10 each | summary, mechanism, thesis first, long |
+| deflate-format-reference | 3/10 | mechanism, no participation, thesis first |
+| Sonnet draft, token bucket | 8/10 | restated ending, summary, mechanism, no participation, legacy foil, thesis first, no dates, long |
+| Sonnet draft, DEFLATE | 5/10 | restated ending, summary, mechanism, thesis first, long |
+| Sonnet draft, patchcov | 4/10 | mechanism, thesis first, no dates, long |
+
+- **Two features are set by the template, not the writing.** Every page states its answer before the
+  first section (the TL;DR) and invites participation ("Discuss this post"). The first leans model, the
+  second human, on every page. Mechanism and summary stages come with the explainer genre. So the
+  features that tell these pages apart are four: a restated ending, "modern" framing, a legacy foil and
+  specific dates.
+- **The pages do not sit at the model end.** They span 3 to 7, the three drafts 4 to 8. Only the token
+  bucket draft shows the full tidy shape (restated ending, legacy foil, no way to take part).
+- **The announcement is the most model-like page.** announcing-patchcov (7) frames its subject as new and
+  sets it against how coverage tools worked before: the genre nearest the paper's B2B posts, and the two
+  features that genre invites.
+- **Genre shows.** The reference page (3) has no summary stage and no reader participation; the four long
+  explainers all score 4, on the same values.
+
+**What changed:** `drafting-with-models.md` gets "A draft's shape", which documents the script as a
+diagnostic and names the four features that vary. CLAUDE.md's TL;DR template is unchanged: the one
+model-leaning feature it fixes (thesis first) is the signalling the research supports (#373), and nothing
+here measures understanding.
+
+**What this does not show.** Nine pages, three drafts, one judge family, and features paraphrased from a
+table rather than the paper's own questions, so this is direction, not a detector. The judge is a Claude
+model scoring Claude drafts. Whether the shape costs a reader anything is #371's question.
 
