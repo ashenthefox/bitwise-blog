@@ -40,6 +40,7 @@ mean across cases, and the sign across cases, not any one number.
 - 2026-11-18: `fix-confusing-figure` graded on what the skill adds, and the two dropped conditions (#249)
 - 2026-11-19: teaching moves from Sam Rose's posts in `pedagogical-writing` and `pedagogical-diagrams` (#357)
 - 2026-11-19: the #357 moves tried on one real page, `how-deflate-sends-its-code` (#361)
+- 2026-11-20: a prediction must not be answered before it is asked (#368)
 - 2026-11-18: why `needs-a-script` scored lower with the skill on two graders (#300)
 - 2026-11-18: `needs-a-script`'s graders named for what they check, and which are guards (#318)
 - 2026-11-18: six `pedagogical-writing` graders that rejected correct answers or passed in no arm (#299)
@@ -2657,3 +2658,53 @@ not met in both runs to split, which is the judge's noise, not this change. US$1
 move; the script check is the only measure that counts how often the reader is voiced. In the browser (both themes,
 375px, Present mode, `npm run a11y` clean) a "Ducky asks" box looks exactly like the author's Note callout, so nothing
 on the page says the reader is speaking: the case for a component of its own (#358).
+
+## 2026-11-20: a prediction must not be answered before it is asked (#368)
+
+The gap was found in published pages, not in an eval. Of the 16 `details.predict` questions on listed public
+pages, 5 were answered above the question, 4 of them by the TL;DR's common-mistake bullet: the bullet and the
+prediction are both built around the page's main misconception, so they say the same thing. The reworded
+`reader-checks` judge later found 2 more that this audit had missed or rated as only partly answered:
+`how-deflate-sends-its-code` (`#canonical` had already answered it) and token-bucket's timeline in view just below
+the closed fold. Claude Code 2.1.318, agent and judge `claude-sonnet-5-5`, three runs per arm.
+
+**The new case, `review-spoiled-prediction`:** a review of token-bucket with its TL;DR bullet put back as it was at
+`b813972` (the first four rows); after review the fixture pins the page at its calibration reference's `14c6d15`
+with `calibrate.mjs --materialize`, as `grade-token-bucket-page` does (the last two rows). Grader 01 asks whether the review says the TL;DR answers the fixed-window prediction.
+
+| Skill | Grader 01 | Case score (indicator excluded) | Cost |
+| --- | --- | --- | --- |
+| none | 0/3 | 0.50 | $0.49 |
+| `origin/main` (snapshot) | 2/3 | 0.83 | $1.37 |
+| this change, first wording | 3/3 | 1.00 | $1.02 |
+| this change, final wording | 3/3 | 1.00 | $0.95 |
+| this change, after review; page pinned at `14c6d15` | 3/3 | 1.00 | $1.81 both arms |
+| none, same pinned page | 1/3 | 0.67 | (in the row above) |
+
+- **In review, the old skill mostly caught it already.** 0.83 against 1.00 on one case is under the 0.2 noise rule.
+  The run without the skill calls the fixed-window question "This one works". The old skill's failing run praised it
+  too. The runs with the new rule lead with the spoiler, quote the bullet, and propose the fix this branch made.
+- **The gap is in drafting.** Pages written with the skill shipped with these spoilers, and no drafting case
+  measures it. The rule went in anyway, because 5 of 16 published predictions is the measurement.
+
+**The grader against the edited pages.** `grade.mjs --only reader-checks --runs 3` on each page after its first fix:
+token-bucket and pedagogical-writing met; announcing-patchcov and visibility-threat-model not met 3/3. Their reasons
+were right. Asking "how far" did not help, because the TL;DR's "barely move the total" is the answer. The threat model's TL;DR
+states both facts on purpose. After the second fix, all five edited pages are met 3/3 (about $0.09 per page). The
+rule now says that a size counts as left out only if the TL;DR gives no hint of it, and that a reference page's
+stated fact is prose, not a prediction.
+
+**Calibration**, the full run with the criterion's final text (it ran after the below-the-fold clause was added): 185 of 198 verdicts agree (93%; #357 had 186), 42 of 45 on
+the reference's misses, the same verdict every run on 62 of 66, and the broken copy failed exactly its broken criteria
+on 3 of 3 runs. US$6.03. Then `reader-checks` alone on the five reference pages: four met, as referenced, and
+`how-deflate-sends-its-code` not met 3/3. Its reference moves from met to not met, marked `revised`, because the judge
+was right (see above). With that revision the criterion agrees on all five. The second round of fixes changed
+SKILL.md, moves.md and `grading.md`'s worked example, which judges are not shown, but not the criterion text, so the
+full calibration was not re-run.
+
+**What this does not show.**
+
+- **Drafting.** No case asks the skill to draft a TL;DR and a prediction together, which is where the spoilers came
+  from. A drafting case is the next measurement.
+- **Readers.** As with every number here, these are model judges, not people (#371).
+

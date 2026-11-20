@@ -562,6 +562,38 @@ step, because the benefit stays with the content asked about.
 - Page: `<summary>Seconds, minutes or hours: how long does the scan take on 2^32 bits? Decide
   before you open this.</summary>`
 
+### Don't answer it before you ask it
+A guess only counts if the page hasn't given the answer yet. Read everything above the
+`summary`, the TL;DR first: its common-mistake bullet is usually the misconception the
+prediction is built to catch, so it tends to state the answer. When it does, keep the TL;DR's
+claim and ask for what the claim leaves out (the size, the extreme case, what it would take),
+or state the mistake without the number the question asks for. Look below the fold as well:
+whatever follows a closed `details.predict` is on screen while the reader guesses, so a figure
+or timeline that shows the answer goes inside the reveal.
+- The prequestion benefit comes from guessing (g = 0.65) rather than reading (g = 0.22)
+  (St. Hilaire, Chan & Ahn, 2024); a question answered in advance is the reading case.
+- Page, before: token-bucket-rate-limiting's TL;DR said fixed windows let "twice the limit
+  through at the seam", and its first prediction asked for the most requests a client can get
+  in one second at a limit of 10 (20). After: the TL;DR says "a burst past the limit", and the
+  number is left to the guess. The timeline that ended "20 requests in 0.1 seconds" sat just
+  below the closed fold; it now opens with the answer.
+- Page, before: announcing-patchcov's TL;DR said a change can "barely move the total", and its
+  prediction asked how far the total moves. Asking for the size did not help: a judge still
+  failed it 3 of 3, because "barely" is the answer. After: the TL;DR says what the total
+  measures ("how well the whole project is tested, not what this change left untested"), and the
+  prediction comes before the motivation list instead of after it.
+- Page, before: how-deflate-sends-its-code asked whether the list beats the tree on each block,
+  after `#canonical` had said "For this example you would be right, and you will stay right".
+  After: once step 4 has introduced runs and the code-length code, it asks what share of the
+  example's 159 header bits only says "unused" (95, more than half), which nothing above it gives.
+  A first draft asked it before the four tries, about mechanisms the reader had not met: ask
+  where the reader can reason, not only where nothing gives the answer away.
+- Page, before: visibility-threat-model's TL;DR states that anyone can list unlisted pages and that
+  an old key opens every committed version, as a threat model must, and both predictions asked
+  exactly that. After: both are prose. A rewritten second question (does a history rewrite stop
+  the key?) was still answered by the adversary list, whose repo reader holds a full clone. A
+  reference page whose TL;DR and definitions state its facts may have no prediction at all.
+
 ### Questions that tell models apart
 A worked example or prediction teaches a rule only if the nearest plausible wrong model gives a
 different answer on it. Build each wrong option from one named misconception, and say in the
