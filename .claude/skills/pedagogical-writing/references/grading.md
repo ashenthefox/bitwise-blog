@@ -217,9 +217,9 @@ Keywords: commit to an answer; aimed at the key step; not answered above it; tel
   reader to rebuild the key step from memory without scrolling back, or to run a short
   experiment on a real system with the result to expect, also counts when the page then gives
   what to compare against. The `predict-folds` check says whether any `details.predict` exists. Example: how-deflate-sends-its-code
-  `#dynamic-header` asks how many of the example's 159 header bits "only say which symbols are
-  unused: about a tenth, about a third, or more than half?", and the reveal says why "a tenth" is
-  the natural guess. Its earlier version asked whether the list beats the tree on each block,
+  `#dynamic-runs`, after step 4, asks how many of the example's 159 bits "only say which symbols
+  are unused: about a tenth, about a third, or more than half?", and the reveal says why "a tenth"
+  is the natural guess. Its earlier version asked whether the list beats the tree on each block,
   which `#canonical` had already answered ("For this example you would be right, and you will
   stay right"), so it would now fail.
 - **Not met:** no such question, or every question is about a side detail, is answered earlier on

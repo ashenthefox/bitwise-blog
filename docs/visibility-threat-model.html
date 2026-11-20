@@ -55,7 +55,7 @@
         <div><dt>Status</dt><dd><span class="badge accepted">accepted</span></dd></div>
         <div><dt>Updated</dt><dd><time datetime="2026-11-14">2026-11-14</time></dd></div>
         <div><dt>Authors</dt><dd>John Ky</dd></div>
-        <div><dt>Reading time</dt><dd>22 min</dd></div>
+        <div><dt>Reading time</dt><dd>21 min</dd></div>
         <div><dt>Tags</dt><dd>security, threat model, publishing</dd></div>
       </dl>
     </header>
@@ -144,7 +144,7 @@
 
     <h2 id="unlisted">Unlisted pages: discoverability, not access</h2>
     <p>An unlisted page is published at its normal address and is fully readable there. What the level withholds is the site's help in finding it: no card, no search result, no backlink, no live link from a listed page, and a polite request to crawlers.</p>
-    <p>So a casual visitor who never opens the repo can still list the title of every unlisted page, with one request. Fetching <code>theme/unlisted-pages.js</code> gives the whole list. So does opening the home page with <code>#unlisted=true</code>, which turns the flag on and shows a card for every unlisted page. The flag is not a secret: it is written in this page and in the theme. The default page load really does carry no unlisted title, but that default protects against <em>stumbling on</em> a page, not against looking for one. Use a sealed page when the content must stay secret.</p>
+    <p>A casual visitor who never opens the repo can still list the title of every unlisted page, with one request. Fetching <code>theme/unlisted-pages.js</code> gives the whole list. So does opening any page with <code>#unlisted=true</code>: that turns the flag on, and the home page then shows a card for every unlisted page. The flag is not a secret: it is written in this page and in the theme. The default page load really does carry no unlisted title, but that default protects against <em>stumbling on</em> a page, not against looking for one. Use a sealed page when the content must stay secret.</p>
     <div class="table-wrap wide" id="unlisted-guarantees" data-linkable>
       <table>
         <thead><tr><th>Guarantee</th><th>Mechanism</th><th>Enforced by</th></tr></thead>
@@ -189,10 +189,7 @@
 
     <h2 id="key-reach">What a key opens</h2>
     <p>A key's reach is wider than one page in two directions. Across pages: several private pages can share a group key, and anyone with it opens every page in the group and sees every card in it on the home page. Back in time: the key stays the same across re-seals, so that old links keep working, which means it also decrypts every version of the page that was ever committed under it.</p>
-    <details class="predict">
-      <summary>A key leaks, and the author rewrites the repo's history to remove every commit that holds a ciphertext sealed under it. Can anyone still read those versions? Answer yes or no before you open this.</summary>
-      <p><strong>Yes: anyone with the old key and a clone or fork made before the rewrite.</strong> A rewrite changes the repo on GitHub, not the copies already taken from it, and the repo is public, so there is no knowing who has one. "No" is the natural guess, because after the rewrite no commit you can see holds the old ciphertext. The lesser steps do less: re-sealing under a new key protects only the commits after it, and deleting the page leaves every earlier commit in place. Treat a leaked key as a permanent disclosure of everything it ever encrypted.</p>
-    </details>
+    <p>So a leaked key cannot be taken back. Re-sealing under a new key protects only the commits after it, and deleting the page leaves every earlier commit in place. Rewriting the repo's history removes those commits from GitHub, but not from a clone or fork made before the rewrite, and the repo is public, so there is no knowing who has one. Treat a leaked key as a permanent disclosure of everything it ever encrypted.</p>
     <p>The key holder never gets other groups' pages or cards: each page's payload is encrypted under its own key, or its group's, and a card blob opens only under that key and that slug.</p>
 
     <h2 id="corpus">The private corpus</h2>

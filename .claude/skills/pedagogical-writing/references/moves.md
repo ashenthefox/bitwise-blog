@@ -583,12 +583,15 @@ or timeline that shows the answer goes inside the reveal.
   prediction comes before the motivation list instead of after it.
 - Page, before: how-deflate-sends-its-code asked whether the list beats the tree on each block,
   after `#canonical` had said "For this example you would be right, and you will stay right".
-  After: it asks what share of the example's 159 header bits only says "unused" (95, more than
-  half), which nothing above it gives.
+  After: once step 4 has introduced runs and the code-length code, it asks what share of the
+  example's 159 header bits only says "unused" (95, more than half), which nothing above it gives.
+  A first draft asked it before the four tries, about mechanisms the reader had not met: ask
+  where the reader can reason, not only where nothing gives the answer away.
 - Page, before: visibility-threat-model's TL;DR states that anyone can list unlisted pages and that
   an old key opens every committed version, as a threat model must, and both predictions asked
-  exactly that. After: the first is prose; the second asks whether a history rewrite stops the
-  key (no: clones and forks made before it keep the ciphertexts).
+  exactly that. After: both are prose. A rewritten second question (does a history rewrite stop
+  the key?) was still answered by the adversary list, whose repo reader holds a full clone. A
+  reference page whose TL;DR and definitions state its facts may have no prediction at all.
 
 ### Questions that tell models apart
 A worked example or prediction teaches a rule only if the nearest plausible wrong model gives a
