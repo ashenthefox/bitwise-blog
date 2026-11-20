@@ -2645,7 +2645,8 @@ prediction are both built around the page's main misconception, so they say the 
 the closed fold. Claude Code 2.1.318, agent and judge `claude-sonnet-5-5`, three runs per arm.
 
 **The new case, `review-spoiled-prediction`:** a review of token-bucket with its TL;DR bullet put back as it was at
-`b813972`. Grader 01 asks whether the review says the TL;DR answers the fixed-window prediction.
+`b813972` (the first four rows); after review the fixture pins the page at its calibration reference's `14c6d15`
+with `calibrate.mjs --materialize`, as `grade-token-bucket-page` does (the last two rows). Grader 01 asks whether the review says the TL;DR answers the fixed-window prediction.
 
 | Skill | Grader 01 | Case score (indicator excluded) | Cost |
 | --- | --- | --- | --- |
@@ -2653,6 +2654,8 @@ the closed fold. Claude Code 2.1.318, agent and judge `claude-sonnet-5-5`, three
 | `origin/main` (snapshot) | 2/3 | 0.83 | $1.37 |
 | this change, first wording | 3/3 | 1.00 | $1.02 |
 | this change, final wording | 3/3 | 1.00 | $0.95 |
+| this change, after review; page pinned at `14c6d15` | 3/3 | 1.00 | $1.81 both arms |
+| none, same pinned page | 1/3 | 0.67 | (in the row above) |
 
 - **In review, the old skill mostly caught it already.** 0.83 against 1.00 on one case is under the 0.2 noise rule.
   The run without the skill calls the fixed-window question "This one works". The old skill's failing run praised it
