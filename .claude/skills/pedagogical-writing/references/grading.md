@@ -309,13 +309,16 @@ that criterion here and re-run. Never shift its scores to compensate. Re-run the
 when the default judge model changes, and record each run in `skill-authoring`'s
 `references/measurements.md`. The current reference grades were written by Claude Opus 5.5 from
 this rubric, not by a person; until the author confirms them, agreement measures consistency
-with a careful reading, not with human judgment. `scripts/author-sheet.mjs --write <dir>` gives the author the pages and blank sheets, with no
-reference verdicts, and `--compare <dir>` scores the filled sheets against the references; the
-protocol, and a reader test of one page before and after, are in `evals/reader-test/README.md`. Three were changed after a judge run, each
+with a careful reading, not with human judgment. Three were changed after a judge run, each
 marked `revised` with its reason, and all three moved from met to not met: a Claude reference
 grader also goes easy on Claude-drafted pages. A borderline criterion can still flip when the
 rubric or an unrelated part of the page changes, so compare scorecards made with the same
 rubric: each scorecard prints this file's blob id as `rubric`.
+
+To check the references against a person, `scripts/author-sheet.mjs --write <dir>` gives the author
+the pages, shuffled and unnamed, with blank sheets and no reference verdicts, and `--compare <dir>`
+scores the filled sheets against the references. The protocol, and a reader test of one page before
+and after, are in `evals/reader-test/README.md`.
 
 ## Why it is built this way
 

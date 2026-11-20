@@ -8,10 +8,20 @@ it. It is written for the author to run; nothing here has been run yet.
 
 `docs/token-bucket-rate-limiting.html`, about 1,900 words, so a reader finishes in 10 to 15 minutes.
 
-| Version | How to get it | What it is |
-| --- | --- | --- |
-| A, before | `node <skill-dir>/scripts/calibrate.mjs --materialize token-bucket-rate-limiting@974536b <dir>` | Opens on the mental model, then mechanism, simulation, parameters, implementation, gotchas |
-| B, after | the page on `main` (or `--materialize token-bucket-rate-limiting` for the graded copy) | Opens on the need (two clients), then a fixed-window try and its seam crack, a sliding log and its memory crack, then the bucket |
+| Version | What it is |
+| --- | --- |
+| A, before (`974536b`) | Opens on the mental model, then mechanism, simulation, parameters, implementation, gotchas |
+| B, after (the page on `main`) | Opens on the need (two clients), then a fixed-window try and its seam crack, a sliding log and its memory crack, then the bucket |
+
+Build each in its own folder, with the theme linked so the simulation and steppers run (styling is
+today's theme for both, so only the text differs):
+
+```bash
+for v in A B; do mkdir -p reader-test/$v/docs && ln -sfn "$PWD/theme" reader-test/$v/theme; done
+git show 974536b:docs/token-bucket-rate-limiting.html > reader-test/A/docs/token-bucket.html
+cp docs/token-bucket-rate-limiting.html reader-test/B/docs/token-bucket.html
+(cd reader-test && python3 -m http.server 8001)   # A: /A/docs/token-bucket.html, B: /B/docs/token-bucket.html
+```
 
 Grade both with `grade.mjs` (three runs) first and record the two scorecards beside the results, so the
 reader scores can be set against the criteria that moved.
@@ -39,13 +49,13 @@ this order; do not show the scoring notes.
    the right numbers without the reason, or the reason with one number wrong; 0 otherwise.*
 3. A client sends exactly 1 request a second, forever, to a bucket with b = 10 and r = 1. Is any request
    ever refused? What changes if it sends 2 a second?
-   *Score: 2 for "none refused; at 2 a second the first 10 or so go through, then about half are refused";
-   1 for the first half only; 0 otherwise.*
-4. Two servers each keep their own bucket with r = 10 for the same client, behind a load balancer that
-   alternates between them. What rate does the client actually get, and how would you fix it?
-   *Score: 2 for "up to 20 a second; share one bucket, e.g. in a central store with an atomic update"; 1 for
-   the rate or the fix; 0 otherwise. Both versions say the distributed version moves the arithmetic into
-   Redis so the update is atomic; neither works this case.*
+   *Score: 2 for "none refused; at 2 a second the bucket drains by 1 a second, so about the first 20 go
+   through in 10 seconds, then about half are refused"; 1 for the first half only; 0 otherwise.*
+4. A bucket has b = 60 and r = 1 token a second and starts full. Over one hour, what is the most requests a
+   client can get admitted, and when would it send them?
+   *Score: 2 for "about 3,660: 60 at once, then 1 a second for the hour" (b plus r times 3,600 seconds); 1
+   for 3,600 or for 60 with the right reasoning about the burst; 0 otherwise. Neither version works a total
+   over a long window. (Both versions answer the replica case word for word, so it is not used.)*
 5. Why does a token bucket need no timer to refill it?
    *Score: 2 for "it works out the tokens owed from the time since the last request, capped at b"; 1 for
    "it computes them when a request arrives" without the cap; 0 otherwise.*
@@ -72,10 +82,14 @@ grading.md says: reword, never shift.
 Separately from readers, the calibration references need a human check (grading.md, "Calibration"):
 
 ```bash
-node <skill-dir>/scripts/author-sheet.mjs --write <dir>        # pages and blank sheets, no verdicts shown
-# grade each <dir>/<name>.grades.json from references/grading.md, without opening evals/calibration/
+node <skill-dir>/scripts/author-sheet.mjs --write <dir>        # page-1…n, shuffled, blank sheets, no verdicts
+# grade each <dir>/page-<n>.grades.json from references/grading.md, without opening .key.json
 node <skill-dir>/scripts/author-sheet.mjs --compare <dir>      # agreement, and on the references' misses
 ```
+
+The deliberately broken copy is left out unless named, since it would be graded knowing faults were
+planted. Two of the pages are the same token bucket page at two commits; that cannot be hidden, so grade
+each on its own text.
 
 For each disagreement, decide who is right. If the reference is wrong, change its verdict and mark it
 `revised`; if the author's reading shows the criterion is ambiguous, reword the criterion. Then add
